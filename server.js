@@ -6,13 +6,18 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
-const { Resend } = require('resend');
 const path = require('path');
 const cors = require('cors');
 
 const app = express();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Resend is optional — only initialise if API key is set
+let resend = null;
+if (process.env.RESEND_API_KEY) {
+  const { Resend } = require('resend');
+  resend = new Resend(process.env.RESEND_API_KEY);
+}
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -117,9 +122,15 @@ app.post('/api/contact', async (req, res) => {
   const { name, email, interest, message } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
 
+  console.log(`[ENQUIRY] ${name} <${email}> — ${interest || 'no category'}: ${message || ''}`);
+
+  if (!resend) {
+    return res.json({ ok: true });
+  }
+
   try {
-    const { data: emailTo } = await pool.query("SELECT value FROM content WHERE key = 'contact_email'");
-    const to = emailTo?.rows[0]?.value || process.env.EMAIL_TO || 'bajiprints@bharatbhatia.photography';
+    const { rows } = await pool.query("SELECT value FROM content WHERE key = 'contact_email'");
+    const to = rows[0]?.value || process.env.EMAIL_TO || 'bajiprints@bharatbhatia.photography';
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'hello@bajiprints.ch',
