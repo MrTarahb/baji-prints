@@ -537,6 +537,118 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
 
 loadContent();
 loadPortfolio();
+
+// ── COOKIE BANNER ─────────────────────────────────────────────────────────────
+(function() {
+  if (localStorage.getItem('cookie_choice')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'cookie-banner';
+  banner.innerHTML = `
+    <div id="cookie-inner">
+      <p id="cookie-text">This site uses cookies that are strictly necessary for it to function — no tracking, no advertising. <a href="#" id="cookie-more">Learn more</a></p>
+      <div id="cookie-actions">
+        <button id="cookie-reject">Reject all</button>
+        <button id="cookie-accept">Accept</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(banner);
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #cookie-banner {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      width: calc(100% - 3rem);
+      max-width: 640px;
+      background: var(--ink);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+      animation: slideUp 0.4s ease;
+    }
+    #cookie-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    #cookie-text {
+      font-size: 0.82rem;
+      color: rgba(248,244,236,0.7);
+      line-height: 1.6;
+      flex: 1;
+      min-width: 200px;
+    }
+    #cookie-text a {
+      color: var(--apricot-l);
+      text-decoration: none;
+    }
+    #cookie-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    #cookie-reject, #cookie-accept {
+      font-family: var(--fb);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border: 1px solid rgba(248,244,236,0.2);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    #cookie-reject {
+      background: transparent;
+      color: rgba(248,244,236,0.6);
+    }
+    #cookie-reject:hover {
+      border-color: rgba(248,244,236,0.5);
+      color: var(--cream);
+    }
+    #cookie-accept {
+      background: var(--red);
+      color: white;
+      border-color: var(--red);
+    }
+    #cookie-accept:hover { background: var(--red-l); }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    @media (max-width: 500px) {
+      #cookie-inner { flex-direction: column; gap: 0.75rem; }
+      #cookie-actions { width: 100%; }
+      #cookie-reject, #cookie-accept { flex: 1; text-align: center; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  function dismiss(choice) {
+    localStorage.setItem('cookie_choice', choice);
+    banner.style.transition = 'opacity 0.3s, transform 0.3s';
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateX(-50%) translateY(12px)';
+    setTimeout(() => banner.remove(), 300);
+  }
+
+  document.getElementById('cookie-accept').addEventListener('click', () => dismiss('accepted'));
+  document.getElementById('cookie-reject').addEventListener('click', () => dismiss('rejected'));
+  document.getElementById('cookie-more').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('cookie-text').innerHTML = `
+      This site uses one session cookie (<code style="font-family:var(--fm);font-size:.75em">connect.sid</code>) which keeps you logged in to the admin panel. No analytics, no advertising, no third-party tracking. Google Fonts are loaded externally. If you reject, the site still works fully.
+    `;
+  });
+})();
 </script>
 </body>
 </html>
