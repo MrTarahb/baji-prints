@@ -206,6 +206,11 @@ footer{background:var(--dusk);padding:1.75rem 4rem;display:flex;align-items:cent
 </style>
 </head>
 <body>
+<div id="coming-soon" style="display:none;position:fixed;inset:0;z-index:9999;background:#1A1714;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem">
+  <p style="font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:#E8A045;margin-bottom:1.5rem">Fine art print atelier · Zürich Wiedikon</p>
+  <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:clamp(2.5rem,6vw,5rem);font-weight:900;color:#F8F4EC;letter-spacing:-.03em;line-height:1;margin-bottom:1.5rem">Something<br><em style="font-style:italic;color:#E8584A">beautiful</em><br>is coming.</h1>
+  <p style="font-family:'DM Sans',sans-serif;font-size:.95rem;color:rgba(248,244,236,0.5);max-width:34ch;line-height:1.8">A fine art print atelier for photographers and digital artists. Opening soon in Wiedikon, Zürich.</p>
+</div>
 
 <nav>
   <a href="#home" class="nav-logo">baji <span>prints</span></a>
@@ -534,6 +539,14 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
     if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
   });
 });
+
+// ── COMING SOON CHECK ────────────────────────────────────────────────────────
+fetch('/api/coming-soon').then(r=>r.json()).then(d=>{
+  if(d.active){
+    document.getElementById('coming-soon').style.display='flex';
+    document.body.style.overflow='hidden';
+  }
+}).catch(()=>{});
 
 loadContent();
 loadPortfolio();

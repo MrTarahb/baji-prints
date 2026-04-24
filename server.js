@@ -273,6 +273,7 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 
 // ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
+app.get('/api/coming-soon', (req, res) => res.json({ active: process.env.COMING_SOON === 'true' }));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ── START ─────────────────────────────────────────────────────────────────────
