@@ -42,6 +42,15 @@ app.use(session({
   cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
+// ── DEBUG ────────────────────────────────────────────────────────────────────
+app.get('/api/debug/cloudinary', (req, res) => {
+  res.json({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'set' : 'MISSING',
+    api_key: process.env.CLOUDINARY_API_KEY ? 'set' : 'MISSING',
+    api_secret: process.env.CLOUDINARY_API_SECRET ? 'set' : 'MISSING',
+  });
+});
+
 // ── DB INIT ──────────────────────────────────────────────────────────────────
 async function initDB() {
   await pool.query(`
