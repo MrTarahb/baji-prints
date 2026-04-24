@@ -82,19 +82,19 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .pull-quote-inner.visible{opacity:1;transform:translateY(0)}
 
 /* PAPERS — HORIZONTAL SCROLL */
-#papers{padding:5rem 0 5rem 4rem;overflow:hidden;background:var(--cream)}
-.papers-top{margin-bottom:2rem;padding-right:4rem}
+#papers{padding:5rem 0;overflow:hidden;background:var(--cream)}
+.papers-top{margin-bottom:2rem;padding:0 4rem;max-width:1400px;margin-left:auto;margin-right:auto}
 .section-label{font-family:var(--fm);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:.5rem;display:block}
 .section-title{font-family:var(--fd);font-size:clamp(1.5rem,2.3vw,2rem);font-weight:700;line-height:1.2;letter-spacing:-.02em;color:var(--ink);margin-bottom:.5rem}
 .section-sub{font-size:.9rem;color:var(--ink-l);line-height:1.75;max-width:50ch}
 .papers-scroll-hint{font-family:var(--fm);font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-l);margin-top:.75rem;display:flex;align-items:center;gap:.5rem}
 .papers-scroll-hint::before{content:'';display:block;width:24px;height:1px;background:var(--ink-l)}
-.papers-track{display:flex;gap:1.5rem;overflow-x:auto;padding-bottom:1.5rem;cursor:grab;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.papers-track{display:flex;gap:1.5rem;overflow-x:auto;padding:0 4rem 1.5rem;cursor:grab;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
 .papers-track::-webkit-scrollbar{display:none}
 .papers-track.dragging{cursor:grabbing}
 .paper-slide{flex:0 0 340px;background:white;border:1px solid var(--border);padding:2.5rem 2rem;display:flex;flex-direction:column;transition:border-color .2s,transform .2s}
 .paper-slide:hover{border-color:rgba(26,23,20,.22);transform:translateY(-2px)}
-.paper-slide:last-child{margin-right:4rem}
+.paper-slide:last-child{margin-right:0}
 .paper-num{font-family:var(--fd);font-size:3.5rem;font-weight:900;font-style:italic;color:var(--cream);line-height:1;margin-bottom:1rem;letter-spacing:-.04em}
 .paper-slide:nth-child(1) .paper-num{color:rgba(192,57,43,.15)}
 .paper-slide:nth-child(2) .paper-num{color:rgba(42,123,94,.12)}
@@ -106,7 +106,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .paper-name{font-family:var(--fd);font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:.6rem}
 .paper-desc{font-size:.86rem;color:var(--ink-m);line-height:1.72;margin-bottom:1rem;flex:1}
 .paper-best{font-family:var(--fm);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-l)}
-.papers-also{font-size:.85rem;color:var(--ink-m);font-style:italic;line-height:1.7;margin-top:1.5rem;padding-right:4rem}
+.papers-also{font-size:.85rem;color:var(--ink-m);font-style:italic;line-height:1.7;margin-top:1.5rem;padding:0 4rem;max-width:1400px;margin-left:auto;margin-right:auto}
 
 /* PORTFOLIO */
 #portfolio{padding:5rem 4rem;background:var(--green-d)}
@@ -178,9 +178,9 @@ footer{background:var(--dusk);padding:1.75rem 4rem;display:flex;align-items:cent
   .hero-left{padding:5rem 2rem 3rem}
   .hero-right{min-height:50vw}
   #about{grid-template-columns:1fr;gap:2rem;padding:4rem 2rem}
-  #papers{padding:4rem 0 4rem 2rem}
-  .papers-top,.papers-also{padding-right:2rem}
-  .paper-slide:last-child{margin-right:2rem}
+  #papers{padding:4rem 0}
+  .papers-top,.papers-also{padding-left:2rem;padding-right:2rem}
+  .paper-slide:last-child{margin-right:0}
   .process-list{grid-template-columns:1fr 1fr;gap:2.5rem}
   #process{padding:4rem 2rem}
   #portfolio{padding:4rem 2rem}
@@ -194,9 +194,9 @@ footer{background:var(--dusk);padding:1.75rem 4rem;display:flex;align-items:cent
   .nav-links li:not(:last-child){display:none}
   .hero-left{padding:4rem 1.25rem 3rem}
   #about,#process,#portfolio{padding:3.5rem 1.25rem}
-  #papers{padding:3.5rem 0 3.5rem 1.25rem}
-  .papers-top,.papers-also{padding-right:1.25rem}
-  .paper-slide:last-child{margin-right:1.25rem}
+  #papers{padding:3.5rem 0}
+  .papers-top,.papers-also{padding-left:1.25rem;padding-right:1.25rem}
+  .paper-slide:last-child{margin-right:0}
   .process-list{grid-template-columns:1fr}
   .contact-left,.contact-right{padding:3.5rem 1.25rem}
   .form-row{grid-template-columns:1fr}
