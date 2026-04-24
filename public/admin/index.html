@@ -282,7 +282,7 @@ async function saveField(key, btn) {
   const msg = document.getElementById('msg-' + key);
   try {
     const res = await fetch('/api/admin/content', {
-      method: 'PUT', headers: {'Content-Type':'application/json'},
+      method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({key, value})
     });
     if (res.ok) {
@@ -360,7 +360,7 @@ async function uploadHeroImage() {
   const fd = new FormData();
   fd.append('image', file);
   try {
-    const res = await fetch('/api/admin/upload/hero', { method: 'POST', body: fd });
+    const res = await fetch('/api/admin/upload/hero', { method: 'POST', body: fd, credentials: 'include' });
     const d = await res.json();
     if (d.ok) {
       msg.textContent = 'Hero image updated ✓';
@@ -416,7 +416,7 @@ async function addPrint() {
   fd.append('sort_order', order);
 
   try {
-    const res = await fetch('/api/admin/prints', { method: 'POST', body: fd });
+    const res = await fetch('/api/admin/prints', { method: 'POST', body: fd, credentials: 'include' });
     if (res.ok) {
       msg.className = 'status-msg status-ok'; msg.textContent = 'Print added ✓';
       document.getElementById('print-img-file').value = '';
@@ -432,7 +432,7 @@ async function deletePrint(id, btn) {
   if (!confirm('Delete this print? This cannot be undone.')) return;
   btn.textContent = 'Deleting...'; btn.disabled = true;
   try {
-    const res = await fetch('/api/admin/prints/' + id, { method: 'DELETE' });
+    const res = await fetch('/api/admin/prints/' + id, { method: 'DELETE', credentials: 'include' });
     if (res.ok) await loadPrints();
   } catch(e) {}
 }
