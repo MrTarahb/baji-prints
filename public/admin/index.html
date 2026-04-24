@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Baji Prints</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#F4F1EB;color:#1A1714;font-size:15px;line-height:1.6;min-height:100vh}
+
+/* LOGIN */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1714}
+.login-box{background:#FDFBF7;padding:3rem 2.5rem;width:100%;max-width:360px;border-radius:4px}
+.login-box h1{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;margin-bottom:.25rem;color:#1A1714}
+.login-box p{font-size:.85rem;color:#6B6259;margin-bottom:2rem}
+.login-box input{width:100%;padding:.7rem .9rem;border:1px solid rgba(26,23,20,.12);border-radius:2px;font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;margin-bottom:.75rem;transition:border-color .2s}
+.login-box input:focus{border-color:#2A7B5E}
+.login-box button{width:100%;background:#C0392B;color:white;border:none;padding:.8rem;font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s}
+.login-box button:hover{background:#8B1A0F}
+.login-err{font-size:.82rem;color:#C0392B;margin-top:.5rem;min-height:1.2rem}
+
+/* ADMIN LAYOUT */
+#admin-screen{display:none}
+.admin-nav{background:#1A1714;padding:.9rem 2rem;display:flex;align-items:center;justify-content:space-between}
+.admin-nav-logo{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:#F8F4EC}
+.admin-nav-logo span{color:#E8584A}
+.admin-nav-right{display:flex;align-items:center;gap:1.5rem}
+.admin-nav a{color:rgba(248,244,236,.5);font-size:.8rem;text-decoration:none;cursor:pointer;transition:color .2s}
+.admin-nav a:hover{color:white}
+.admin-body{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 50px)}
+
+/* SIDEBAR */
+.sidebar{background:#F0EDE5;border-right:1px solid rgba(26,23,20,.1);padding:1.5rem 0}
+.sidebar-section{margin-bottom:.25rem}
+.sidebar-label{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:#9B9289;padding:.5rem 1.25rem .25rem}
+.sidebar-item{display:block;padding:.6rem 1.25rem;font-size:.85rem;color:#3D3731;cursor:pointer;transition:background .15s,color .15s;border:none;background:none;width:100%;text-align:left}
+.sidebar-item:hover{background:rgba(26,23,20,.06);color:#1A1714}
+.sidebar-item.active{background:white;color:#C0392B;font-weight:500;border-left:3px solid #C0392B;padding-left:calc(1.25rem - 3px)}
+
+/* MAIN */
+.admin-main{padding:2rem 2.5rem;overflow-y:auto}
+.admin-panel{display:none}
+.admin-panel.active{display:block}
+.panel-title{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:#1A1714;margin-bottom:.25rem}
+.panel-sub{font-size:.85rem;color:#6B6259;margin-bottom:2rem}
+
+/* FORM FIELDS */
+.field-group{background:white;border:1px solid rgba(26,23,20,.09);border-radius:4px;padding:1.25rem 1.5rem;margin-bottom:1rem}
+.field-label{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:#6B6259;margin-bottom:.4rem;display:block}
+.field-input{width:100%;padding:.6rem .8rem;border:1px solid rgba(26,23,20,.12);border-radius:2px;font-family:'DM Sans',sans-serif;font-size:.9rem;color:#1A1714;outline:none;transition:border-color .2s}
+.field-input:focus{border-color:#2A7B5E}
+textarea.field-input{resize:vertical;min-height:80px}
+.field-save{margin-top:.75rem;background:#2A7B5E;color:white;border:none;padding:.5rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s}
+.field-save:hover{background:#1B5242}
+.field-save.saved{background:#1B5242}
+.field-msg{font-size:.78rem;color:#2A7B5E;margin-left:.75rem}
+
+/* IMAGE UPLOAD */
+.upload-zone{border:2px dashed rgba(26,23,20,.15);border-radius:4px;padding:2.5rem;text-align:center;cursor:pointer;transition:border-color .2s;background:white;position:relative;margin-bottom:1rem}
+.upload-zone:hover{border-color:#2A7B5E}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone-icon{font-size:2rem;margin-bottom:.5rem;color:#9B9289}
+.upload-zone p{font-size:.85rem;color:#6B6259}
+.upload-zone strong{color:#1A1714}
+.current-img{margin-bottom:1rem}
+.current-img img{max-width:280px;max-height:200px;object-fit:cover;border-radius:2px;border:1px solid rgba(26,23,20,.1);display:block;margin-bottom:.5rem}
+.current-img p{font-size:.78rem;color:#6B6259;font-style:italic}
+
+/* PRINTS GRID */
+.prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+.print-card{background:white;border:1px solid rgba(26,23,20,.09);border-radius:4px;overflow:hidden}
+.print-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
+.print-card-body{padding:.75rem 1rem}
+.print-card-title{font-size:.88rem;font-weight:500;color:#1A1714;margin-bottom:.25rem}
+.print-card-desc{font-size:.78rem;color:#6B6259;margin-bottom:.75rem;line-height:1.5}
+.print-card-actions{display:flex;gap:.5rem}
+.btn-del{background:none;border:1px solid rgba(192,57,43,.3);color:#C0392B;padding:.35rem .7rem;font-size:.75rem;border-radius:2px;cursor:pointer;transition:background .2s}
+.btn-del:hover{background:#C0392B;color:white}
+
+/* ADD PRINT FORM */
+.add-print-form{background:white;border:1px solid rgba(26,23,20,.09);border-radius:4px;padding:1.5rem}
+.add-print-form h3{font-size:.95rem;font-weight:500;color:#1A1714;margin-bottom:1.25rem}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.btn-add{background:#C0392B;color:white;border:none;padding:.65rem 1.5rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s;margin-top:.75rem}
+.btn-add:hover{background:#8B1A0F}
+.btn-add:disabled{opacity:.6;cursor:default}
+.status-msg{font-size:.82rem;margin-top:.6rem;min-height:1.1rem}
+.status-ok{color:#2A7B5E}
+.status-err{color:#C0392B}
+.divider{border:none;border-top:1px solid rgba(26,23,20,.08);margin:2rem 0}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>baji <span style="color:#C0392B">prints</span></h1>
+    <p>Admin — enter password to continue</p>
+    <input type="password" id="admin-pass" placeholder="Password" autocomplete="current-password">
+    <button onclick="login()">Sign in</button>
+    <p class="login-err" id="login-err"></p>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="admin-screen">
+  <nav class="admin-nav">
+    <div class="admin-nav-logo">baji <span>prints</span> <span style="color:rgba(248,244,236,.3);font-family:'DM Mono',monospace;font-size:.75rem;margin-left:.5rem">admin</span></div>
+    <div class="admin-nav-right">
+      <a href="/" target="_blank">View site ↗</a>
+      <a onclick="logout()">Sign out</a>
+    </div>
+  </nav>
+
+  <div class="admin-body">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <p class="sidebar-label">Content</p>
+        <button class="sidebar-item active" onclick="showPanel('hero')">Hero section</button>
+        <button class="sidebar-item" onclick="showPanel('about')">About</button>
+        <button class="sidebar-item" onclick="showPanel('papers')">Papers</button>
+        <button class="sidebar-item" onclick="showPanel('contact-info')">Contact info</button>
+      </div>
+      <div class="sidebar-section">
+        <p class="sidebar-label">Media</p>
+        <button class="sidebar-item" onclick="showPanel('hero-image')">Hero image</button>
+        <button class="sidebar-item" onclick="showPanel('prints')">Portfolio prints</button>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+
+      <!-- HERO TEXT -->
+      <div class="admin-panel active" id="panel-hero">
+        <h2 class="panel-title">Hero section</h2>
+        <p class="panel-sub">The first thing visitors see. Keep it short and direct.</p>
+        <div id="hero-fields"></div>
+      </div>
+
+      <!-- ABOUT -->
+      <div class="admin-panel" id="panel-about">
+        <h2 class="panel-title">About</h2>
+        <p class="panel-sub">The two-column section below the marquee.</p>
+        <div id="about-fields"></div>
+      </div>
+
+      <!-- PAPERS -->
+      <div class="admin-panel" id="panel-papers">
+        <h2 class="panel-title">Papers</h2>
+        <p class="panel-sub">The three featured paper stocks in the horizontal scroll section.</p>
+        <div id="papers-fields"></div>
+      </div>
+
+      <!-- CONTACT INFO -->
+      <div class="admin-panel" id="panel-contact-info">
+        <h2 class="panel-title">Contact info</h2>
+        <p class="panel-sub">The details shown in the contact section.</p>
+        <div id="contact-fields"></div>
+      </div>
+
+      <!-- HERO IMAGE -->
+      <div class="admin-panel" id="panel-hero-image">
+        <h2 class="panel-title">Hero image</h2>
+        <p class="panel-sub">The large image on the right side of the hero. Use a high-quality print photograph. JPG, PNG, or WebP.</p>
+        <div id="hero-img-current"></div>
+        <div class="upload-zone" id="hero-upload-zone">
+          <input type="file" id="hero-img-file" accept="image/*" onchange="uploadHeroImage()">
+          <div class="upload-zone-icon">⬆</div>
+          <p><strong>Click to upload</strong> or drag and drop</p>
+          <p>JPG, PNG, WebP — recommended at least 1400×1800px</p>
+        </div>
+        <p class="status-msg" id="hero-img-msg"></p>
+      </div>
+
+      <!-- PRINTS -->
+      <div class="admin-panel" id="panel-prints">
+        <h2 class="panel-title">Portfolio prints</h2>
+        <p class="panel-sub">Images shown in the "From the atelier" section on the homepage.</p>
+        <div class="prints-grid" id="prints-grid"></div>
+        <hr class="divider">
+        <div class="add-print-form">
+          <h3>Add a print</h3>
+          <div class="upload-zone" style="margin-bottom:1rem">
+            <input type="file" id="print-img-file" accept="image/*">
+            <div class="upload-zone-icon">⬆</div>
+            <p><strong>Click to upload image</strong></p>
+            <p>JPG, PNG, WebP</p>
+          </div>
+          <div class="form-row">
+            <div>
+              <label class="field-label">Title</label>
+              <input class="field-input" id="print-title" placeholder="e.g. Untitled #3">
+            </div>
+            <div>
+              <label class="field-label">Sort order (lower = first)</label>
+              <input class="field-input" id="print-order" type="number" value="0">
+            </div>
+          </div>
+          <div style="margin-top:.75rem">
+            <label class="field-label">Description (optional)</label>
+            <input class="field-input" id="print-desc" placeholder="Short note about the print">
+          </div>
+          <button class="btn-add" id="btn-add-print" onclick="addPrint()">Upload print</button>
+          <p class="status-msg" id="add-print-msg"></p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+let allContent = {};
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+async function login() {
+  const pw = document.getElementById('admin-pass').value;
+  const err = document.getElementById('login-err');
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    if (res.ok) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('admin-screen').style.display = 'block';
+      await loadAll();
+    } else {
+      err.textContent = 'Wrong password.';
+    }
+  } catch(e) { err.textContent = 'Connection error.'; }
+}
+
+async function logout() {
+  await fetch('/api/admin/logout', {method:'POST'});
+  location.reload();
+}
+
+document.getElementById('admin-pass').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+async function checkAuth() {
+  const res = await fetch('/api/admin/check');
+  const d = await res.json();
+  if (d.authenticated) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-screen').style.display = 'block';
+    await loadAll();
+  }
+}
+
+// ── PANELS ────────────────────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── CONTENT FIELDS ────────────────────────────────────────────────────────────
+function makeField(key, label, value, multiline) {
+  const d = document.createElement('div');
+  d.className = 'field-group';
+  d.innerHTML = `
+    <label class="field-label">${label}</label>
+    ${multiline
+      ? `<textarea class="field-input" id="f-${key}" rows="3">${value}</textarea>`
+      : `<input class="field-input" id="f-${key}" value="${value.replace(/"/g,'&quot;')}">`
+    }
+    <br>
+    <button class="field-save" onclick="saveField('${key}', this)">Save</button>
+    <span class="field-msg" id="msg-${key}"></span>
+  `;
+  return d;
+}
+
+async function saveField(key, btn) {
+  const el = document.getElementById('f-' + key);
+  const value = el.value;
+  const msg = document.getElementById('msg-' + key);
+  try {
+    const res = await fetch('/api/admin/content', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({key, value})
+    });
+    if (res.ok) {
+      btn.textContent = 'Saved ✓'; btn.classList.add('saved');
+      msg.textContent = '';
+      setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+    } else { msg.textContent = 'Error saving.'; }
+  } catch(e) { msg.textContent = 'Connection error.'; }
+}
+
+function buildFields(containerId, fields) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  fields.forEach(([key, label, multiline]) => {
+    container.appendChild(makeField(key, label, allContent[key] || '', multiline));
+  });
+}
+
+// ── LOAD ALL ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const res = await fetch('/api/content');
+    allContent = await res.json();
+  } catch(e) {}
+
+  buildFields('hero-fields', [
+    ['hero_eyebrow', 'Eyebrow text (small line above title)', false],
+    ['hero_title_line1', 'Title — line 1', false],
+    ['hero_title_line2', 'Title — line 2 (italic, in red)', false],
+    ['hero_title_line3', 'Title — line 3', false],
+    ['hero_sub', 'Subtitle paragraph', true],
+  ]);
+
+  buildFields('about-fields', [
+    ['about_headline', 'Headline (left column)', false],
+    ['about_p1', 'Paragraph 1', true],
+    ['about_p2', 'Paragraph 2', true],
+    ['about_p3', 'Paragraph 3 (location/appointment line)', false],
+  ]);
+
+  buildFields('papers-fields', [
+    ['paper1_name', 'Paper 1 — Name', false],
+    ['paper1_desc', 'Paper 1 — Description', true],
+    ['paper1_best', 'Paper 1 — Best for', false],
+    ['paper2_name', 'Paper 2 — Name', false],
+    ['paper2_desc', 'Paper 2 — Description', true],
+    ['paper2_best', 'Paper 2 — Best for', false],
+    ['paper3_name', 'Paper 3 — Name', false],
+    ['paper3_desc', 'Paper 3 — Description', true],
+    ['paper3_best', 'Paper 3 — Best for', false],
+    ['papers_also', 'Other stocks note (italic line below cards)', true],
+  ]);
+
+  buildFields('contact-fields', [
+    ['contact_email', 'Email address', false],
+    ['contact_location', 'Location text', false],
+    ['contact_languages', 'Languages', false],
+  ]);
+
+  // Hero image current
+  const heroImgDiv = document.getElementById('hero-img-current');
+  if (allContent.hero_image_url) {
+    heroImgDiv.innerHTML = `<div class="current-img"><img src="${allContent.hero_image_url}"><p>Current hero image</p></div>`;
+  }
+
+  await loadPrints();
+}
+
+// ── HERO IMAGE ────────────────────────────────────────────────────────────────
+async function uploadHeroImage() {
+  const file = document.getElementById('hero-img-file').files[0];
+  const msg = document.getElementById('hero-img-msg');
+  if (!file) return;
+  msg.textContent = 'Uploading...'; msg.className = 'status-msg status-ok';
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch('/api/admin/upload/hero', { method: 'POST', body: fd });
+    const d = await res.json();
+    if (d.ok) {
+      msg.textContent = 'Hero image updated ✓';
+      document.getElementById('hero-img-current').innerHTML = `<div class="current-img"><img src="${d.url}"><p>Current hero image</p></div>`;
+    } else { msg.className = 'status-msg status-err'; msg.textContent = 'Upload failed.'; }
+  } catch(e) { msg.className = 'status-msg status-err'; msg.textContent = 'Connection error.'; }
+}
+
+// ── PRINTS ────────────────────────────────────────────────────────────────────
+async function loadPrints() {
+  try {
+    const res = await fetch('/api/prints');
+    const prints = await res.json();
+    const grid = document.getElementById('prints-grid');
+    if (!prints.length) {
+      grid.innerHTML = '<p style="color:#6B6259;font-style:italic;font-size:.85rem;grid-column:1/-1">No prints yet — add your first one below.</p>';
+      return;
+    }
+    grid.innerHTML = '';
+    prints.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'print-card';
+      card.innerHTML = `
+        <img src="${p.image_url}" alt="${p.title}">
+        <div class="print-card-body">
+          <p class="print-card-title">${p.title}</p>
+          ${p.description ? `<p class="print-card-desc">${p.description}</p>` : ''}
+          <div class="print-card-actions">
+            <button class="btn-del" onclick="deletePrint(${p.id}, this)">Delete</button>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  } catch(e) {}
+}
+
+async function addPrint() {
+  const file = document.getElementById('print-img-file').files[0];
+  const title = document.getElementById('print-title').value.trim();
+  const desc = document.getElementById('print-desc').value.trim();
+  const order = document.getElementById('print-order').value;
+  const btn = document.getElementById('btn-add-print');
+  const msg = document.getElementById('add-print-msg');
+
+  if (!file || !title) { msg.className = 'status-msg status-err'; msg.textContent = 'Image and title required.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Uploading...'; msg.textContent = '';
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('title', title);
+  fd.append('description', desc);
+  fd.append('sort_order', order);
+
+  try {
+    const res = await fetch('/api/admin/prints', { method: 'POST', body: fd });
+    if (res.ok) {
+      msg.className = 'status-msg status-ok'; msg.textContent = 'Print added ✓';
+      document.getElementById('print-img-file').value = '';
+      document.getElementById('print-title').value = '';
+      document.getElementById('print-desc').value = '';
+      await loadPrints();
+    } else { msg.className = 'status-msg status-err'; msg.textContent = 'Upload failed.'; }
+  } catch(e) { msg.className = 'status-msg status-err'; msg.textContent = 'Connection error.'; }
+  btn.disabled = false; btn.textContent = 'Upload print';
+}
+
+async function deletePrint(id, btn) {
+  if (!confirm('Delete this print? This cannot be undone.')) return;
+  btn.textContent = 'Deleting...'; btn.disabled = true;
+  try {
+    const res = await fetch('/api/admin/prints/' + id, { method: 'DELETE' });
+    if (res.ok) await loadPrints();
+  } catch(e) {}
+}
+
+checkAuth();
+</script>
+</body>
+</html>
