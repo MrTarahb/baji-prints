@@ -202,8 +202,18 @@ app.put('/api/admin/content', requireAuth, async (req, res) => {
 });
 
 // ── ADMIN IMAGE UPLOAD (hero) ─────────────────────────────────────────────────
-app.post('/api/admin/upload/hero', requireAuth, upload.single('image'), async (req, res) => {
+app.post('/api/admin/upload/hero', requireAuth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Multer/Cloudinary error:', err);
+      return res.status(500).json({ error: err.message, detail: JSON.stringify(err) });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
+    if (!req.file) return res.status(400).json({ error: 'No file received' });
+    console.log('File uploaded:', req.file);
     const url = req.file.path;
     await pool.query(
       "INSERT INTO content (key, value) VALUES ('hero_image_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
@@ -211,6 +221,7 @@ app.post('/api/admin/upload/hero', requireAuth, upload.single('image'), async (r
     );
     res.json({ ok: true, url });
   } catch (e) {
+    console.error('Hero upload error:', e);
     res.status(500).json({ error: e.message });
   }
 });
