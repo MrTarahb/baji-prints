@@ -86,52 +86,48 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
-    INSERT INTO content (key, value) VALUES
-      ('hero_eyebrow', 'Fine art print atelier · Zürich Wiedikon'),
-      ('hero_title_line1', 'Your work,'),
-      ('hero_title_line2', 'finally'),
-      ('hero_title_line3', 'on paper.'),
-      ('hero_sub', 'A small, personal print atelier for photographers and digital artists — especially those who''ve never printed their work before. Fully colour-calibrated. No surprises.'),
-      ('about_headline', 'Printing shouldn''t feel like a gamble.'),
-      ('about_p1', 'Most photographers and digital artists never print their work. Not because it doesn''t deserve to be — but because the process feels opaque and the result unpredictable.'),
-      ('about_p2', 'At Baji Prints I work with you directly: from file preparation through paper choice to the finished print. Everything is colour-managed and profiled — what you see on your screen is what you hold in your hands. I print on an Epson SC-P900 and a curated range of fine art papers, and I''ll help you find the right one.'),
-      ('about_p3', 'Based in Wiedikon, Zürich. By appointment.'),
-      ('paper1_name', 'Photo Rag Pearl'),
-      ('paper1_desc', 'Warm-toned matte surface with a subtle pearlescent sheen. Deep blacks, beautiful gradation in the highlights. Versatile and forgiving — a strong starting point for most colour work.'),
-      ('paper1_best', 'Best for — colour photography, portraits'),
-      ('paper2_name', 'Photo Rag Satin'),
-      ('paper2_desc', 'Smooth and refined, with a gentle satin finish that adds depth without glare. Wide colour gamut, excellent shadow detail. Works beautifully for both photography and digital art.'),
-      ('paper2_best', 'Best for — colour & digital artwork'),
-      ('paper3_name', 'Mono Silk Warmtone'),
-      ('paper3_desc', 'Designed specifically for black & white. Warm base tone, silky surface, tonal range that rivals traditional darkroom fibre prints. Exceptional depth in the shadows.'),
-      ('paper3_best', 'Best for — black & white photography'),
-      ('papers_also', 'Other stocks available on request: fine art textured silk, textured cotton rag, heavyweight matt duo — and more to come. Just ask.'),
-      ('contact_email', 'bajiprints@bharatbhatia.photography'),
-      ('contact_location', 'Wiedikon, Zürich · by appointment'),
-      ('contact_languages', 'English · Deutsch · Français'),
-      ('hero_image_url', ''),
-      ('nav_name', 'Bharat Bhatia'),
-      ('hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'),
-      ('hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'),
-      ('work_title', 'From the atelier.'),
-      ('work_eyebrow', 'Work'),
-      ('atelier_eyebrow', 'The space'),
-      ('atelier_headline', 'A small room.\nA lot of paper.'),
-      ('atelier_p1', 'I do the slow work here — proofing, calibrating, printing, looking. It''s not a lab. It doesn''t need to be fast.'),
-      ('atelier_p2', 'I print on an Epson SC-P900 on a range of fine art papers — each one profiled individually, each print checked by hand. If you''ve ever wanted to print your own work, I occasionally help with that too.'),
-      ('atelier_spec', 'Epson SC-P900 — 10-channel pigment ink · Up to A2 · Fully colour-managed'),
-      ('contact_eyebrow', 'Contact'),
-      ('contact_title', 'Say hello.'),
-      ('contact_intro', 'I''m always happy to hear from people — whether it''s about printing, photography, or just a conversation.'),
-      ('footer_copy', '© 2025 · Zürich Wiedikon'),
-      ('about_headline', 'I make photographs.\nThen I print them.'),
-      ('about_p1', 'There''s a gap between an image on a screen and an image on paper. My work lives in that gap.'),
-      ('about_p2', 'I work from a small atelier in Wiedikon with a fully colour-calibrated workflow and a range of fine art papers.'),
-      ('about_p3', 'Occasionally I help others print their work too — if that''s something you''re interested in, get in touch.'),
-      ('atelier_headline', 'A small room.\nA lot of paper.'),
-      ('atelier_p1', 'The atelier is a quiet space in Wiedikon where I do the slow work — proofing, calibrating, printing, and looking. It\'s not a lab. It doesn\'t need to be fast.'),
-      ('atelier_p2', 'The printer is an Epson SC-P900, chosen for its tonal range and consistency across a wide variety of fine art stocks. Every paper is profiled individually. Every print is checked by hand.')
-    ON CONFLICT (key) DO NOTHING;
+
+    // Seed default content using parameterised queries (safe from apostrophe issues)
+    const defaults = [
+      ['hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'],
+      ['hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'],
+      ['hero_meta', 'Photography · Fine art print · Zürich'],
+      ['hero_name_1', 'Bharat'],
+      ['hero_name_2', 'Bhatia'],
+      ['nav_name', 'Bharat Bhatia'],
+      ['about_p1', 'I make photographs and print them. There\'s a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.'],
+      ['about_p2', 'I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.'],
+      ['about_p3', 'Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.'],
+      ['atelier_eyebrow', 'The space'],
+      ['atelier_headline', 'A small room. A lot of paper.'],
+      ['atelier_p1', 'I do the slow work here — proofing, calibrating, printing, looking. It\'s not a lab. It doesn\'t need to be fast.'],
+      ['atelier_p2', 'I print on an Epson SC-P900 on a range of fine art papers — each one profiled individually, each print checked by hand. Occasionally I help others print their work too.'],
+      ['atelier_spec', 'Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more'],
+      ['paper1_name', 'Photo Rag Pearl'],
+      ['paper1_desc', 'Warm matte surface with a pearlescent sheen. Deep blacks, beautiful highlight gradation. My default for colour work.'],
+      ['paper1_best', 'Colour photography'],
+      ['paper2_name', 'Photo Rag Satin'],
+      ['paper2_desc', 'Smooth satin finish, wide gamut, excellent shadow depth. Works across photography and digital art.'],
+      ['paper2_best', 'Colour & digital'],
+      ['paper3_name', 'Mono Silk Warmtone'],
+      ['paper3_desc', 'Made for black & white. Warm base, silky surface, darkroom-quality tonal range.'],
+      ['paper3_best', 'Black & white'],
+      ['papers_also', 'Other stocks available on request — just ask.'],
+      ['contact_eyebrow', 'Contact'],
+      ['contact_title', 'Say hello.'],
+      ['contact_intro', 'Always happy to hear from people — about printing, photography, or just a conversation.'],
+      ['footer_copy', '© 2025 · Zürich Wiedikon'],
+      ['hero_image_url', ''],
+      ['work_eyebrow', 'Work'],
+      ['work_title', 'From the atelier.'],
+    ];
+    for (const [key, value] of defaults) {
+      await pool.query(
+        'INSERT INTO content (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
+        [key, value]
+      );
+    }
+
   `);
   console.log('DB initialised');
 }
