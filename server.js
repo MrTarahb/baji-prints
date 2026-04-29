@@ -59,13 +59,13 @@ app.get('/api/debug/cloudinary', (req, res) => {
 
 // ── DB INIT ──────────────────────────────────────────────────────────────────
 async function initDB() {
+  // Step 1: create tables (pure SQL, no JS inside)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS content (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
-
     CREATE TABLE IF NOT EXISTS prints (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
@@ -75,7 +75,6 @@ async function initDB() {
       sort_order INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
-
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -85,50 +84,50 @@ async function initDB() {
       read BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
-
-
-    // Seed default content using parameterised queries (safe from apostrophe issues)
-    const defaults = [
-      ['hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'],
-      ['hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'],
-      ['hero_meta', 'Photography · Fine art print · Zürich'],
-      ['hero_name_1', 'Bharat'],
-      ['hero_name_2', 'Bhatia'],
-      ['nav_name', 'Bharat Bhatia'],
-      ['about_p1', 'I make photographs and print them. There\'s a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.'],
-      ['about_p2', 'I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.'],
-      ['about_p3', 'Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.'],
-      ['atelier_eyebrow', 'The space'],
-      ['atelier_headline', 'A small room. A lot of paper.'],
-      ['atelier_p1', 'I do the slow work here — proofing, calibrating, printing, looking. It\'s not a lab. It doesn\'t need to be fast.'],
-      ['atelier_p2', 'I print on an Epson SC-P900 on a range of fine art papers — each one profiled individually, each print checked by hand. Occasionally I help others print their work too.'],
-      ['atelier_spec', 'Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more'],
-      ['paper1_name', 'Photo Rag Pearl'],
-      ['paper1_desc', 'Warm matte surface with a pearlescent sheen. Deep blacks, beautiful highlight gradation. My default for colour work.'],
-      ['paper1_best', 'Colour photography'],
-      ['paper2_name', 'Photo Rag Satin'],
-      ['paper2_desc', 'Smooth satin finish, wide gamut, excellent shadow depth. Works across photography and digital art.'],
-      ['paper2_best', 'Colour & digital'],
-      ['paper3_name', 'Mono Silk Warmtone'],
-      ['paper3_desc', 'Made for black & white. Warm base, silky surface, darkroom-quality tonal range.'],
-      ['paper3_best', 'Black & white'],
-      ['papers_also', 'Other stocks available on request — just ask.'],
-      ['contact_eyebrow', 'Contact'],
-      ['contact_title', 'Say hello.'],
-      ['contact_intro', 'Always happy to hear from people — about printing, photography, or just a conversation.'],
-      ['footer_copy', '© 2025 · Zürich Wiedikon'],
-      ['hero_image_url', ''],
-      ['work_eyebrow', 'Work'],
-      ['work_title', 'From the atelier.'],
-    ];
-    for (const [key, value] of defaults) {
-      await pool.query(
-        'INSERT INTO content (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
-        [key, value]
-      );
-    }
-
   `);
+
+  // Step 2: seed default content with parameterised queries
+  const defaults = [
+    ['hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'],
+    ['hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'],
+    ['hero_meta', 'Photography · Fine art print · Zürich'],
+    ['hero_name_1', 'Bharat'],
+    ['hero_name_2', 'Bhatia'],
+    ['nav_name', 'Bharat Bhatia'],
+    ['about_p1', "I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap."],
+    ['about_p2', 'I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.'],
+    ['about_p3', 'Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.'],
+    ['atelier_eyebrow', 'The space'],
+    ['atelier_headline', 'A small room. A lot of paper.'],
+    ['atelier_p1', "I do the slow work here — proofing, calibrating, printing, looking. It's not a lab. It doesn't need to be fast."],
+    ['atelier_p2', 'I print on an Epson SC-P900 on a range of fine art papers — each one profiled individually, each print checked by hand. Occasionally I help others print their work too.'],
+    ['atelier_spec', 'Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more'],
+    ['paper1_name', 'Photo Rag Pearl'],
+    ['paper1_desc', 'Warm matte surface with a pearlescent sheen. Deep blacks, beautiful highlight gradation. My default for colour work.'],
+    ['paper1_best', 'Colour photography'],
+    ['paper2_name', 'Photo Rag Satin'],
+    ['paper2_desc', 'Smooth satin finish, wide gamut, excellent shadow depth. Works across photography and digital art.'],
+    ['paper2_best', 'Colour & digital'],
+    ['paper3_name', 'Mono Silk Warmtone'],
+    ['paper3_desc', 'Made for black & white. Warm base, silky surface, darkroom-quality tonal range.'],
+    ['paper3_best', 'Black & white'],
+    ['papers_also', 'Other stocks available on request — just ask.'],
+    ['contact_eyebrow', 'Contact'],
+    ['contact_title', 'Say hello.'],
+    ['contact_intro', 'Always happy to hear from people — about printing, photography, or just a conversation.'],
+    ['footer_copy', '© 2025 · Zürich Wiedikon'],
+    ['hero_image_url', ''],
+    ['work_eyebrow', 'Work'],
+    ['work_title', 'From the atelier.'],
+  ];
+
+  for (const [key, value] of defaults) {
+    await pool.query(
+      'INSERT INTO content (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
+      [key, value]
+    );
+  }
+
   console.log('DB initialised');
 }
 
