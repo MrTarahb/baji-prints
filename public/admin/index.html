@@ -5,279 +5,246 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Bharat Bhatia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--clay:#B8694A;--clay-d:#8F4E34;--bg:#F0F0EC;--surface:white;--border:rgba(14,15,13,0.1);--text:#0E0F0D;--text-m:rgba(14,15,13,0.6);--text-l:rgba(14,15,13,0.38)}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6;min-height:100vh}
+:root{
+  --bg:#F8F8F6;--surface:#FFFFFF;--border:rgba(17,17,16,.1);
+  --text:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);
+  --pink:#C8907A;--pink-l:#E8B4A0;--ink:#1A1814;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh}
 
 /* LOGIN */
-#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--slate)}
-.login-box{background:#F2F2EE;padding:3rem 2.5rem;width:100%;max-width:360px;border-radius:4px}
-.login-box h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;margin-bottom:.2rem;color:var(--slate)}
-.login-box h1 em{font-style:italic;color:var(--clay)}
-.login-box p{font-size:.83rem;color:var(--text-l);margin-bottom:2rem}
-.login-box input{width:100%;padding:.7rem .9rem;border:1px solid rgba(44,46,30,.2);border-radius:2px;font-family:'DM Sans',sans-serif;font-size:.9rem;background:white;outline:none;margin-bottom:.75rem;transition:border-color .2s;color:var(--slate)}
-.login-box input:focus{border-color:var(--clay)}
-.login-box button{width:100%;background:var(--clay);color:white;border:none;padding:.8rem;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s}
-.login-box button:hover{background:var(--clay)}
-.login-err{font-size:.78rem;color:var(--clay);margin-top:.5rem;min-height:1rem}
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1814}
+.login-box{background:#F8F8F6;padding:2.5rem;width:100%;max-width:340px;border-radius:2px}
+.login-logo{font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:var(--ink);margin-bottom:.2rem}
+.login-sub{font-size:.75rem;color:var(--text-l);letter-spacing:.06em;margin-bottom:1.75rem}
+.login-box input{width:100%;padding:.65rem .85rem;border:1px solid var(--border);border-radius:1px;font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--ink);background:white;outline:none;margin-bottom:.65rem;transition:border-color .18s}
+.login-box input:focus{border-color:var(--ink)}
+.login-box button{width:100%;background:var(--ink);color:white;border:none;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s}
+.login-box button:hover{background:#333}
+.login-err{font-size:.75rem;color:var(--pink);margin-top:.5rem;min-height:1rem;letter-spacing:.02em}
 
 /* LAYOUT */
 #admin-screen{display:none}
-.admin-nav{background:var(--slate);padding:.9rem 2rem;display:flex;align-items:center;justify-content:space-between}
-.admin-logo{font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:var(--sulphur)}
-.admin-logo em{font-style:italic;color:var(--clay)}
-.admin-logo span{font-family:'DM Mono',monospace;font-size:.68rem;color:rgba(232,216,75,.3);margin-left:.5rem}
-.admin-nav-links{display:flex;gap:1.5rem}
-.admin-nav-links a{color:rgba(232,216,75,.4);font-size:.78rem;text-decoration:none;cursor:pointer;transition:color .2s}
-.admin-nav-links a:hover{color:var(--sulphur)}
-.admin-body{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 50px)}
+.admin-bar{background:var(--ink);padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between}
+.admin-bar-logo{font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;color:rgba(248,248,246,.7)}
+.admin-bar-links{display:flex;gap:1.5rem;align-items:center}
+.admin-bar-links a{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(248,248,246,.35);text-decoration:none;cursor:pointer;transition:color .18s}
+.admin-bar-links a:hover{color:rgba(248,248,246,.85)}
+.admin-layout{display:grid;grid-template-columns:200px 1fr;min-height:calc(100vh - 44px)}
 
 /* SIDEBAR */
-.sidebar{background:#E8E8E4;border-right:1px solid rgba(44,46,30,.1);padding:1.5rem 0;overflow-y:auto}
-.sidebar-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:#8A8A88;padding:.5rem 1.25rem .3rem;display:block}
-.sidebar-item{display:flex;align-items:center;justify-content:space-between;padding:.58rem 1.25rem;font-size:.82rem;color:#2A2B28;cursor:pointer;transition:background .15s;border:none;background:none;width:100%;text-align:left}
-.sidebar-item:hover{background:rgba(44,46,30,.06)}
-.sidebar-item.active{background:var(--surface);color:var(--clay);font-weight:500;border-left:3px solid var(--clay);padding-left:calc(1.25rem - 3px)}
-.badge{background:var(--clay);color:white;font-size:.58rem;font-family:'DM Mono',monospace;padding:.12rem .38rem;border-radius:10px}
+.sidebar{background:#EFEFEC;border-right:1px solid var(--border);padding:1.25rem 0;overflow-y:auto}
+.sidebar-section{margin-bottom:.5rem}
+.sidebar-label{display:block;font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-l);padding:.4rem 1.25rem .2rem}
+.sidebar-btn{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.52rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.82rem;color:var(--text-m);background:none;border:none;cursor:pointer;text-align:left;transition:background .15s,color .15s}
+.sidebar-btn:hover{background:rgba(26,24,20,.05);color:var(--text)}
+.sidebar-btn.active{background:var(--surface);color:var(--ink);font-weight:500;border-left:2px solid var(--ink);padding-left:calc(1.25rem - 2px)}
+.badge{background:var(--pink);color:white;font-size:.55rem;font-family:'DM Mono',monospace;padding:.1rem .35rem;border-radius:8px}
 
 /* MAIN */
-.admin-main{padding:2rem 2.5rem;overflow-y:auto;max-height:calc(100vh - 50px)}
-.admin-panel{display:none}
-.admin-panel.active{display:block}
-.panel-title{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:.2rem}
-.panel-sub{font-size:.82rem;color:var(--text-l);margin-bottom:2rem}
+.admin-main{padding:2rem 2.5rem;overflow-y:auto;max-height:calc(100vh - 44px)}
+.panel{display:none}
+.panel.active{display:block}
+.panel-title{font-family:'Playfair Display',serif;font-size:1.15rem;font-style:italic;color:var(--ink);margin-bottom:.15rem}
+.panel-sub{font-size:.78rem;color:var(--text-l);margin-bottom:1.75rem;letter-spacing:.02em}
 
 /* MESSAGES */
-.messages-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem}
-.msg-filter{display:flex;gap:.4rem}
-.msg-filter button{font-family:'DM Sans',sans-serif;font-size:.73rem;font-weight:500;padding:.32rem .8rem;border-radius:2px;cursor:pointer;transition:background .15s;border:1px solid var(--border);background:white;color:var(--text-l)}
-.msg-filter button.active{background:var(--slate);color:white;border-color:var(--slate)}
-.msg-count{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l)}
-.messages-list{display:flex;flex-direction:column;gap:.65rem}
-.msg-card{background:white;border:1px solid var(--border);border-radius:4px;padding:1.25rem 1.5rem;position:relative;transition:box-shadow .2s}
-.msg-card:hover{box-shadow:0 2px 10px rgba(44,46,30,.08)}
-.msg-card.unread{border-left:3px solid var(--clay);padding-left:calc(1.5rem - 2px)}
-.msg-card.unread::before{content:'';position:absolute;top:1.2rem;right:1.2rem;width:7px;height:7px;border-radius:50%;background:var(--clay)}
-.msg-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.5rem;flex-wrap:wrap}
-.msg-name{font-weight:500;font-size:.88rem;color:var(--slate)}
-.msg-email{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);margin-top:.1rem}
-.msg-meta{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex-shrink:0}
-.msg-date{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-l)}
-.msg-interest{font-size:.7rem;color:var(--olive-d);background:rgba(138,138,74,.12);padding:.12rem .45rem;border-radius:2px;font-weight:500}
-.msg-body{font-size:.86rem;color:var(--text-m);line-height:1.7;margin-bottom:.85rem;white-space:pre-wrap}
+.msg-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem}
+.msg-filters{display:flex;gap:.35rem}
+.msg-filters button{font-size:.68rem;font-weight:500;letter-spacing:.04em;padding:.28rem .72rem;border-radius:1px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-l);font-family:'DM Sans',sans-serif;transition:all .15s}
+.msg-filters button.active{background:var(--ink);color:white;border-color:var(--ink)}
+.msg-count{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-l)}
+.msg-list{display:flex;flex-direction:column;gap:.6rem}
+.msg-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.1rem 1.25rem;position:relative;transition:box-shadow .2s}
+.msg-card:hover{box-shadow:0 2px 8px rgba(26,24,20,.07)}
+.msg-card.unread{border-left:2px solid var(--pink);padding-left:calc(1.25rem - 1px)}
+.msg-card.unread::before{content:'';position:absolute;top:1.1rem;right:1.1rem;width:6px;height:6px;border-radius:50%;background:var(--pink)}
+.msg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.45rem;flex-wrap:wrap}
+.msg-name{font-weight:500;font-size:.85rem;color:var(--ink)}
+.msg-email{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-l);margin-top:.1rem}
+.msg-right{display:flex;flex-direction:column;align-items:flex-end;gap:.18rem;flex-shrink:0}
+.msg-date{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-l)}
+.msg-interest{font-size:.65rem;background:rgba(200,144,122,.12);color:var(--pink);padding:.1rem .4rem;border-radius:1px;font-weight:500}
+.msg-body{font-size:.82rem;color:var(--text-m);line-height:1.65;margin-bottom:.75rem;white-space:pre-wrap}
 .msg-actions{display:flex;gap:.4rem}
-.btn-mark-read{background:none;border:1px solid var(--border);color:var(--text-l);padding:.28rem .65rem;font-size:.7rem;font-family:'DM Sans',sans-serif;border-radius:2px;cursor:pointer;transition:background .2s,color .2s}
-.btn-mark-read:hover{background:var(--clay);color:white;border-color:var(--clay)}
-.btn-msg-del{background:none;border:1px solid rgba(184,105,74,.2);color:var(--clay);padding:.28rem .65rem;font-size:.7rem;font-family:'DM Sans',sans-serif;border-radius:2px;cursor:pointer;transition:background .2s,color .2s}
-.btn-msg-del:hover{background:var(--clay);color:white}
-.messages-empty{padding:3rem 1rem;text-align:center;color:var(--text-l);font-style:italic;font-size:.85rem}
+.btn-read{background:none;border:1px solid var(--border);color:var(--text-l);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.btn-read:hover{background:var(--ink);color:white;border-color:var(--ink)}
+.btn-del-msg{background:none;border:1px solid rgba(200,144,122,.25);color:var(--pink);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.btn-del-msg:hover{background:var(--pink);color:white}
+.msg-empty{padding:3rem 1rem;text-align:center;color:var(--text-l);font-style:italic;font-size:.82rem}
 
-/* FIELDS */
-.fields-section{margin-bottom:2.5rem}
-.fields-section-title{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
-.field-group{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1.1rem 1.4rem;margin-bottom:.65rem}
-.field-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:.35rem;display:block}
-.field-input{width:100%;padding:.58rem .8rem;border:1px solid var(--border);border-radius:2px;font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--slate);outline:none;transition:border-color .2s;background:var(--bg)}
-.field-input:focus{border-color:var(--clay)}
-textarea.field-input{resize:vertical;min-height:75px}
-.field-footer{display:flex;align-items:center;gap:.65rem;margin-top:.65rem}
-.field-save{background:var(--clay);color:white;border:none;padding:.4rem 1rem;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s}
-.field-save:hover{background:var(--clay-d)}
-.field-save.saved{background:var(--clay-d)}
-.field-msg{font-size:.72rem;color:var(--clay)}
-.field-key{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--text-l);opacity:.6}
+/* CONTENT FIELDS */
+.field-section{margin-bottom:2rem}
+.field-section-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:.65rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);display:block}
+.field{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1rem 1.25rem;margin-bottom:.55rem}
+.field-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l);margin-bottom:.32rem;display:block}
+.field-input{width:100%;padding:.55rem .78rem;border:1px solid var(--border);border-radius:1px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--ink);outline:none;transition:border-color .18s;background:var(--bg)}
+.field-input:focus{border-color:var(--ink)}
+textarea.field-input{resize:vertical;min-height:70px}
+.field-footer{display:flex;align-items:center;gap:.6rem;margin-top:.6rem}
+.btn-save{background:var(--ink);color:white;border:none;padding:.38rem .95rem;font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s}
+.btn-save:hover{background:#333}
+.btn-save.saved{background:#4A7A55}
+.save-msg{font-size:.68rem;color:#4A7A55}
 
-/* CUSTOM FIELDS */
-.custom-fields-empty{font-size:.83rem;color:var(--text-l);font-style:italic;padding:.5rem 0 1rem}
-.add-field-form{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1.25rem 1.5rem;margin-top:1rem}
-.add-field-form h4{font-size:.88rem;font-weight:500;color:var(--slate);margin-bottom:1rem}
-.add-field-row{display:grid;grid-template-columns:1fr 1fr auto;gap:.65rem;align-items:end}
-.btn-add-field{background:var(--clay);color:white;border:none;padding:.58rem 1.1rem;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase;border-radius:2px;cursor:pointer;white-space:nowrap;transition:background .2s}
-.btn-add-field:hover{background:var(--clay)}
-.field-type-select{width:100%;padding:.58rem .8rem;border:1px solid var(--border);border-radius:2px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--slate);background:var(--bg);outline:none;appearance:none}
-
-/* UPLOADS */
-.upload-zone{border:2px dashed rgba(44,46,30,.15);border-radius:4px;padding:2.25rem;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surface);position:relative;margin-bottom:.65rem}
-.upload-zone:hover{border-color:var(--clay)}
+/* PORTFOLIO UPLOADS */
+.upload-zone{border:1.5px dashed var(--border);border-radius:2px;padding:2rem;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surface);position:relative;margin-bottom:.65rem}
+.upload-zone:hover{border-color:var(--ink)}
 .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.upload-zone-icon{font-size:1.5rem;margin-bottom:.35rem;color:var(--text-l)}
-.upload-zone p{font-size:.8rem;color:var(--text-l)}
-.upload-zone strong{color:var(--slate)}
-.current-img{margin-bottom:1rem}
-.current-img img{max-width:240px;max-height:160px;object-fit:cover;border-radius:2px;border:1px solid var(--border);display:block;margin-bottom:.4rem}
-.current-img p{font-size:.72rem;color:var(--text-l);font-style:italic}
-.status-msg{font-size:.78rem;margin-top:.4rem;min-height:1rem}
-.status-ok{color:var(--clay)}
-.status-err{color:var(--clay)}
-
-/* PRINTS */
-.prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem;margin-bottom:1.5rem}
-.print-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.upload-zone-icon{font-size:1.4rem;color:var(--text-l);margin-bottom:.35rem}
+.upload-zone p{font-size:.78rem;color:var(--text-l)}
+.upload-zone strong{color:var(--ink)}
+.prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.65rem;margin-bottom:1.25rem}
+.print-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;overflow:hidden}
 .print-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
-.print-card-body{padding:.6rem .8rem}
-.print-card-title{font-size:.8rem;font-weight:500;color:var(--slate);margin-bottom:.4rem}
-.btn-del{background:none;border:1px solid rgba(184,105,74,.22);color:var(--clay);padding:.25rem .55rem;font-size:.68rem;border-radius:2px;cursor:pointer;transition:background .2s}
-.btn-del:hover{background:var(--clay);color:white}
-.add-print-form{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1.4rem}
-.add-print-form h3{font-size:.88rem;font-weight:500;color:var(--slate);margin-bottom:1.1rem}
-.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}
-.btn-add{background:var(--clay);color:white;border:none;padding:.55rem 1.3rem;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:background .2s;margin-top:.65rem}
-.btn-add:hover{opacity:.9}
-.btn-add:disabled{opacity:.55;cursor:default}
-.divider{border:none;border-top:1px solid var(--border);margin:1.75rem 0}
-.prints-empty{color:var(--text-l);font-style:italic;font-size:.8rem;padding:.4rem 0;grid-column:1/-1}
+.print-card-body{padding:.55rem .75rem}
+.print-card-title{font-size:.78rem;font-weight:500;color:var(--ink);margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.print-card-order{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-l);margin-bottom:.4rem}
+.btn-del-print{background:none;border:1px solid rgba(200,144,122,.2);color:var(--pink);padding:.22rem .55rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.btn-del-print:hover{background:var(--pink);color:white}
+.prints-empty{color:var(--text-l);font-style:italic;font-size:.8rem;grid-column:1/-1;padding:.5rem 0}
+.divider{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
+.add-form{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.25rem}
+.add-form-title{font-size:.82rem;font-weight:500;color:var(--ink);margin-bottom:1rem}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.btn-add{background:var(--pink);color:white;border:none;padding:.6rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s;margin-top:.6rem}
+.btn-add:hover{background:var(--pink-l);color:var(--ink)}
+.btn-add:disabled{opacity:.5;cursor:default}
+.status{font-size:.72rem;margin-top:.38rem;min-height:.9rem}
+.status.ok{color:#4A7A55}
+.status.err{color:var(--pink)}
+
+/* CURRENT IMAGE */
+.current-img-wrap{margin-bottom:.85rem}
+.current-img-wrap img{max-width:220px;max-height:150px;object-fit:cover;border-radius:1px;border:1px solid var(--border);display:block;margin-bottom:.35rem}
+.current-img-wrap p{font-size:.68rem;color:var(--text-l);font-style:italic}
 </style>
 </head>
 <body>
 
+<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
-    <h1>Bharat <em>Bhatia</em></h1>
-    <p>Admin panel — enter your password</p>
+    <p class="login-logo">Bharat Bhatia</p>
+    <p class="login-sub">Admin panel</p>
     <input type="password" id="admin-pass" placeholder="Password" autocomplete="current-password">
     <button onclick="login()">Sign in</button>
     <p class="login-err" id="login-err"></p>
   </div>
 </div>
 
+<!-- ADMIN -->
 <div id="admin-screen">
-  <nav class="admin-nav">
-    <div class="admin-logo">Bharat <em>Bhatia</em> <span>admin</span></div>
-    <div class="admin-nav-links">
+  <div class="admin-bar">
+    <span class="admin-bar-logo">Bharat Bhatia</span>
+    <div class="admin-bar-links">
       <a href="/" target="_blank">View site ↗</a>
       <a onclick="logout()">Sign out</a>
     </div>
-  </nav>
-  <div class="admin-body">
+  </div>
+  <div class="admin-layout">
+
+    <!-- SIDEBAR -->
     <aside class="sidebar">
-      <span class="sidebar-label">Inbox</span>
-      <button class="sidebar-item active" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
-      <span class="sidebar-label">Content</span>
-      <button class="sidebar-item" onclick="showPanel('hero',this)">Hero</button>
-      <button class="sidebar-item" onclick="showPanel('work',this)">Work section</button>
-      <button class="sidebar-item" onclick="showPanel('atelier',this)">Atelier</button>
-      <button class="sidebar-item" onclick="showPanel('contact-text',this)">Contact text</button>
-      <button class="sidebar-item" onclick="showPanel('footer',this)">Footer</button>
-      <button class="sidebar-item" onclick="showPanel('custom',this)">Custom fields</button>
-      <span class="sidebar-label">Media</span>
-      <button class="sidebar-item" onclick="showPanel('hero-image',this)">Hero image</button>
-      <button class="sidebar-item" onclick="showPanel('prints',this)">Portfolio prints</button>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Inbox</span>
+        <button class="sidebar-btn active" onclick="showPanel('messages',this)">
+          Messages <span class="badge" id="unread-badge" style="display:none">0</span>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Portfolio</span>
+        <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
+      </div>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Content</span>
+        <button class="sidebar-btn" onclick="showPanel('home-text',this)">Home</button>
+        <button class="sidebar-btn" onclick="showPanel('about-text',this)">About</button>
+        <button class="sidebar-btn" onclick="showPanel('atelier-text',this)">Atelier</button>
+        <button class="sidebar-btn" onclick="showPanel('contact-text',this)">Contact</button>
+      </div>
     </aside>
 
+    <!-- MAIN -->
     <main class="admin-main">
 
       <!-- MESSAGES -->
-      <div class="admin-panel active" id="panel-messages">
+      <div class="panel active" id="panel-messages">
         <h2 class="panel-title">Messages</h2>
         <p class="panel-sub">Contact form submissions — newest first.</p>
-        <div class="messages-toolbar">
-          <div class="msg-filter">
+        <div class="msg-toolbar">
+          <div class="msg-filters">
             <button class="active" onclick="filterMsgs('all',this)">All</button>
             <button onclick="filterMsgs('unread',this)">Unread</button>
             <button onclick="filterMsgs('read',this)">Read</button>
           </div>
           <span class="msg-count" id="msg-count"></span>
         </div>
-        <div class="messages-list" id="messages-list"><p class="messages-empty">No messages yet.</p></div>
+        <div class="msg-list" id="msg-list"><p class="msg-empty">No messages yet.</p></div>
       </div>
 
-      <!-- HERO -->
-      <div class="admin-panel" id="panel-hero">
-        <h2 class="panel-title">Hero</h2>
-        <p class="panel-sub">The opening full-screen section.</p>
-        <div id="hero-fields"></div>
+      <!-- PRINTS -->
+      <div class="panel" id="panel-prints">
+        <h2 class="panel-title">Portfolio prints</h2>
+        <p class="panel-sub">Images are displayed on the homepage in the order shown. Drag to reorder isn't supported yet — use sort order numbers instead.</p>
+        <div class="prints-grid" id="prints-grid"></div>
+        <hr class="divider">
+        <div class="add-form">
+          <p class="add-form-title">Upload a new print</p>
+          <div class="upload-zone">
+            <input type="file" id="print-file" accept="image/*" multiple>
+            <div class="upload-zone-icon">↑</div>
+            <p><strong>Click to choose</strong> or drag & drop</p>
+            <p>JPG, PNG, WebP — multiple files supported</p>
+          </div>
+          <div class="form-row-2">
+            <div>
+              <label class="field-label">Title</label>
+              <input class="field-input" id="print-title" placeholder="ICM No. 1">
+            </div>
+            <div>
+              <label class="field-label">Sort order (lower = appears first)</label>
+              <input class="field-input" id="print-order" type="number" value="0" min="0">
+            </div>
+          </div>
+          <div style="margin-top:.6rem">
+            <label class="field-label">Description (optional)</label>
+            <input class="field-input" id="print-desc" placeholder="Fine art print on Photo Rag Pearl">
+          </div>
+          <button class="btn-add" id="btn-add-print" onclick="addPrint()">Upload print</button>
+          <p class="status" id="add-print-msg"></p>
+        </div>
       </div>
 
-      <!-- WORK -->
-      <div class="admin-panel" id="panel-work">
-        <h2 class="panel-title">Work section</h2>
-        <p class="panel-sub">Labels and headings in the portfolio grid section.</p>
-        <div id="work-fields"></div>
+      <!-- HOME TEXT -->
+      <div class="panel" id="panel-home-text">
+        <h2 class="panel-title">Home</h2>
+        <p class="panel-sub">Text shown on the main page.</p>
+        <div id="home-fields"></div>
       </div>
 
-      <!-- ATELIER -->
-      <div class="admin-panel" id="panel-atelier">
+      <!-- ABOUT TEXT -->
+      <div class="panel" id="panel-about-text">
+        <h2 class="panel-title">About</h2>
+        <p class="panel-sub">Text on the About page.</p>
+        <div id="about-fields"></div>
+      </div>
+
+      <!-- ATELIER TEXT -->
+      <div class="panel" id="panel-atelier-text">
         <h2 class="panel-title">Atelier</h2>
-        <p class="panel-sub">The space / setup section.</p>
+        <p class="panel-sub">Text on the About page — atelier / setup section.</p>
         <div id="atelier-fields"></div>
       </div>
 
       <!-- CONTACT TEXT -->
-      <div class="admin-panel" id="panel-contact-text">
-        <h2 class="panel-title">Contact text</h2>
-        <p class="panel-sub">The heading and intro copy in the contact section.</p>
+      <div class="panel" id="panel-contact-text">
+        <h2 class="panel-title">Contact</h2>
+        <p class="panel-sub">Text on the Contact page.</p>
         <div id="contact-fields"></div>
-      </div>
-
-      <!-- FOOTER -->
-      <div class="admin-panel" id="panel-footer">
-        <h2 class="panel-title">Footer</h2>
-        <p class="panel-sub">Footer copyright line.</p>
-        <div id="footer-fields"></div>
-      </div>
-
-      <!-- CUSTOM FIELDS -->
-      <div class="admin-panel" id="panel-custom">
-        <h2 class="panel-title">Custom fields</h2>
-        <p class="panel-sub">Add your own text fields here. Each field gets a unique key you can reference in the code later as <code style="font-family:'DM Mono',monospace;font-size:.8em;background:rgba(44,46,30,.08);padding:.1em .35em;border-radius:2px">id="c-your_key"</code> in the HTML.</p>
-        <div id="custom-fields-list"></div>
-        <div class="add-field-form">
-          <h4>Add a new field</h4>
-          <div class="add-field-row">
-            <div>
-              <label class="field-label">Label (display name)</label>
-              <input class="field-input" id="new-field-label" placeholder="e.g. Instagram handle">
-            </div>
-            <div>
-              <label class="field-label">Type</label>
-              <select class="field-type-select" id="new-field-type">
-                <option value="text">Single line</option>
-                <option value="textarea">Multi-line</option>
-              </select>
-            </div>
-            <button class="btn-add-field" onclick="addCustomField()">Add field</button>
-          </div>
-          <p class="status-msg" id="add-field-msg"></p>
-        </div>
-      </div>
-
-      <!-- HERO IMAGE -->
-      <div class="admin-panel" id="panel-hero-image">
-        <h2 class="panel-title">Hero image</h2>
-        <p class="panel-sub">Full-bleed background image. Recommended: 2400px wide, under 600kb, portrait or landscape.</p>
-        <div id="hero-img-current"></div>
-        <div class="upload-zone">
-          <input type="file" id="hero-img-file" accept="image/*" onchange="uploadHeroImage()">
-          <div class="upload-zone-icon">↑</div>
-          <p><strong>Click to upload</strong> or drag & drop</p>
-          <p>JPG, PNG, WebP</p>
-        </div>
-        <p class="status-msg" id="hero-img-msg"></p>
-      </div>
-
-      <!-- PRINTS -->
-      <div class="admin-panel" id="panel-prints">
-        <h2 class="panel-title">Portfolio prints</h2>
-        <p class="panel-sub">Images shown in the work grid on the homepage.</p>
-        <div class="prints-grid" id="prints-grid"></div>
-        <hr class="divider">
-        <div class="add-print-form">
-          <h3>Add a print</h3>
-          <div class="upload-zone" style="margin-bottom:.75rem">
-            <input type="file" id="print-img-file" accept="image/*">
-            <div class="upload-zone-icon">↑</div>
-            <p><strong>Click to upload image</strong></p>
-          </div>
-          <div class="form-row-2">
-            <div><label class="field-label">Title</label><input class="field-input" id="print-title" placeholder="Untitled #3"></div>
-            <div><label class="field-label">Sort order (lower = first)</label><input class="field-input" id="print-order" type="number" value="0"></div>
-          </div>
-          <div style="margin-top:.65rem"><label class="field-label">Description (optional)</label><input class="field-input" id="print-desc" placeholder="Short note"></div>
-          <button class="btn-add" id="btn-add-print" onclick="addPrint()">Upload print</button>
-          <p class="status-msg" id="add-print-msg"></p>
-        </div>
       </div>
 
     </main>
@@ -288,9 +255,8 @@ textarea.field-input{resize:vertical;min-height:75px}
 let allContent = {};
 let allMessages = [];
 let currentFilter = 'all';
-let customFieldKeys = [];
 
-// ── AUTH ───────────────────────────────────────────────────────────────────────
+// AUTH
 async function login() {
   const pw = document.getElementById('admin-pass').value;
   const err = document.getElementById('login-err');
@@ -301,207 +267,154 @@ async function login() {
   } catch(e) { err.textContent = 'Connection error.'; }
 }
 async function logout() { await fetch('/api/admin/logout',{method:'POST',credentials:'include'}); location.reload(); }
-document.getElementById('admin-pass').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+document.getElementById('admin-pass').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 async function checkAuth() {
   const res = await fetch('/api/admin/check',{credentials:'include'});
   const d = await res.json();
   if (d.authenticated) { document.getElementById('login-screen').style.display='none'; document.getElementById('admin-screen').style.display='block'; await loadAll(); }
 }
 
-// ── PANELS ─────────────────────────────────────────────────────────────────────
+// PANELS
 function showPanel(name, btn) {
-  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if (btn) btn.classList.add('active');
 }
 
-// ── HELPERS ────────────────────────────────────────────────────────────────────
-function esc(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// HELPERS
+function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function relTime(str){const d=new Date(str),now=new Date(),m=Math.floor((now-d)/60000);if(m<2)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';const dy=Math.floor(h/24);if(dy<7)return dy+'d ago';return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
 
-function formatDate(dateStr) {
-  const d = new Date(dateStr), now = new Date(), diff = now - d;
-  const mins = Math.floor(diff/60000), hours = Math.floor(diff/3600000), days = Math.floor(diff/86400000);
-  if (mins < 2) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+// MESSAGES
+async function loadMessages(){
+  try{const res=await fetch('/api/admin/messages',{credentials:'include'});allMessages=await res.json();renderMessages();updateBadge();}catch(e){}
 }
-
-// ── MESSAGES ───────────────────────────────────────────────────────────────────
-async function loadMessages() {
-  try {
-    const res = await fetch('/api/admin/messages',{credentials:'include'});
-    allMessages = await res.json();
-    renderMessages(); updateBadge();
-  } catch(e) {}
-}
-
-function updateBadge() {
-  const n = allMessages.filter(m=>!m.read).length;
-  const b = document.getElementById('unread-badge');
-  b.style.display = n > 0 ? 'inline' : 'none';
-  b.textContent = n;
-}
-
-function filterMsgs(f, btn) {
-  currentFilter = f;
-  document.querySelectorAll('.msg-filter button').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderMessages();
-}
-
-function renderMessages() {
-  const list = document.getElementById('messages-list');
-  const count = document.getElementById('msg-count');
-  let msgs = allMessages;
-  if (currentFilter==='unread') msgs = allMessages.filter(m=>!m.read);
-  if (currentFilter==='read') msgs = allMessages.filter(m=>m.read);
-  count.textContent = msgs.length + ' message' + (msgs.length!==1?'s':'');
-  if (!msgs.length) { list.innerHTML='<p class="messages-empty">No messages here.</p>'; return; }
-  list.innerHTML = '';
-  msgs.forEach(m => {
-    const card = document.createElement('div');
-    card.className = 'msg-card' + (!m.read?' unread':'');
-    card.id = 'msg-'+m.id;
-    card.innerHTML = `
-      <div class="msg-header">
+function updateBadge(){const n=allMessages.filter(m=>!m.read).length;const b=document.getElementById('unread-badge');b.style.display=n>0?'inline':'none';b.textContent=n;}
+function filterMsgs(f,btn){currentFilter=f;document.querySelectorAll('.msg-filters button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMessages();}
+function renderMessages(){
+  const list=document.getElementById('msg-list'),count=document.getElementById('msg-count');
+  let msgs=allMessages;
+  if(currentFilter==='unread')msgs=msgs.filter(m=>!m.read);
+  if(currentFilter==='read')msgs=msgs.filter(m=>m.read);
+  count.textContent=msgs.length+' message'+(msgs.length!==1?'s':'');
+  if(!msgs.length){list.innerHTML='<p class="msg-empty">No messages here.</p>';return;}
+  list.innerHTML='';
+  msgs.forEach(m=>{
+    const c=document.createElement('div');
+    c.className='msg-card'+(!m.read?' unread':'');
+    c.innerHTML=`
+      <div class="msg-head">
         <div><div class="msg-name">${esc(m.name)}</div><div class="msg-email">${esc(m.email)}</div></div>
-        <div class="msg-meta">
-          <span class="msg-date">${formatDate(m.created_at)}</span>
-          ${m.interest?`<span class="msg-interest">${esc(m.interest)}</span>`:''}
-        </div>
+        <div class="msg-right"><span class="msg-date">${relTime(m.created_at)}</span>${m.interest?`<span class="msg-interest">${esc(m.interest)}</span>`:''}</div>
       </div>
-      <p class="msg-body">${m.message ? esc(m.message) : '<span style="color:#8A8A88;font-style:italic">(no message)</span>'}</p>
+      <p class="msg-body">${m.message?esc(m.message):'<span style="opacity:.4;font-style:italic">(no message)</span>'}</p>
       <div class="msg-actions">
-        ${!m.read?`<button class="btn-mark-read" onclick="markRead(${m.id})">Mark as read</button>`:'<span style="font-size:.7rem;color:#8A8A88">Read</span>'}
-        <button class="btn-msg-del" onclick="delMsg(${m.id})">Delete</button>
+        ${!m.read?`<button class="btn-read" onclick="markRead(${m.id})">Mark read</button>`:'<span style="font-size:.65rem;color:var(--text-l)">Read</span>'}
+        <button class="btn-del-msg" onclick="delMsg(${m.id})">Delete</button>
       </div>`;
-    list.appendChild(card);
+    list.appendChild(c);
   });
 }
-
-async function markRead(id) {
-  try {
-    await fetch('/api/admin/messages/'+id+'/read',{method:'PUT',credentials:'include'});
-    const m = allMessages.find(m=>m.id===id); if(m) m.read=true;
-    renderMessages(); updateBadge();
-  } catch(e) {}
+async function markRead(id){
+  try{await fetch('/api/admin/messages/'+id+'/read',{method:'PUT',credentials:'include'});const m=allMessages.find(m=>m.id===id);if(m)m.read=true;renderMessages();updateBadge();}catch(e){}
+}
+async function delMsg(id){
+  if(!confirm('Delete this message?'))return;
+  try{await fetch('/api/admin/messages/'+id,{method:'DELETE',credentials:'include'});allMessages=allMessages.filter(m=>m.id!==id);renderMessages();updateBadge();}catch(e){}
 }
 
-async function delMsg(id) {
-  if(!confirm('Delete this message?')) return;
-  try {
-    await fetch('/api/admin/messages/'+id,{method:'DELETE',credentials:'include'});
-    allMessages = allMessages.filter(m=>m.id!==id);
-    renderMessages(); updateBadge();
-  } catch(e) {}
-}
-
-// ── CONTENT FIELDS ─────────────────────────────────────────────────────────────
-function makeField(key, label, value, multiline, deletable=false) {
-  const d = document.createElement('div');
-  d.className = 'field-group';
-  d.id = 'field-group-'+key;
-  d.innerHTML = `
-    <label class="field-label">${esc(label)} <span class="field-key">· ${key}</span></label>
-    ${multiline
-      ? `<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`
-      : `<input class="field-input" id="f-${key}" value="${esc(value)}">`
-    }
+// CONTENT FIELDS
+function makeField(key,label,value,multi){
+  const d=document.createElement('div');d.className='field';
+  d.innerHTML=`
+    <label class="field-label">${esc(label)}</label>
+    ${multi?`<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`:`<input class="field-input" id="f-${key}" value="${esc(value)}">`}
     <div class="field-footer">
-      <button class="field-save" onclick="saveField('${key}',this)">Save</button>
-      <span class="field-msg" id="msg-${key}"></span>
-      ${deletable ? `<button onclick="deleteCustomField('${key}')" style="margin-left:auto;background:none;border:1px solid rgba(184,105,74,.2);color:var(--clay);padding:.28rem .6rem;font-size:.68rem;border-radius:2px;cursor:pointer">Delete field</button>` : ''}
+      <button class="btn-save" onclick="saveField('${key}',this)">Save</button>
+      <span class="save-msg" id="sm-${key}"></span>
     </div>`;
   return d;
 }
-
-async function saveField(key, btn) {
-  const el = document.getElementById('f-'+key);
-  const msgEl = document.getElementById('msg-'+key);
-  try {
-    const res = await fetch('/api/admin/content',{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({key,value:el.value})});
-    if (res.ok) { btn.textContent='Saved ✓'; btn.classList.add('saved'); msgEl.textContent=''; setTimeout(()=>{btn.textContent='Save';btn.classList.remove('saved')},2000); }
-    else msgEl.textContent='Error saving.';
-  } catch(e) { msgEl.textContent='Connection error.'; }
+async function saveField(key,btn){
+  const el=document.getElementById('f-'+key),sm=document.getElementById('sm-'+key);
+  try{
+    const res=await fetch('/api/admin/content',{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({key,value:el.value})});
+    if(res.ok){btn.textContent='Saved ✓';btn.classList.add('saved');sm.textContent='';setTimeout(()=>{btn.textContent='Save';btn.classList.remove('saved');},2000);}
+    else sm.textContent='Error.';
+  }catch(e){sm.textContent='Connection error.';}
+}
+function buildFields(containerId,fields){
+  const c=document.getElementById(containerId);c.innerHTML='';
+  fields.forEach(([key,label,multi])=>c.appendChild(makeField(key,label,allContent[key]||'',multi)));
 }
 
-function buildFields(containerId, fields) {
-  const c = document.getElementById(containerId); c.innerHTML='';
-  fields.forEach(([key,label,multi]) => c.appendChild(makeField(key, label, allContent[key]||'', multi)));
+// PRINTS
+async function loadPrints(){
+  try{
+    const res=await fetch('/api/prints');const prints=await res.json();
+    const grid=document.getElementById('prints-grid');
+    if(!prints.length){grid.innerHTML='<p class="prints-empty">No prints yet. Upload your first one below.</p>';return;}
+    grid.innerHTML='';
+    prints.forEach(p=>{
+      const card=document.createElement('div');card.className='print-card';
+      card.innerHTML=`
+        <img src="${p.image_url}" alt="${esc(p.title)}">
+        <div class="print-card-body">
+          <p class="print-card-title">${esc(p.title)}</p>
+          <p class="print-card-order">Order: ${p.sort_order}</p>
+          <button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }catch(e){}
 }
-
-// ── CUSTOM FIELDS ─────────────────────────────────────────────────────────────
-function renderCustomFields() {
-  const list = document.getElementById('custom-fields-list');
-  list.innerHTML = '';
-  const known = [
-    'nav_name','hero_eyebrow','hero_tagline','hero_name_1','hero_name_2',
-    'work_eyebrow','work_title','atelier_eyebrow','atelier_headline',
-    'atelier_p1','atelier_p2','atelier_spec','contact_eyebrow','contact_title',
-    'contact_intro','footer_copy','hero_image_url','about_headline','about_p1',
-    'about_p2','about_p3','atelier_p1','atelier_p2','contact_email',
-    'contact_location','contact_languages','work_eyebrow_nav','atelier_eyebrow_nav','contact_eyebrow_nav'
-  ];
-  const customs = Object.keys(allContent).filter(k => !known.includes(k));
-  if (!customs.length) {
-    list.innerHTML='<p class="custom-fields-empty">No custom fields yet — add one below.</p>';
-    return;
-  }
-  customs.forEach(key => {
-    const label = key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    const isLong = (allContent[key]||'').length > 80;
-    list.appendChild(makeField(key, label, allContent[key]||'', isLong, true));
-  });
-}
-
-async function addCustomField() {
-  const label = document.getElementById('new-field-label').value.trim();
-  const type = document.getElementById('new-field-type').value;
-  const msg = document.getElementById('add-field-msg');
-  if (!label) { msg.className='status-msg status-err'; msg.textContent='Please enter a label.'; return; }
-  const key = 'custom_' + label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-  try {
-    const res = await fetch('/api/admin/content',{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({key,value:''})});
-    if (res.ok) {
-      allContent[key] = '';
-      msg.className='status-msg status-ok'; msg.textContent='Field added ✓';
-      document.getElementById('new-field-label').value='';
-      renderCustomFields();
-      setTimeout(()=>msg.textContent='',2500);
+async function addPrint(){
+  const file=document.getElementById('print-file').files[0];
+  const title=document.getElementById('print-title').value.trim();
+  const desc=document.getElementById('print-desc').value.trim();
+  const order=document.getElementById('print-order').value;
+  const btn=document.getElementById('btn-add-print');
+  const msg=document.getElementById('add-print-msg');
+  if(!file||!title){msg.className='status err';msg.textContent='Image and title required.';return;}
+  btn.disabled=true;btn.textContent='Uploading...';msg.textContent='';
+  const fd=new FormData();fd.append('image',file);fd.append('title',title);fd.append('description',desc);fd.append('sort_order',order);
+  try{
+    const res=await fetch('/api/admin/prints',{method:'POST',body:fd,credentials:'include'});
+    if(res.ok){
+      msg.className='status ok';msg.textContent='Print uploaded ✓';
+      document.getElementById('print-file').value='';
+      document.getElementById('print-title').value='';
+      document.getElementById('print-desc').value='';
+      document.getElementById('print-order').value='0';
+      await loadPrints();
+    } else {
+      const d=await res.json();
+      msg.className='status err';msg.textContent='Failed: '+(d.error||'unknown error');
     }
-  } catch(e) { msg.className='status-msg status-err'; msg.textContent='Error.'; }
+  }catch(e){msg.className='status err';msg.textContent='Connection error.';}
+  btn.disabled=false;btn.textContent='Upload print';
+}
+async function deletePrint(id,btn){
+  if(!confirm('Delete this print? This cannot be undone.'))return;
+  btn.textContent='...';btn.disabled=true;
+  try{const res=await fetch('/api/admin/prints/'+id,{method:'DELETE',credentials:'include'});if(res.ok)await loadPrints();}catch(e){}
 }
 
-async function deleteCustomField(key) {
-  if (!confirm(`Delete the field "${key}"? This removes it from the database.`)) return;
-  try {
-    await fetch('/api/admin/content/'+key,{method:'DELETE',credentials:'include'});
-    delete allContent[key];
-    renderCustomFields();
-  } catch(e) {}
-}
+// LOAD ALL
+async function loadAll(){
+  try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
 
-// ── LOAD ALL ───────────────────────────────────────────────────────────────────
-async function loadAll() {
-  try { const res = await fetch('/api/content'); allContent = await res.json(); } catch(e) {}
-
-  buildFields('hero-fields',[
-    ['nav_name','Site name (nav logo)',false],
-    ['hero_eyebrow','Eyebrow text (small line above name)',false],
-    ['hero_name_1','Name — line 1',false],
-    ['hero_name_2','Name — line 2 (italic)',false],
-    ['hero_tagline','Tagline below name',false],
+  buildFields('home-fields',[
+    ['hero_eyebrow','Eyebrow line (small caps, top of intro)',false],
+    ['hero_tagline','Tagline (italic, below eyebrow)',false],
+    ['hero_meta','Meta line (right side of intro)',false],
   ]);
 
-  buildFields('work-fields',[
-    ['work_eyebrow','Section label (small caps)',false],
-    ['work_title','Section heading',false],
+  buildFields('about-fields',[
+    ['about_p1','Paragraph 1',true],
+    ['about_p2','Paragraph 2',true],
+    ['about_p3','Paragraph 3',true],
   ]);
 
   buildFields('atelier-fields',[
@@ -509,82 +422,18 @@ async function loadAll() {
     ['atelier_headline','Headline',false],
     ['atelier_p1','Paragraph 1',true],
     ['atelier_p2','Paragraph 2',true],
-    ['atelier_spec','Spec line (below paragraphs)',false],
+    ['atelier_spec','Spec line (printer details)',false],
   ]);
 
   buildFields('contact-fields',[
     ['contact_eyebrow','Section label',false],
     ['contact_title','Heading',false],
-    ['contact_intro','Intro paragraph',true],
+    ['contact_intro','Intro line',true],
+    ['footer_copy','Footer copyright line',false],
   ]);
-
-  buildFields('footer-fields',[
-    ['footer_copy','Copyright line',false],
-  ]);
-
-  renderCustomFields();
-
-  if (allContent.hero_image_url) {
-    document.getElementById('hero-img-current').innerHTML=`<div class="current-img"><img src="${allContent.hero_image_url}"><p>Current hero image</p></div>`;
-  }
 
   await loadMessages();
   await loadPrints();
-}
-
-// ── HERO IMAGE ─────────────────────────────────────────────────────────────────
-async function uploadHeroImage() {
-  const file = document.getElementById('hero-img-file').files[0];
-  const msg = document.getElementById('hero-img-msg');
-  if (!file) return;
-  msg.textContent='Uploading...'; msg.className='status-msg status-ok';
-  const fd = new FormData(); fd.append('image',file);
-  try {
-    const res = await fetch('/api/admin/upload/hero',{method:'POST',body:fd,credentials:'include'});
-    const d = await res.json();
-    if (d.ok) { msg.textContent='Hero image updated ✓'; document.getElementById('hero-img-current').innerHTML=`<div class="current-img"><img src="${d.url}"><p>Current hero image</p></div>`; }
-    else { msg.className='status-msg status-err'; msg.textContent='Upload failed: '+(d.error||'unknown'); }
-  } catch(e) { msg.className='status-msg status-err'; msg.textContent='Connection error.'; }
-}
-
-// ── PRINTS ─────────────────────────────────────────────────────────────────────
-async function loadPrints() {
-  try {
-    const res = await fetch('/api/prints');
-    const prints = await res.json();
-    const grid = document.getElementById('prints-grid');
-    if (!prints.length) { grid.innerHTML='<p class="prints-empty">No prints yet.</p>'; return; }
-    grid.innerHTML='';
-    prints.forEach(p=>{
-      const card=document.createElement('div'); card.className='print-card';
-      card.innerHTML=`<img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><p class="print-card-title">${esc(p.title)}</p><button class="btn-del" onclick="deletePrint(${p.id},this)">Delete</button></div>`;
-      grid.appendChild(card);
-    });
-  } catch(e) {}
-}
-
-async function addPrint() {
-  const file=document.getElementById('print-img-file').files[0];
-  const title=document.getElementById('print-title').value.trim();
-  const desc=document.getElementById('print-desc').value.trim();
-  const order=document.getElementById('print-order').value;
-  const btn=document.getElementById('btn-add-print');
-  const msg=document.getElementById('add-print-msg');
-  if(!file||!title){msg.className='status-msg status-err';msg.textContent='Image and title required.';return}
-  btn.disabled=true;btn.textContent='Uploading...';msg.textContent='';
-  const fd=new FormData();fd.append('image',file);fd.append('title',title);fd.append('description',desc);fd.append('sort_order',order);
-  try{
-    const res=await fetch('/api/admin/prints',{method:'POST',body:fd,credentials:'include'});
-    if(res.ok){msg.className='status-msg status-ok';msg.textContent='Added ✓';document.getElementById('print-img-file').value='';document.getElementById('print-title').value='';document.getElementById('print-desc').value='';await loadPrints();}
-    else{msg.className='status-msg status-err';msg.textContent='Upload failed.';}
-  }catch(e){msg.className='status-msg status-err';msg.textContent='Connection error.';}
-  btn.disabled=false;btn.textContent='Upload print';
-}
-
-async function deletePrint(id,btn) {
-  if(!confirm('Delete this print?'))return;
-  btn.textContent='...';btn.disabled=true;
-  try{const res=await fetch('/api/admin/prints/'+id,{method:'DELETE',credentials:'include'});if(res.ok)await loadPrints();}catch(e){}
 }
 
 checkAuth();

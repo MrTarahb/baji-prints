@@ -520,32 +520,23 @@ const layouts = [
   'gap-lg','center','gap-md','wide','gap-md','thin',
 ];
 
-// PLACEHOLDER IMAGES — Unsplash, abstract/BNW/nature mood
-const placeholders = [
-  { url:'https://images.unsplash.com/photo-1518655048521-f130df041f66?w=1600&q=85', title:'ICM No. 1' },
-  { url:'https://images.unsplash.com/photo-1502472584811-0a2f2feb8968?w=1600&q=85', title:'Motion Study' },
-  { url:'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1600&q=85', title:'Abstract III' },
-  { url:'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1600&q=85', title:'Northern Blur' },
-  { url:'https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?w=1600&q=85', title:'Street Fragment' },
-  { url:'https://images.unsplash.com/photo-1520262454473-a1a82276a574?w=1600&q=85', title:'Macro Study I' },
-  { url:'https://images.unsplash.com/photo-1543459176-4426b37223ba?w=1600&q=85', title:'Fade' },
-  { url:'https://images.unsplash.com/photo-1484589065579-248aad0d8b13?w=1600&q=85', title:'Light Fall' },
-  { url:'https://images.unsplash.com/photo-1517849845537-4d257902454a?w=1600&q=85', title:'Urban Abstract' },
-  { url:'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?w=1600&q=85', title:'Grain Study' },
-  { url:'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=85', title:'Mountain Wash' },
-  { url:'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1600&q=85', title:'High Pass' },
-];
+
 
 function buildFeed(prints) {
   const feed = document.getElementById('feed');
   const introImg = document.getElementById('intro-img');
+  const intro = document.getElementById('intro');
   feed.innerHTML = '';
 
-  // Set intro image to first print
-  if (prints.length) {
-    introImg.src = prints[0].url || prints[0].image_url;
-    introImg.onload = () => introImg.classList.add('loaded');
+  if (!prints.length) {
+    intro.style.display = 'none';
+    feed.innerHTML = '<div style="padding:20vh 2rem;text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(17,17,16,.3)">Work coming soon.</div>';
+    return;
   }
+
+  // Set intro image to first print
+  introImg.src = prints[0].url || prints[0].image_url;
+  introImg.onload = () => introImg.classList.add('loaded');
 
   let printIdx = 0;
   let layoutIdx = 0;
@@ -596,9 +587,9 @@ function observe(el) {
 async function load() {
   try {
     const prints = await fetch('/api/prints').then(r=>r.json());
-    buildFeed(prints.length ? prints : placeholders);
+    buildFeed(prints);
   } catch(e) {
-    buildFeed(placeholders);
+    buildFeed([]);
   }
 }
 
