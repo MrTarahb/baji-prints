@@ -76,6 +76,16 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      interest TEXT,
+      message TEXT,
+      read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     INSERT INTO content (key, value) VALUES
       ('hero_eyebrow', 'Fine art print atelier · Zürich Wiedikon'),
       ('hero_title_line1', 'Your work,'),
@@ -99,7 +109,28 @@ async function initDB() {
       ('contact_email', 'bajiprints@bharatbhatia.photography'),
       ('contact_location', 'Wiedikon, Zürich · by appointment'),
       ('contact_languages', 'English · Deutsch · Français'),
-      ('hero_image_url', '')
+      ('hero_image_url', ''),
+      ('nav_name', 'Bharat Bhatia'),
+      ('hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'),
+      ('hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'),
+      ('work_title', 'From the atelier.'),
+      ('work_eyebrow', 'Work'),
+      ('atelier_eyebrow', 'The space'),
+      ('atelier_headline', 'A small room.\nA lot of paper.'),
+      ('atelier_p1', 'I do the slow work here — proofing, calibrating, printing, looking. It''s not a lab. It doesn''t need to be fast.'),
+      ('atelier_p2', 'I print on an Epson SC-P900 on a range of fine art papers — each one profiled individually, each print checked by hand. If you''ve ever wanted to print your own work, I occasionally help with that too.'),
+      ('atelier_spec', 'Epson SC-P900 — 10-channel pigment ink · Up to A2 · Fully colour-managed'),
+      ('contact_eyebrow', 'Contact'),
+      ('contact_title', 'Say hello.'),
+      ('contact_intro', 'I''m always happy to hear from people — whether it''s about printing, photography, or just a conversation.'),
+      ('footer_copy', '© 2025 · Zürich Wiedikon'),
+      ('about_headline', 'I make photographs.\nThen I print them.'),
+      ('about_p1', 'There''s a gap between an image on a screen and an image on paper. My work lives in that gap.'),
+      ('about_p2', 'I work from a small atelier in Wiedikon with a fully colour-calibrated workflow and a range of fine art papers.'),
+      ('about_p3', 'Occasionally I help others print their work too — if that''s something you''re interested in, get in touch.'),
+      ('atelier_headline', 'A small room.\nA lot of paper.'),
+      ('atelier_p1', 'The atelier is a quiet space in Wiedikon where I do the slow work — proofing, calibrating, printing, and looking. It\'s not a lab. It doesn\'t need to be fast.'),
+      ('atelier_p2', 'The printer is an Epson SC-P900, chosen for its tonal range and consistency across a wide variety of fine art stocks. Every paper is profiled individually. Every print is checked by hand.')
     ON CONFLICT (key) DO NOTHING;
   `);
   console.log('DB initialised');
@@ -138,6 +169,14 @@ app.post('/api/contact', async (req, res) => {
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
 
   console.log(`[ENQUIRY] ${name} <${email}> — ${interest || 'no category'}: ${message || ''}`);
+
+  // Always store message in DB
+  try {
+    await pool.query(
+      'INSERT INTO messages (name, email, interest, message) VALUES ($1, $2, $3, $4)',
+      [name, email, interest || null, message || null]
+    );
+  } catch(e) { console.error('Failed to store message:', e); }
 
   if (!resend) {
     return res.json({ ok: true });
