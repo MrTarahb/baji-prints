@@ -59,35 +59,45 @@ nav {
   justify-content: space-between;
   padding: 1.4rem 2rem;
   pointer-events: none;
-  /* gradient so text is readable over any photo */
-  background: linear-gradient(to bottom, rgba(17,17,16,0.45) 0%, transparent 100%);
 }
 .nav-name {
   font-family: var(--fi);
   font-size: 13px;
   font-style: italic;
-  color: rgba(250,250,248,0.92);
+  color: rgba(250,250,248,0.95);
   letter-spacing: .01em;
   pointer-events: all;
   text-decoration: none;
   cursor: none;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.3);
+  background: rgba(17,17,16,0.38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: .35rem .75rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
+.nav-name:hover { background: rgba(17,17,16,0.52); }
 .nav-links {
   display: flex;
-  gap: 1.75rem;
+  gap: 0;
   list-style: none;
   pointer-events: all;
+  background: rgba(17,17,16,0.38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: .35rem .75rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  gap: 1.5rem;
 }
 .nav-links a {
   font-size: 9px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: rgba(250,250,248,0.65);
+  color: rgba(250,250,248,0.7);
   text-decoration: none;
   cursor: none;
   transition: color .2s;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.25);
 }
 .nav-links a:hover { color: rgba(250,250,248,1); }
 
@@ -586,6 +596,8 @@ document.querySelectorAll('a,button,.img-wrap').forEach(el=>{
 async function loadContent() {
   try {
     const d = await fetch('/api/content').then(r=>r.json());
+    // Store hero image url globally so buildFeed can use it
+    window._heroImageUrl = d.hero_image_url || '';
     Object.entries(d).forEach(([k,v]) => {
       document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
         if (v) el.textContent = v;
@@ -630,23 +642,23 @@ async function buildFeed(prints) {
   }
 
   intro.style.display = '';
-  const firstUrl = prints[0].image_url || prints[0].url || '';
+
+  // Hero image comes from content (separate from portfolio prints)
+  // heroImageUrl is set below from loadContent(), or fall back to first print
+  const heroUrl = window._heroImageUrl || prints[0]?.image_url || '';
 
   function applyHeroOrientation() {
-    introImg.classList.add('loaded');
     const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
     intro.classList.remove('landscape', 'portrait');
     intro.classList.add(isPortrait ? 'portrait' : 'landscape');
   }
 
-  introImg.classList.remove('loaded');
   introImg.onload = applyHeroOrientation;
-  introImg.src = firstUrl;
-  // If already cached, onload won't fire — handle it
+  introImg.src = heroUrl;
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
 
-  // Detect orientations for all prints starting from index 1
-  const feedPrints = prints.slice(1);
+  // All prints go into the feed (none are reserved for hero)
+  const feedPrints = prints.slice(0);
   const orientations = await Promise.all(
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
@@ -754,8 +766,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   window._d = c => { localStorage.setItem('cookie_choice',c); b.style.opacity='0'; b.style.transition='opacity .2s'; setTimeout(()=>b.remove(),220); };
 })();
 
-load();
-loadContent();
+loadContent().then(() => load());
 </script>
 </body>
 </html>

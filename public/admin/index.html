@@ -163,7 +163,8 @@ textarea.field-input{resize:vertical;min-height:70px}
       </div>
       <div class="sidebar-section">
         <span class="sidebar-label">Portfolio</span>
-        <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
+        <button class="sidebar-btn" onclick="showPanel('hero-img',this)">Hero image</button>
+        <button class="sidebar-btn" onclick="showPanel('prints',this)">Portfolio prints</button>
       </div>
       <div class="sidebar-section">
         <span class="sidebar-label">Content</span>
@@ -190,6 +191,20 @@ textarea.field-input{resize:vertical;min-height:70px}
           <span class="msg-count" id="msg-count"></span>
         </div>
         <div class="msg-list" id="msg-list"><p class="msg-empty">No messages yet.</p></div>
+      </div>
+
+      <!-- HERO IMAGE -->
+      <div class="panel" id="panel-hero-img">
+        <h2 class="panel-title">Hero image</h2>
+        <p class="panel-sub">The full-screen image on the homepage. Separate from your portfolio — upload it once here. You can also add it to your portfolio separately if you want it to appear in the feed too.</p>
+        <div id="hero-current-img"></div>
+        <div class="upload-zone">
+          <input type="file" id="hero-file" accept="image/*" onchange="uploadHero()">
+          <div class="upload-zone-icon">↑</div>
+          <p><strong>Click to upload</strong> or drag & drop</p>
+          <p>JPG, PNG, WebP — landscape recommended for best results</p>
+        </div>
+        <p class="status" id="hero-upload-msg"></p>
       </div>
 
       <!-- PRINTS -->
@@ -466,8 +481,32 @@ async function loadAll(){
     ['footer_copy','Footer copyright line',false],
   ]);
 
+  // Load current hero image
+  if(allContent.hero_image_url){
+    document.getElementById('hero-current-img').innerHTML=`<div class="current-img-wrap"><img src="${allContent.hero_image_url}"><p>Current hero image</p></div>`;
+  }
+
   await loadMessages();
   await loadPrints();
+}
+
+// HERO IMAGE
+async function uploadHero(){
+  const file=document.getElementById('hero-file').files[0];
+  const msg=document.getElementById('hero-upload-msg');
+  if(!file)return;
+  msg.className='status';msg.textContent='Uploading...';
+  const fd=new FormData();fd.append('image',file);
+  try{
+    const res=await fetch('/api/admin/upload/hero',{method:'POST',body:fd,credentials:'include'});
+    const d=await res.json();
+    if(d.ok){
+      msg.className='status ok';msg.textContent='Hero image updated ✓';
+      document.getElementById('hero-current-img').innerHTML=`<div class="current-img-wrap"><img src="${d.url}"><p>Current hero image</p></div>`;
+    } else {
+      msg.className='status err';msg.textContent='Failed: '+(d.error||'unknown');
+    }
+  }catch(e){msg.className='status err';msg.textContent='Connection error.';}
 }
 
 checkAuth();
