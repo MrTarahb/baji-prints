@@ -151,6 +151,15 @@ nav {
   bottom: 1.5rem; right: 2rem;
   left: auto; transform: none;
 }
+/* Portrait in sticky wrap — constrain to viewport */
+.intro-sticky-wrap .intro.portrait {
+  height: 100vh;
+  overflow: hidden;
+}
+.intro-sticky-wrap .intro.portrait .intro-bg img {
+  height: 100%;
+  object-fit: cover;
+}
 .intro-text {
   position: relative; z-index: 2;
   text-align: center;
@@ -210,6 +219,36 @@ nav {
   width: 1px; height: 28px;
   background: linear-gradient(to bottom, rgba(250,250,248,.6), transparent);
   animation: pulse 2s 2s ease infinite;
+}
+
+/* SCROLL TRANSITION CONTAINER */
+.scroll-stage {
+  position: relative;
+}
+/* Hero sticks while scroll happens */
+.intro-sticky-wrap {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 10;
+  pointer-events: none;
+}
+/* The actual intro animates via JS transform */
+.intro {
+  will-change: transform, opacity;
+}
+/* Trigger zone — tall enough to drive the animation */
+.scroll-trigger {
+  height: 180vh;
+  position: relative;
+  z-index: 1;
+}
+/* First feed item rises over the hero */
+.feed-item-first {
+  position: relative;
+  z-index: 20;
+  transform: translateY(100vh);
+  opacity: 0;
 }
 
 /* FEED — varying layout */
@@ -523,11 +562,13 @@ nav {
 <!-- MAIN FEED -->
 <div id="main-content">
 
-  <!-- INTRO IMAGE -->
-  <div class="intro landscape" id="intro">
-    <div class="intro-bg">
-      <img id="intro-img" src="" alt="Bharat Bhatia">
-    </div>
+  <!-- SCROLL STAGE: sticky hero + trigger -->
+  <div class="scroll-stage">
+    <div class="intro-sticky-wrap">
+      <div class="intro landscape" id="intro">
+        <div class="intro-bg">
+          <img id="intro-img" src="" alt="Bharat Bhatia">
+        </div>
     <div class="intro-overlay"></div>
     <div class="intro-text">
       <h1 class="intro-title">Bharat Bhatia</h1>
@@ -538,6 +579,11 @@ nav {
       <span>scroll</span>
     </div>
   </div>
+
+      </div><!-- .intro -->
+    </div><!-- .intro-sticky-wrap -->
+    <div class="scroll-trigger" id="scroll-trigger"></div>
+  </div><!-- .scroll-stage -->
 
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
@@ -588,6 +634,56 @@ nav {
 </div>
 
 <script>
+// SCROLL-DRIVEN HERO EXIT
+(function() {
+  let ticking = false;
+
+  function onScroll() {
+    if (!ticking) {
+      requestAnimationFrame(updateScroll);
+      ticking = true;
+    }
+  }
+
+  function updateScroll() {
+    ticking = false;
+    const trigger = document.getElementById('scroll-trigger');
+    const intro   = document.getElementById('intro');
+    const firstItem = document.querySelector('.feed-item-first');
+    if (!trigger || !intro) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const triggerH    = trigger.offsetHeight; // 180vh
+    // progress 0 (trigger top at viewport bottom) → 1 (trigger bottom at viewport top)
+    const progress = Math.max(0, Math.min(1,
+      1 - (triggerRect.bottom / (window.innerHeight + triggerH))
+    ));
+
+    // Hero: scale down + slide left + fade
+    // Starts moving at progress 0.1, fully gone at 0.65
+    const heroP = Math.max(0, Math.min(1, (progress - 0.1) / 0.55));
+    const scale  = 1 - heroP * 0.12;          // 1 → 0.88
+    const slideX = -heroP * 38;               // 0 → -38vw
+    const opacity = 1 - heroP * 0.85;
+    intro.style.transform = `translateX(${slideX}vw) scale(${scale})`;
+    intro.style.opacity   = opacity;
+    intro.style.transformOrigin = 'center center';
+
+    // First portfolio item: rises from below
+    // Starts at progress 0.35, fully risen at 0.75
+    if (firstItem) {
+      const riseP = Math.max(0, Math.min(1, (progress - 0.35) / 0.4));
+      const translateY = (1 - riseP) * 100;  // 100vh → 0
+      const itemOpacity = riseP;
+      firstItem.style.transform  = `translateY(${translateY}vh)`;
+      firstItem.style.opacity    = itemOpacity;
+      firstItem.style.transition = 'none'; // driven by scroll, not CSS transition
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+})();
+
 // CURSOR
 const cur = document.getElementById('cur');
 let mx=0,my=0,rx=0,ry=0;
@@ -714,10 +810,11 @@ async function buildFeed(prints) {
     }
 
     const item = document.createElement('div');
-    item.className = `feed-item ${layoutClass}`;
+    const isFirst = (feed.children.length === 0);
+    item.className = `feed-item ${layoutClass}${isFirst ? ' feed-item-first' : ''}`;
     item.innerHTML = `<div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>`;
     feed.appendChild(item);
-    observe(item);
+    if (!isFirst) observe(item);
     lIdx++;
   }
 
