@@ -28,22 +28,25 @@ body {
   overflow-x: hidden;
   cursor: none;
 }
+input, textarea, select, button, a, label, [contenteditable] { cursor: none !important; }
 
 /* CURSOR */
 #cur {
   position: fixed;
-  width: 1px; height: 1px;
-  background: var(--black);
+  width: 12px; height: 12px;
+  background: var(--pink);
   border-radius: 50%;
   pointer-events: none;
   z-index: 9999;
   transform: translate(-50%, -50%);
   transition: width .2s, height .2s, background .2s;
+  mix-blend-mode: multiply;
 }
 #cur.big {
-  width: 48px; height: 48px;
+  width: 52px; height: 52px;
   background: transparent;
-  border: 1px solid var(--black);
+  border: 1.5px solid var(--pink);
+  mix-blend-mode: normal;
 }
 
 /* NAV — fixed, minimal */
@@ -452,7 +455,7 @@ nav {
   <footer class="site-footer">
     <div class="footer-left">
       <span class="footer-name">Bharat Bhatia</span>
-      <span class="footer-loc">Wiedikon · Zürich · Fine art print</span>
+      <span class="footer-loc">Zürich · Fine art print</span>
     </div>
     <div class="footer-contact">
       <a onclick="showPage('contact')">Get in touch</a>
@@ -474,7 +477,7 @@ nav {
 
 <!-- CONTACT PAGE -->
 <div id="contact-page">
-  <h1 class="contact-heading">Say hello.</h1>
+  <h1 class="contact-heading" id="c-contact_title">Say hello.</h1>
   <div class="form-row">
     <div class="form-group"><label>Name</label><input type="text" id="f-name" placeholder="Anna Müller"></div>
     <div class="form-group"><label>Email</label><input type="email" id="f-email" placeholder="anna@example.com"></div>
@@ -503,6 +506,18 @@ document.querySelectorAll('a,button,.img-wrap').forEach(el=>{
   el.addEventListener('mouseenter',()=>cur.classList.add('big'));
   el.addEventListener('mouseleave',()=>cur.classList.remove('big'));
 });
+
+// CONTENT — load and apply to all pages
+async function loadContent() {
+  try {
+    const d = await fetch('/api/content').then(r=>r.json());
+    Object.entries(d).forEach(([k,v]) => {
+      document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
+        if (v) el.textContent = v;
+      });
+    });
+  } catch(e) {}
+}
 
 // PAGE ROUTING
 function showPage(name){
@@ -621,6 +636,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
 })();
 
 load();
+loadContent();
 </script>
 </body>
 </html>

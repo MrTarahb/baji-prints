@@ -267,16 +267,29 @@ app.post('/api/admin/upload/hero', requireAuth, (req, res, next) => {
 });
 
 // ── ADMIN PRINTS ──────────────────────────────────────────────────────────────
-app.post('/api/admin/prints', requireAuth, upload.single('image'), async (req, res) => {
+app.post('/api/admin/prints', requireAuth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Print upload error:', err);
+      return res.status(500).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
   const { title, description, sort_order } = req.body;
-  if (!req.file) return res.status(400).json({ error: 'Image required' });
+  if (!req.file) return res.status(400).json({ error: 'No image received' });
+  if (!title) return res.status(400).json({ error: 'Title required' });
   try {
+    const url = req.file.path;
+    const publicId = req.file.filename;
+    console.log('Print uploaded:', url);
     const { rows } = await pool.query(
       'INSERT INTO prints (title, description, image_url, public_id, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [title, description || '', req.file.path, req.file.filename, parseInt(sort_order) || 0]
+      [title, description || '', url, publicId, parseInt(sort_order) || 0]
     );
     res.json(rows[0]);
   } catch (e) {
+    console.error('DB error saving print:', e);
     res.status(500).json({ error: e.message });
   }
 });
