@@ -749,7 +749,16 @@ async function buildFeed(prints) {
   }
 
   intro.style.display = '';
-  const heroUrl = window._heroImageUrl || prints[0]?.image_url || '';
+
+  // If a dedicated hero image is set in admin, use it
+  // Otherwise pick a random landscape photo from the portfolio
+  let heroUrl = window._heroImageUrl || '';
+  if (!heroUrl && prints.length) {
+    const landscapes = prints.filter((_, i) => orientations[i] === 'landscape');
+    const pool = landscapes.length ? landscapes : prints;
+    heroUrl = pool[Math.floor(Math.random() * pool.length)].image_url || '';
+  }
+
   function applyHeroOrientation() {
     const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
     intro.classList.remove('landscape','portrait');
