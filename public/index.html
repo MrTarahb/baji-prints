@@ -50,7 +50,7 @@ input, textarea, select, button, a, label, [contenteditable] { cursor: none !imp
   mix-blend-mode: difference;
 }
 
-/* NAV — fixed, minimal */
+/* NAV — hidden on load, fades in on scroll */
 nav {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -61,6 +61,14 @@ nav {
   padding: 1.4rem 2rem;
   pointer-events: none;
   background: linear-gradient(to bottom, rgba(17,17,16,0.45) 0%, transparent 100%);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity .5s ease, transform .5s ease, padding .3s, background .3s;
+}
+nav.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
 }
 .nav-name {
   font-family: var(--fi);
@@ -687,6 +695,22 @@ function initScrollAnimation() {
     );
   });
 }
+
+// NAV — show on scroll, hide at very top
+(function(){
+  const nav = document.getElementById('nav') || document.querySelector('nav');
+  let lastY = 0;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y > 40) {
+      nav.classList.add('visible');
+    } else {
+      nav.classList.remove('visible');
+    }
+    nav.classList.toggle('scrolled', y > 80);
+    lastY = y;
+  }, { passive: true });
+})();
 
 // CURSOR
 const cur = document.getElementById('cur');
