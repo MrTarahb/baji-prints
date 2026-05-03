@@ -8,12 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#F8F8F6;--surface:#FFFFFF;--border:rgba(17,17,16,.1);
-  --text:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);
-  --pink:#C8907A;--pink-l:#E8B4A0;--ink:#1A1814;
-}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh}
+:root{--ink:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);--pink:#C8907A;--border:rgba(26,24,20,.1);--bg:#F8F8F6;--surface:#fff}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
 
 /* LOGIN */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1814}
@@ -22,25 +18,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .login-sub{font-size:.75rem;color:var(--text-l);letter-spacing:.06em;margin-bottom:1.75rem}
 .login-box input{width:100%;padding:.65rem .85rem;border:1px solid var(--border);border-radius:1px;font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--ink);background:white;outline:none;margin-bottom:.65rem;transition:border-color .18s}
 .login-box input:focus{border-color:var(--ink)}
-.login-box button{width:100%;background:var(--ink);color:white;border:none;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s}
-.login-box button:hover{background:#333}
-.login-err{font-size:.75rem;color:var(--pink);margin-top:.5rem;min-height:1rem;letter-spacing:.02em}
+.login-box button{width:100%;background:var(--ink);color:white;border:none;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;border-radius:1px;cursor:pointer}
+.login-err{font-size:.75rem;color:var(--pink);margin-top:.5rem;min-height:1rem}
 
 /* LAYOUT */
 #admin-screen{display:none}
 .admin-bar{background:var(--ink);padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between}
 .admin-bar-logo{font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;color:rgba(248,248,246,.7)}
-.admin-bar-links{display:flex;gap:1.5rem;align-items:center}
+.admin-bar-links{display:flex;gap:1.5rem}
 .admin-bar-links a{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(248,248,246,.35);text-decoration:none;cursor:pointer;transition:color .18s}
 .admin-bar-links a:hover{color:rgba(248,248,246,.85)}
 .admin-layout{display:grid;grid-template-columns:200px 1fr;min-height:calc(100vh - 44px)}
 
 /* SIDEBAR */
 .sidebar{background:#EFEFEC;border-right:1px solid var(--border);padding:1.25rem 0;overflow-y:auto}
-.sidebar-section{margin-bottom:.5rem}
 .sidebar-label{display:block;font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-l);padding:.4rem 1.25rem .2rem}
-.sidebar-btn{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.52rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.82rem;color:var(--text-m);background:none;border:none;cursor:pointer;text-align:left;transition:background .15s,color .15s}
-.sidebar-btn:hover{background:rgba(26,24,20,.05);color:var(--text)}
+.sidebar-btn{display:flex;align-items:center;justify-content:space-between;width:100%;padding:.52rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.82rem;color:var(--text-m);background:none;border:none;cursor:pointer;text-align:left;transition:background .15s}
+.sidebar-btn:hover{background:rgba(26,24,20,.05);color:var(--ink)}
 .sidebar-btn.active{background:var(--surface);color:var(--ink);font-weight:500;border-left:2px solid var(--ink);padding-left:calc(1.25rem - 2px)}
 .badge{background:var(--pink);color:white;font-size:.55rem;font-family:'DM Mono',monospace;padding:.1rem .35rem;border-radius:8px}
 
@@ -49,17 +43,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .panel{display:none}
 .panel.active{display:block}
 .panel-title{font-family:'Playfair Display',serif;font-size:1.15rem;font-style:italic;color:var(--ink);margin-bottom:.15rem}
-.panel-sub{font-size:.78rem;color:var(--text-l);margin-bottom:1.75rem;letter-spacing:.02em}
+.panel-sub{font-size:.78rem;color:var(--text-l);margin-bottom:1.75rem}
 
 /* MESSAGES */
 .msg-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem}
 .msg-filters{display:flex;gap:.35rem}
-.msg-filters button{font-size:.68rem;font-weight:500;letter-spacing:.04em;padding:.28rem .72rem;border-radius:1px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-l);font-family:'DM Sans',sans-serif;transition:all .15s}
+.msg-filters button{font-size:.68rem;font-weight:500;padding:.28rem .72rem;border-radius:1px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-l);font-family:'DM Sans',sans-serif;transition:all .15s}
 .msg-filters button.active{background:var(--ink);color:white;border-color:var(--ink)}
 .msg-count{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-l)}
 .msg-list{display:flex;flex-direction:column;gap:.6rem}
-.msg-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.1rem 1.25rem;position:relative;transition:box-shadow .2s}
-.msg-card:hover{box-shadow:0 2px 8px rgba(26,24,20,.07)}
+.msg-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.1rem 1.25rem;position:relative}
 .msg-card.unread{border-left:2px solid var(--pink);padding-left:calc(1.25rem - 1px)}
 .msg-card.unread::before{content:'';position:absolute;top:1.1rem;right:1.1rem;width:6px;height:6px;border-radius:50%;background:var(--pink)}
 .msg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.45rem;flex-wrap:wrap}
@@ -72,13 +65,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .msg-actions{display:flex;gap:.4rem}
 .btn-read{background:none;border:1px solid var(--border);color:var(--text-l);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
 .btn-read:hover{background:var(--ink);color:white;border-color:var(--ink)}
-.btn-del-msg{background:none;border:1px solid rgba(200,144,122,.25);color:var(--pink);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.btn-del-msg{background:none;border:1px solid rgba(200,144,122,.25);color:var(--pink);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .btn-del-msg:hover{background:var(--pink);color:white}
 .msg-empty{padding:3rem 1rem;text-align:center;color:var(--text-l);font-style:italic;font-size:.82rem}
 
-/* CONTENT FIELDS */
-.field-section{margin-bottom:2rem}
-.field-section-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:.65rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);display:block}
+/* FIELDS */
+.fields-group{margin-bottom:2rem}
+.fields-group-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:.65rem;padding-bottom:.4rem;border-bottom:1px solid var(--border);display:block}
 .field{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1rem 1.25rem;margin-bottom:.55rem}
 .field-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l);margin-bottom:.32rem;display:block}
 .field-input{width:100%;padding:.55rem .78rem;border:1px solid var(--border);border-radius:1px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--ink);outline:none;transition:border-color .18s;background:var(--bg)}
@@ -90,48 +83,37 @@ textarea.field-input{resize:vertical;min-height:70px}
 .btn-save.saved{background:#4A7A55}
 .save-msg{font-size:.68rem;color:#4A7A55}
 
-/* PORTFOLIO UPLOADS */
-.upload-zone{border:1.5px dashed var(--border);border-radius:2px;padding:2rem;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surface);position:relative;margin-bottom:.65rem}
-.upload-zone:hover{border-color:var(--ink)}
-.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.upload-zone-icon{font-size:1.4rem;color:var(--text-l);margin-bottom:.35rem}
-.upload-zone p{font-size:.78rem;color:var(--text-l)}
-.upload-zone strong{color:var(--ink)}
+/* PRINTS */
 .prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.65rem;margin-bottom:1.25rem}
 .print-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;overflow:hidden}
 .print-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
-.print-card-body{padding:.55rem .75rem}
-.print-card-title{font-size:.78rem;font-weight:500;color:var(--ink);margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.print-card-order{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-l);margin-bottom:.4rem}
+.print-card-body{padding:.65rem .85rem}
 .print-edit-row{margin-bottom:.5rem}
 .print-card-actions{display:flex;gap:.4rem;margin-top:.6rem;margin-bottom:.25rem}
-.btn-save-print{background:var(--ink);color:white;border:none;padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .18s}
-.btn-save-print:hover{background:#333}
-.btn-save-print:disabled{opacity:.5;cursor:default}
+.btn-save-print{background:var(--ink);color:white;border:none;padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.btn-save-print:disabled{opacity:.5}
 .save-print-msg{font-size:.65rem;display:block;min-height:.9rem}
-.btn-del-print{background:none;border:1px solid rgba(200,144,122,.2);color:var(--pink);padding:.22rem .55rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.btn-del-print{background:none;border:1px solid rgba(200,144,122,.2);color:var(--pink);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .btn-del-print:hover{background:var(--pink);color:white}
 .prints-empty{color:var(--text-l);font-style:italic;font-size:.8rem;grid-column:1/-1;padding:.5rem 0}
 .divider{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 .add-form{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.25rem}
 .add-form-title{font-size:.82rem;font-weight:500;color:var(--ink);margin-bottom:1rem}
 .form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
-.btn-add{background:var(--pink);color:white;border:none;padding:.6rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s;margin-top:.6rem}
-.btn-add:hover{background:var(--pink-l);color:var(--ink)}
+.upload-zone{border:1.5px dashed var(--border);border-radius:2px;padding:2rem;text-align:center;cursor:pointer;background:var(--surface);position:relative;margin-bottom:.75rem;transition:border-color .18s}
+.upload-zone:hover{border-color:var(--ink)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone p{font-size:.78rem;color:var(--text-l)}
+.upload-zone strong{color:var(--ink)}
+.btn-add{background:var(--pink);color:white;border:none;padding:.6rem 1.25rem;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:1px;cursor:pointer;margin-top:.6rem}
 .btn-add:disabled{opacity:.5;cursor:default}
 .status{font-size:.72rem;margin-top:.38rem;min-height:.9rem}
 .status.ok{color:#4A7A55}
 .status.err{color:var(--pink)}
-
-/* CURRENT IMAGE */
-.current-img-wrap{margin-bottom:.85rem}
-.current-img-wrap img{max-width:220px;max-height:150px;object-fit:cover;border-radius:1px;border:1px solid var(--border);display:block;margin-bottom:.35rem}
-.current-img-wrap p{font-size:.68rem;color:var(--text-l);font-style:italic}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-box">
     <p class="login-logo">Bharat Bhatia</p>
@@ -142,7 +124,6 @@ textarea.field-input{resize:vertical;min-height:70px}
   </div>
 </div>
 
-<!-- ADMIN -->
 <div id="admin-screen">
   <div class="admin-bar">
     <span class="admin-bar-logo">Bharat Bhatia</span>
@@ -152,30 +133,19 @@ textarea.field-input{resize:vertical;min-height:70px}
     </div>
   </div>
   <div class="admin-layout">
-
-    <!-- SIDEBAR -->
     <aside class="sidebar">
-      <div class="sidebar-section">
-        <span class="sidebar-label">Inbox</span>
-        <button class="sidebar-btn active" onclick="showPanel('messages',this)">
-          Messages <span class="badge" id="unread-badge" style="display:none">0</span>
-        </button>
-      </div>
-      <div class="sidebar-section">
-        <span class="sidebar-label">Portfolio</span>
-        <button class="sidebar-btn" onclick="showPanel('hero-img',this)">Hero image</button>
-        <button class="sidebar-btn" onclick="showPanel('prints',this)">Portfolio prints</button>
-      </div>
-      <div class="sidebar-section">
-        <span class="sidebar-label">Content</span>
-        <button class="sidebar-btn" onclick="showPanel('home-text',this)">Home</button>
-        <button class="sidebar-btn" onclick="showPanel('about-text',this)">About</button>
-        <button class="sidebar-btn" onclick="showPanel('atelier-text',this)">Atelier</button>
-        <button class="sidebar-btn" onclick="showPanel('contact-text',this)">Contact</button>
-      </div>
+      <span class="sidebar-label">Inbox</span>
+      <button class="sidebar-btn active" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
+      <span class="sidebar-label">Portfolio</span>
+      <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
+      <span class="sidebar-label">Text content</span>
+      <button class="sidebar-btn" onclick="showPanel('nav',this)">Navigation</button>
+      <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
+      <button class="sidebar-btn" onclick="showPanel('about',this)">About page</button>
+      <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
+      <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
     </aside>
 
-    <!-- MAIN -->
     <main class="admin-main">
 
       <!-- MESSAGES -->
@@ -193,79 +163,62 @@ textarea.field-input{resize:vertical;min-height:70px}
         <div class="msg-list" id="msg-list"><p class="msg-empty">No messages yet.</p></div>
       </div>
 
-      <!-- HERO IMAGE -->
-      <div class="panel" id="panel-hero-img">
-        <h2 class="panel-title">Hero image</h2>
-        <p class="panel-sub">The full-screen image on the homepage. Separate from your portfolio — upload it once here. You can also add it to your portfolio separately if you want it to appear in the feed too.</p>
-        <div id="hero-current-img"></div>
-        <div class="upload-zone">
-          <input type="file" id="hero-file" accept="image/*" onchange="uploadHero()">
-          <div class="upload-zone-icon">↑</div>
-          <p><strong>Click to upload</strong> or drag & drop</p>
-          <p>JPG, PNG, WebP — landscape recommended for best results</p>
-        </div>
-        <p class="status" id="hero-upload-msg"></p>
-      </div>
-
       <!-- PRINTS -->
       <div class="panel" id="panel-prints">
         <h2 class="panel-title">Portfolio prints</h2>
-        <p class="panel-sub">Images are displayed on the homepage in the order shown. Drag to reorder isn't supported yet — use sort order numbers instead.</p>
+        <p class="panel-sub">All prints appear in the feed. The hero image is chosen randomly from landscape photos on each page load — no configuration needed.</p>
         <div class="prints-grid" id="prints-grid"></div>
         <hr class="divider">
         <div class="add-form">
           <p class="add-form-title">Upload a new print</p>
           <div class="upload-zone">
-            <input type="file" id="print-file" accept="image/*" multiple>
-            <div class="upload-zone-icon">↑</div>
+            <input type="file" id="print-file" accept="image/*">
             <p><strong>Click to choose</strong> or drag & drop</p>
-            <p>JPG, PNG, WebP — multiple files supported</p>
+            <p>JPG, PNG, WebP</p>
           </div>
           <div class="form-row-2">
-            <div>
-              <label class="field-label">Title</label>
-              <input class="field-input" id="print-title" placeholder="ICM No. 1">
-            </div>
-            <div>
-              <label class="field-label">Sort order (lower = appears first)</label>
-              <input class="field-input" id="print-order" type="number" value="0" min="0">
-            </div>
+            <div><label class="field-label">Title</label><input class="field-input" id="print-title" placeholder="ICM No. 1"></div>
+            <div><label class="field-label">Sort order (lower = first)</label><input class="field-input" id="print-order" type="number" value="0" min="0"></div>
           </div>
-          <div style="margin-top:.6rem">
-            <label class="field-label">Description (optional)</label>
-            <input class="field-input" id="print-desc" placeholder="Fine art print on Photo Rag Pearl">
-          </div>
+          <div style="margin-top:.6rem"><label class="field-label">Description (optional)</label><input class="field-input" id="print-desc" placeholder="Fine art print on Photo Rag Pearl"></div>
           <button class="btn-add" id="btn-add-print" onclick="addPrint()">Upload print</button>
           <p class="status" id="add-print-msg"></p>
         </div>
       </div>
 
-      <!-- HOME TEXT -->
-      <div class="panel" id="panel-home-text">
-        <h2 class="panel-title">Home</h2>
-        <p class="panel-sub">Text shown on the main page.</p>
-        <div id="home-fields"></div>
+      <!-- NAV -->
+      <div class="panel" id="panel-nav">
+        <h2 class="panel-title">Navigation</h2>
+        <p class="panel-sub">Text in the top navigation bar.</p>
+        <div id="nav-fields"></div>
       </div>
 
-      <!-- ABOUT TEXT -->
-      <div class="panel" id="panel-about-text">
-        <h2 class="panel-title">About</h2>
+      <!-- HERO -->
+      <div class="panel" id="panel-hero">
+        <h2 class="panel-title">Hero section</h2>
+        <p class="panel-sub">Text overlaid on the full-screen opening image. The image itself is chosen randomly from your landscape portfolio photos.</p>
+        <div id="hero-fields"></div>
+      </div>
+
+      <!-- ABOUT -->
+      <div class="panel" id="panel-about">
+        <h2 class="panel-title">About page</h2>
         <p class="panel-sub">Text on the About page.</p>
         <div id="about-fields"></div>
       </div>
 
-      <!-- ATELIER TEXT -->
-      <div class="panel" id="panel-atelier-text">
-        <h2 class="panel-title">Atelier</h2>
-        <p class="panel-sub">Text on the About page — atelier / setup section.</p>
-        <div id="atelier-fields"></div>
-      </div>
-
-      <!-- CONTACT TEXT -->
-      <div class="panel" id="panel-contact-text">
-        <h2 class="panel-title">Contact</h2>
+      <!-- CONTACT -->
+      <div class="panel" id="panel-contact">
+        <h2 class="panel-title">Contact page</h2>
         <p class="panel-sub">Text on the Contact page.</p>
         <div id="contact-fields"></div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="panel" id="panel-footer">
+        <h2 class="panel-title">Footer</h2>
+        <p class="panel-sub">Text in the site footer.</p>
+        <div id="footer-fields"></div>
       </div>
 
     </main>
@@ -273,34 +226,32 @@ textarea.field-input{resize:vertical;min-height:70px}
 </div>
 
 <script>
-let allContent = {};
-let allMessages = [];
-let currentFilter = 'all';
+let allContent={}, allMessages=[], currentFilter='all';
 
 // AUTH
-async function login() {
-  const pw = document.getElementById('admin-pass').value;
-  const err = document.getElementById('login-err');
-  try {
-    const res = await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw}),credentials:'include'});
-    if (res.ok) { document.getElementById('login-screen').style.display='none'; document.getElementById('admin-screen').style.display='block'; await loadAll(); }
-    else err.textContent = 'Wrong password.';
-  } catch(e) { err.textContent = 'Connection error.'; }
+async function login(){
+  const pw=document.getElementById('admin-pass').value;
+  const err=document.getElementById('login-err');
+  try{
+    const res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw}),credentials:'include'});
+    if(res.ok){document.getElementById('login-screen').style.display='none';document.getElementById('admin-screen').style.display='block';await loadAll();}
+    else err.textContent='Wrong password.';
+  }catch(e){err.textContent='Connection error.';}
 }
-async function logout() { await fetch('/api/admin/logout',{method:'POST',credentials:'include'}); location.reload(); }
+async function logout(){await fetch('/api/admin/logout',{method:'POST',credentials:'include'});location.reload();}
 document.getElementById('admin-pass').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
-async function checkAuth() {
-  const res = await fetch('/api/admin/check',{credentials:'include'});
-  const d = await res.json();
-  if (d.authenticated) { document.getElementById('login-screen').style.display='none'; document.getElementById('admin-screen').style.display='block'; await loadAll(); }
+async function checkAuth(){
+  const res=await fetch('/api/admin/check',{credentials:'include'});
+  const d=await res.json();
+  if(d.authenticated){document.getElementById('login-screen').style.display='none';document.getElementById('admin-screen').style.display='block';await loadAll();}
 }
 
 // PANELS
-function showPanel(name, btn) {
+function showPanel(name,btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
-  if (btn) btn.classList.add('active');
+  if(btn)btn.classList.add('active');
 }
 
 // HELPERS
@@ -324,37 +275,17 @@ function renderMessages(){
   msgs.forEach(m=>{
     const c=document.createElement('div');
     c.className='msg-card'+(!m.read?' unread':'');
-    c.innerHTML=`
-      <div class="msg-head">
-        <div><div class="msg-name">${esc(m.name)}</div><div class="msg-email">${esc(m.email)}</div></div>
-        <div class="msg-right"><span class="msg-date">${relTime(m.created_at)}</span>${m.interest?`<span class="msg-interest">${esc(m.interest)}</span>`:''}</div>
-      </div>
-      <p class="msg-body">${m.message?esc(m.message):'<span style="opacity:.4;font-style:italic">(no message)</span>'}</p>
-      <div class="msg-actions">
-        ${!m.read?`<button class="btn-read" onclick="markRead(${m.id})">Mark read</button>`:'<span style="font-size:.65rem;color:var(--text-l)">Read</span>'}
-        <button class="btn-del-msg" onclick="delMsg(${m.id})">Delete</button>
-      </div>`;
+    c.innerHTML=`<div class="msg-head"><div><div class="msg-name">${esc(m.name)}</div><div class="msg-email">${esc(m.email)}</div></div><div class="msg-right"><span class="msg-date">${relTime(m.created_at)}</span>${m.interest?`<span class="msg-interest">${esc(m.interest)}</span>`:''}</div></div><p class="msg-body">${m.message?esc(m.message):'<span style="opacity:.4;font-style:italic">(no message)</span>'}</p><div class="msg-actions">${!m.read?`<button class="btn-read" onclick="markRead(${m.id})">Mark read</button>`:'<span style="font-size:.65rem;color:var(--text-l)">Read</span>'}<button class="btn-del-msg" onclick="delMsg(${m.id})">Delete</button></div>`;
     list.appendChild(c);
   });
 }
-async function markRead(id){
-  try{await fetch('/api/admin/messages/'+id+'/read',{method:'PUT',credentials:'include'});const m=allMessages.find(m=>m.id===id);if(m)m.read=true;renderMessages();updateBadge();}catch(e){}
-}
-async function delMsg(id){
-  if(!confirm('Delete this message?'))return;
-  try{await fetch('/api/admin/messages/'+id,{method:'DELETE',credentials:'include'});allMessages=allMessages.filter(m=>m.id!==id);renderMessages();updateBadge();}catch(e){}
-}
+async function markRead(id){try{await fetch('/api/admin/messages/'+id+'/read',{method:'PUT',credentials:'include'});const m=allMessages.find(m=>m.id===id);if(m)m.read=true;renderMessages();updateBadge();}catch(e){}}
+async function delMsg(id){if(!confirm('Delete?'))return;try{await fetch('/api/admin/messages/'+id,{method:'DELETE',credentials:'include'});allMessages=allMessages.filter(m=>m.id!==id);renderMessages();updateBadge();}catch(e){}}
 
 // CONTENT FIELDS
 function makeField(key,label,value,multi){
   const d=document.createElement('div');d.className='field';
-  d.innerHTML=`
-    <label class="field-label">${esc(label)}</label>
-    ${multi?`<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`:`<input class="field-input" id="f-${key}" value="${esc(value)}">`}
-    <div class="field-footer">
-      <button class="btn-save" onclick="saveField('${key}',this)">Save</button>
-      <span class="save-msg" id="sm-${key}"></span>
-    </div>`;
+  d.innerHTML=`<label class="field-label">${esc(label)}</label>${multi?`<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`:`<input class="field-input" id="f-${key}" value="${esc(value)}">`}<div class="field-footer"><button class="btn-save" onclick="saveField('${key}',this)">Save</button><span class="save-msg" id="sm-${key}"></span></div>`;
   return d;
 }
 async function saveField(key,btn){
@@ -375,48 +306,27 @@ async function loadPrints(){
   try{
     const res=await fetch('/api/prints');const prints=await res.json();
     const grid=document.getElementById('prints-grid');
-    if(!prints.length){grid.innerHTML='<p class="prints-empty">No prints yet. Upload your first one below.</p>';return;}
+    if(!prints.length){grid.innerHTML='<p class="prints-empty">No prints yet.</p>';return;}
     grid.innerHTML='';
     prints.forEach(p=>{
       const card=document.createElement('div');card.className='print-card';
-      card.innerHTML=`
-        <img src="${p.image_url}" alt="${esc(p.title)}">
-        <div class="print-card-body">
-          <div class="print-edit-row">
-            <label class="field-label">Title</label>
-            <input class="field-input" id="pt-${p.id}" value="${esc(p.title)}" placeholder="Title">
-          </div>
-          <div class="print-edit-row">
-            <label class="field-label">Description</label>
-            <input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}" placeholder="Description">
-          </div>
-          <div class="print-edit-row">
-            <label class="field-label">Sort order</label>
-            <input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px">
-          </div>
-          <div class="print-card-actions">
-            <button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button>
-            <button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button>
-          </div>
-          <span class="save-print-msg" id="pm-${p.id}"></span>
-        </div>`;
+      card.innerHTML=`<img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Sort order</label><input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px"></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
   }catch(e){}
 }
-
-async function savePrint(id, btn){
-  const title = document.getElementById('pt-'+id).value.trim();
-  const desc  = document.getElementById('pd-'+id).value.trim();
-  const order = document.getElementById('po-'+id).value;
-  const msg   = document.getElementById('pm-'+id);
+async function savePrint(id,btn){
+  const title=document.getElementById('pt-'+id).value.trim();
+  const desc=document.getElementById('pd-'+id).value.trim();
+  const order=document.getElementById('po-'+id).value;
+  const msg=document.getElementById('pm-'+id);
   if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
   btn.textContent='Saving...';btn.disabled=true;
   try{
     const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,sort_order:parseInt(order)||0})});
-    if(res.ok){btn.textContent='Saved ✓';msg.style.color='#4A7A55';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
-    else{msg.style.color='var(--pink)';msg.textContent='Error saving.';btn.textContent='Save';btn.disabled=false;}
-  }catch(e){msg.textContent='Connection error.';btn.textContent='Save';btn.disabled=false;}
+    if(res.ok){btn.textContent='Saved ✓';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
+    else{msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
+  }catch(e){msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
 }
 async function addPrint(){
   const file=document.getElementById('print-file').files[0];
@@ -430,22 +340,13 @@ async function addPrint(){
   const fd=new FormData();fd.append('image',file);fd.append('title',title);fd.append('description',desc);fd.append('sort_order',order);
   try{
     const res=await fetch('/api/admin/prints',{method:'POST',body:fd,credentials:'include'});
-    if(res.ok){
-      msg.className='status ok';msg.textContent='Print uploaded ✓';
-      document.getElementById('print-file').value='';
-      document.getElementById('print-title').value='';
-      document.getElementById('print-desc').value='';
-      document.getElementById('print-order').value='0';
-      await loadPrints();
-    } else {
-      const d=await res.json();
-      msg.className='status err';msg.textContent='Failed: '+(d.error||'unknown error');
-    }
+    if(res.ok){msg.className='status ok';msg.textContent='Uploaded ✓';document.getElementById('print-file').value='';document.getElementById('print-title').value='';document.getElementById('print-desc').value='';document.getElementById('print-order').value='0';await loadPrints();}
+    else{const d=await res.json();msg.className='status err';msg.textContent='Failed: '+(d.error||'unknown');}
   }catch(e){msg.className='status err';msg.textContent='Connection error.';}
   btn.disabled=false;btn.textContent='Upload print';
 }
 async function deletePrint(id,btn){
-  if(!confirm('Delete this print? This cannot be undone.'))return;
+  if(!confirm('Delete this print?'))return;
   btn.textContent='...';btn.disabled=true;
   try{const res=await fetch('/api/admin/prints/'+id,{method:'DELETE',credentials:'include'});if(res.ok)await loadPrints();}catch(e){}
 }
@@ -454,59 +355,38 @@ async function deletePrint(id,btn){
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
 
-  buildFields('home-fields',[
-    ['hero_eyebrow','Eyebrow line (small caps, top of intro)',false],
-    ['hero_tagline','Tagline (italic, below eyebrow)',false],
-    ['hero_meta','Meta line (right side of intro)',false],
+  buildFields('nav-fields',[
+    ['nav_name',  'Site name (top left)',       false],
+    ['nav_work',  'Work link label',             false],
+    ['nav_about', 'About link label',            false],
+    ['nav_contact','Contact link label',         false],
+  ]);
+
+  buildFields('hero-fields',[
+    ['hero_name', 'Your name (large title)',     false],
+    ['hero_sub',  'Subtitle / location line',    false],
   ]);
 
   buildFields('about-fields',[
-    ['about_p1','Paragraph 1',true],
-    ['about_p2','Paragraph 2',true],
-    ['about_p3','Paragraph 3',true],
-  ]);
-
-  buildFields('atelier-fields',[
-    ['atelier_eyebrow','Section label',false],
-    ['atelier_headline','Headline',false],
-    ['atelier_p1','Paragraph 1',true],
-    ['atelier_p2','Paragraph 2',true],
-    ['atelier_spec','Spec line (printer details)',false],
+    ['about_heading', 'Page heading',            false],
+    ['about_p1',      'Paragraph 1',             true],
+    ['about_p2',      'Paragraph 2',             true],
+    ['about_p3',      'Paragraph 3',             true],
+    ['atelier_spec',  'Spec line (printer info)',false],
   ]);
 
   buildFields('contact-fields',[
-    ['contact_eyebrow','Section label',false],
-    ['contact_title','Heading',false],
-    ['contact_intro','Intro line',true],
-    ['footer_copy','Footer copyright line',false],
+    ['contact_title', 'Page heading',            false],
   ]);
 
-  // Load current hero image
-  if(allContent.hero_image_url){
-    document.getElementById('hero-current-img').innerHTML=`<div class="current-img-wrap"><img src="${allContent.hero_image_url}"><p>Current hero image</p></div>`;
-  }
+  buildFields('footer-fields',[
+    ['footer_name', 'Name in footer',            false],
+    ['footer_loc',  'Location / tagline',        false],
+    ['footer_cta',  '"Get in touch" link text',  false],
+  ]);
 
   await loadMessages();
   await loadPrints();
-}
-
-// HERO IMAGE
-async function uploadHero(){
-  const file=document.getElementById('hero-file').files[0];
-  const msg=document.getElementById('hero-upload-msg');
-  if(!file)return;
-  msg.className='status';msg.textContent='Uploading...';
-  const fd=new FormData();fd.append('image',file);
-  try{
-    const res=await fetch('/api/admin/upload/hero',{method:'POST',body:fd,credentials:'include'});
-    const d=await res.json();
-    if(d.ok){
-      msg.className='status ok';msg.textContent='Hero image updated ✓';
-      document.getElementById('hero-current-img').innerHTML=`<div class="current-img-wrap"><img src="${d.url}"><p>Current hero image</p></div>`;
-    } else {
-      msg.className='status err';msg.textContent='Failed: '+(d.error||'unknown');
-    }
-  }catch(e){msg.className='status err';msg.textContent='Connection error.';}
 }
 
 checkAuth();

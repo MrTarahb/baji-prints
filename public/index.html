@@ -554,11 +554,11 @@ nav {
 <div id="cur"></div>
 
 <nav>
-  <a class="nav-name" onclick="showPage('main')">Bharat Bhatia</a>
+  <a class="nav-name" onclick="showPage('main')" id="c-nav_name">Bharat Bhatia</a>
   <ul class="nav-links">
-    <li><a onclick="showPage('main')">Work</a></li>
-    <li><a onclick="showPage('about')">About</a></li>
-    <li><a onclick="showPage('contact')">Contact</a></li>
+    <li><a onclick="showPage('main')" id="c-nav_work">Work</a></li>
+    <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
+    <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
   </ul>
 </nav>
 
@@ -572,8 +572,8 @@ nav {
     </div>
     <div class="intro-overlay"></div>
     <div class="intro-text">
-      <h1 class="intro-title">Bharat Bhatia</h1>
-      <p class="intro-sub">Zürich · Fine art print</p>
+      <h1 class="intro-title" id="c-hero_name">Bharat Bhatia</h1>
+      <p class="intro-sub" id="c-hero_sub">Zürich · Fine art print</p>
     </div>
     <div class="intro-scroll">
       <div class="scroll-bar"></div>
@@ -588,11 +588,11 @@ nav {
 
   <footer class="site-footer">
     <div class="footer-left">
-      <span class="footer-name">Bharat Bhatia</span>
-      <span class="footer-loc">Zürich · Fine art print</span>
+      <span class="footer-name" id="c-footer_name">Bharat Bhatia</span>
+      <span class="footer-loc" id="c-footer_loc">Zürich · Fine art print</span>
     </div>
     <div class="footer-contact">
-      <a onclick="showPage('contact')">Get in touch</a>
+      <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
     </div>
   </footer>
 </div>
@@ -600,7 +600,7 @@ nav {
 <!-- ABOUT PAGE -->
 <div id="about-page">
   <div class="inner">
-    <h1 class="about-heading">About.</h1>
+    <h1 class="about-heading" id="c-about_heading">About.</h1>
     <div class="about-body">
       <p id="c-about_p1">I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.</p>
       <p id="c-about_p2">I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.</p>
@@ -701,8 +701,7 @@ document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
 async function loadContent() {
   try {
     const d = await fetch('/api/content').then(r=>r.json());
-    // Store hero image url globally so buildFeed can use it
-    window._heroImageUrl = d.hero_image_url || '';
+
     Object.entries(d).forEach(([k,v]) => {
       document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
         if (v) el.textContent = v;
@@ -762,14 +761,11 @@ async function buildFeed(prints) {
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
 
-  // Now pick hero — prefer landscape, random each load
-  let heroUrl = window._heroImageUrl || '';
-  if (!heroUrl) {
-    const landscapes = feedPrints.filter((_, i) => orientations[i] === 'landscape');
-    const pool = landscapes.length ? landscapes : feedPrints;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    heroUrl = pick.image_url || pick.url || '';
-  }
+  // Pick hero randomly from landscape images, different each load
+  const landscapes = feedPrints.filter((_, i) => orientations[i] === 'landscape');
+  const heroPool = landscapes.length ? landscapes : feedPrints;
+  const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
+  const heroUrl = heroPick.image_url || heroPick.url || '';
   introImg.onload = applyHeroOrientation;
   introImg.src = heroUrl;
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
