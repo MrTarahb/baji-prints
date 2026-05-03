@@ -302,8 +302,9 @@ nav {
   grid-template-columns: 1fr 1fr;
   gap: 2px;
   margin: 4vw 5%;
+  align-items: start;
 }
-.layout-pair img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
+.layout-pair img { width: 100%; display: block; }
 
 .layout-thin {
   max-width: 38%;
@@ -420,6 +421,67 @@ nav {
 @keyframes up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.9} }
+
+/* LIGHTBOX */
+#lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(10,10,9,0);
+  opacity: 0;
+  pointer-events: none;
+  transition: background .4s ease, opacity .4s ease;
+}
+#lightbox.open {
+  background: rgba(10,10,9,0.92);
+  opacity: 1;
+  pointer-events: all;
+}
+#lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  transform: scale(0.88);
+  opacity: 0;
+  transition: transform .45s cubic-bezier(0.16,1,0.3,1), opacity .35s ease;
+  border-radius: 1px;
+  cursor: none;
+}
+#lightbox.open img {
+  transform: scale(1);
+  opacity: 1;
+}
+#lightbox-close {
+  position: absolute;
+  top: 1.5rem; right: 2rem;
+  font-family: var(--fm);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.5);
+  cursor: none;
+  background: none;
+  border: none;
+  padding: .5rem;
+  transition: color .2s;
+}
+#lightbox-close:hover { color: rgba(250,250,248,.9); }
+#lightbox-caption {
+  position: absolute;
+  bottom: 2rem; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--fm);
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.4);
+  white-space: nowrap;
+}
 
 /* CONTACT PAGE */
 #contact-page {
@@ -633,6 +695,13 @@ nav {
   <p class="form-msg" id="form-msg"></p>
 </div>
 
+<!-- LIGHTBOX -->
+<div id="lightbox">
+  <button id="lightbox-close" onclick="closeLightbox()">Close ✕</button>
+  <img id="lightbox-img" src="" alt="">
+  <span id="lightbox-caption"></span>
+</div>
+
 <script>
 // SCROLL-DRIVEN HERO EXIT
 (function() {
@@ -688,7 +757,7 @@ nav {
 const cur = document.getElementById('cur');
 let mx=0,my=0,rx=0,ry=0;
 document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
-document.querySelectorAll('a,button,.img-wrap').forEach(el=>{
+document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
   el.addEventListener('mouseenter',()=>cur.classList.add('big'));
   el.addEventListener('mouseleave',()=>cur.classList.remove('big'));
 });
@@ -788,8 +857,8 @@ async function buildFeed(prints) {
         item.className = 'feed-item layout-pair';
       }
       item.innerHTML = `
-        <div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>
-        <div class="img-wrap"><img src="${nextP.image_url||nextP.url}" alt="${nextP.title||''}" loading="lazy"><span class="img-label">${nextP.title||''}</span></div>`;
+        <div class="img-wrap" onclick="openLightbox('${(p.image_url||p.url).replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}')"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>
+        <div class="img-wrap" onclick="openLightbox('${(nextP.image_url||nextP.url).replace(/'/g,"\\'")}','${(nextP.title||'').replace(/'/g,"\\'")}')"><img src="${nextP.image_url||nextP.url}" alt="${nextP.title||''}" loading="lazy"><span class="img-label">${nextP.title||''}</span></div>`;
       feed.appendChild(item);
       observe(item);
       pIdx++;
@@ -812,7 +881,9 @@ async function buildFeed(prints) {
     const item = document.createElement('div');
     const isFirst = (feed.children.length === 0);
     item.className = `feed-item ${layoutClass}${isFirst ? ' feed-item-first' : ''}`;
-    item.innerHTML = `<div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>`;
+    const imgUrl = p.image_url||p.url;
+    const imgTitle = p.title||'';
+    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}')"><img src="${imgUrl}" alt="${imgTitle}" loading="lazy"><span class="img-label">${imgTitle}</span></div>`;
     feed.appendChild(item);
     if (!isFirst) observe(item);
     lIdx++;
@@ -867,6 +938,32 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   document.body.appendChild(b);
   window._d = c => { localStorage.setItem('cookie_choice',c); b.style.opacity='0'; b.style.transition='opacity .2s'; setTimeout(()=>b.remove(),220); };
 })();
+
+// LIGHTBOX
+function openLightbox(src, title) {
+  const lb  = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  const cap = document.getElementById('lightbox-caption');
+  img.src = src;
+  cap.textContent = title || '';
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('open');
+  document.body.style.overflow = '';
+  // Clear src after transition
+  setTimeout(() => {
+    document.getElementById('lightbox-img').src = '';
+  }, 400);
+}
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeLightbox();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
 
 loadContent().then(() => load());
 </script>
