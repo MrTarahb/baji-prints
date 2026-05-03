@@ -6,6 +6,8 @@
 <title>Bharat Bhatia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
@@ -202,22 +204,18 @@ nav {
   opacity: 0;
   animation: fadeIn 1s 1.6s ease forwards;
   z-index: 2;
-  background: rgba(17,17,16,0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: .5rem .85rem .65rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.08);
 }
 .intro-scroll span {
-  font-size: 7.5px;
+  font-size: 8px;
   letter-spacing: .18em;
   text-transform: uppercase;
-  color: rgba(250,250,248,.7);
+  color: rgba(250,250,248,.75);
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(0,0,0,.5);
 }
 .scroll-bar {
-  width: 1px; height: 28px;
-  background: linear-gradient(to bottom, rgba(250,250,248,.6), transparent);
+  width: 1px; height: 32px;
+  background: linear-gradient(to bottom, rgba(250,250,248,.65), transparent);
   animation: pulse 2s 2s ease infinite;
 }
 
@@ -247,8 +245,7 @@ nav {
 .feed-item-first {
   position: relative;
   z-index: 20;
-  transform: translateY(100vh);
-  opacity: 0;
+  opacity: 0; /* GSAP animates this */
 }
 
 /* FEED — varying layout */
@@ -703,55 +700,47 @@ nav {
 </div>
 
 <script>
-// SCROLL-DRIVEN HERO EXIT
-(function() {
-  let ticking = false;
+// SCROLL ANIMATION — initialised after feed is built
+function initScrollAnimation() {
+  const intro     = document.getElementById('intro');
+  const trigger   = document.getElementById('scroll-trigger');
+  const firstItem = document.querySelector('.feed-item-first');
+  if (!intro || !trigger || typeof gsap === 'undefined') return;
 
-  function onScroll() {
-    if (!ticking) {
-      requestAnimationFrame(updateScroll);
-      ticking = true;
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Hero exits left + scales + fades
+  gsap.to(intro, {
+    x: '-38vw',
+    scale: 0.9,
+    opacity: 0,
+    ease: 'power2.inOut',
+    scrollTrigger: {
+      trigger: trigger,
+      start: 'top bottom',
+      end: 'center top',
+      scrub: 1.2,
     }
+  });
+
+  // First portfolio image rises from below, overlapping hero exit
+  if (firstItem) {
+    gsap.fromTo(firstItem,
+      { y: '85vh', opacity: 0 },
+      {
+        y: '0vh',
+        opacity: 1,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: trigger,
+          start: '15% bottom',
+          end: '70% top',
+          scrub: 1.2,
+        }
+      }
+    );
   }
-
-  function updateScroll() {
-    ticking = false;
-    const trigger   = document.getElementById('scroll-trigger');
-    const intro     = document.getElementById('intro');
-    const firstItem = document.querySelector('.feed-item-first');
-    if (!trigger || !intro) return;
-
-    const triggerRect = trigger.getBoundingClientRect();
-    const triggerH    = trigger.offsetHeight;
-    const progress = Math.max(0, Math.min(1,
-      1 - (triggerRect.bottom / (window.innerHeight + triggerH))
-    ));
-
-    // Hero: slides left + scales down + fades
-    // Moves 0→0.6, so it lingers at start and exits cleanly
-    const heroP  = Math.max(0, Math.min(1, progress / 0.6));
-    const ease   = heroP < 0.5 ? 2*heroP*heroP : -1+(4-2*heroP)*heroP; // ease in-out
-    const scale  = 1 - ease * 0.1;
-    const slideX = -ease * 42;
-    const fadeO  = 1 - ease * 0.9;
-    intro.style.transform     = `translateX(${slideX}vw) scale(${scale})`;
-    intro.style.opacity       = fadeO;
-    intro.style.transformOrigin = 'center center';
-
-    // First image: rises from below
-    // Starts at progress 0.15 (early overlap with hero exit), done at 0.65
-    if (firstItem) {
-      const riseP  = Math.max(0, Math.min(1, (progress - 0.15) / 0.5));
-      const riseE  = riseP < 0.5 ? 2*riseP*riseP : -1+(4-2*riseP)*riseP;
-      const transY = (1 - riseE) * 88; // starts 88vh below, not 100 (feels more natural)
-      firstItem.style.transform  = `translateY(${transY}vh)`;
-      firstItem.style.opacity    = Math.min(1, riseP * 2); // fades in quickly
-      firstItem.style.transition = 'none';
-    }
-  }
-
-  window.addEventListener('scroll', onScroll, { passive: true });
-})();
+}
 
 // CURSOR
 const cur = document.getElementById('cur');
@@ -893,6 +882,9 @@ async function buildFeed(prints) {
   const endGap = document.createElement('div');
   endGap.className = 'gap-lg';
   feed.appendChild(endGap);
+
+  // Init GSAP scroll animation now that DOM is ready
+  setTimeout(initScrollAnimation, 50);
 }
 
 // INTERSECTION OBSERVER
