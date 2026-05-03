@@ -93,18 +93,30 @@ nav {
 
 /* INTRO — first screen */
 .intro {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
 }
+/* Landscape hero — fixed full-viewport crop */
+.intro.landscape {
+  height: 100vh;
+  min-height: 100vh;
+}
+/* Portrait hero — let it breathe, show full image */
+.intro.portrait {
+  height: auto;
+  min-height: auto;
+  padding: 0;
+}
 .intro-bg {
   position: absolute; inset: 0;
   overflow: hidden;
 }
-.intro-bg img {
+/* Landscape: cover fills viewport */
+.intro.landscape .intro-bg img {
   width: 100%; height: 100%;
   object-fit: cover;
   object-position: center;
@@ -113,13 +125,58 @@ nav {
   transition: opacity 1.6s ease;
   filter: grayscale(0.25) brightness(0.7);
 }
+/* Portrait: show full image, no crop */
+.intro.portrait .intro-bg {
+  position: relative;
+  inset: auto;
+  overflow: visible;
+}
+.intro.portrait .intro-bg img {
+  width: 100%; height: auto;
+  max-width: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+  filter: grayscale(0.25) brightness(0.8);
+}
 .intro-bg img.loaded { opacity: 1; }
-.intro-overlay {
+/* Landscape overlay */
+.intro.landscape .intro-overlay {
   position: absolute; inset: 0;
   background: linear-gradient(to bottom,
     rgba(17,17,16,0.35) 0%,
     rgba(17,17,16,0.1) 40%,
     rgba(17,17,16,0.5) 100%);
+}
+/* Portrait overlay — thin bar at bottom only */
+.intro.portrait .intro-overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 30%;
+  background: linear-gradient(to bottom, transparent, rgba(17,17,16,0.3));
+}
+/* Portrait text sits below image, not overlaid */
+.intro.portrait .intro-text {
+  position: relative;
+  z-index: 2;
+  padding: 1.5rem 2rem;
+  text-align: left;
+  width: 100%;
+}
+.intro.portrait .intro-title {
+  color: var(--black);
+}
+.intro.portrait .intro-sub {
+  color: var(--gray);
+}
+/* Portrait scroll hint */
+.intro.portrait .intro-scroll {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  padding: 1rem 2rem 2rem;
+  align-items: flex-start;
 }
 .intro-text {
   position: relative; z-index: 2;
@@ -477,7 +534,7 @@ nav {
 <div id="main-content">
 
   <!-- INTRO IMAGE -->
-  <div class="intro" id="intro">
+  <div class="intro landscape" id="intro">
     <div class="intro-bg">
       <img id="intro-img" src="" alt="Bharat Bhatia">
     </div>
@@ -601,7 +658,13 @@ async function buildFeed(prints) {
   const firstUrl = prints[0].image_url || prints[0].url || '';
   introImg.src = firstUrl;
   introImg.classList.remove('loaded');
-  introImg.onload = () => introImg.classList.add('loaded');
+  introImg.onload = () => {
+    introImg.classList.add('loaded');
+    // Apply orientation class to intro container
+    const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+    intro.classList.remove('landscape', 'portrait');
+    intro.classList.add(isPortrait ? 'portrait' : 'landscape');
+  };
 
   // Detect orientations for all prints starting from index 1
   const feedPrints = prints.slice(1);
