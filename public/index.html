@@ -230,6 +230,41 @@ nav {
 }
 .layout-thin img { width: 100%; display: block; }
 
+/* Portrait-specific layouts — image shows at natural ratio */
+.layout-portrait-center {
+  max-width: 42%;
+  margin: 5vw auto;
+}
+.layout-portrait-center img { width: 100%; display: block; }
+
+.layout-portrait-left {
+  width: 38%;
+  margin: 5vw 0 5vw 12%;
+}
+.layout-portrait-left img { width: 100%; display: block; }
+
+.layout-portrait-right {
+  width: 38%;
+  margin: 5vw 12% 5vw auto;
+}
+.layout-portrait-right img { width: 100%; display: block; }
+
+.layout-portrait-large {
+  max-width: 55%;
+  margin: 5vw auto;
+}
+.layout-portrait-large img { width: 100%; display: block; }
+
+/* Pair with one portrait + one landscape */
+.layout-pair-mixed {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 4vw 5%;
+  align-items: center;
+}
+.layout-pair-mixed img { width: 100%; display: block; }
+
 /* Image hover */
 .img-wrap {
   position: relative;
@@ -409,14 +444,16 @@ nav {
   .layout-left,.layout-right { width:80%; margin-left:10%; margin-right:10%; }
   .layout-thin { max-width:70%; }
   .layout-full img { height:65vw; }
-  .layout-pair { margin:4vw 2%; }
+  .layout-pair,.layout-pair-mixed { margin:4vw 2%; }
+  .layout-portrait-center,.layout-portrait-large { max-width:70%; }
+  .layout-portrait-left,.layout-portrait-right { width:65%; margin-left:auto; margin-right:auto; }
   .intro-title { font-size:clamp(2rem,8vw,4rem); }
 }
 @media(max-width:480px){
   nav { padding:1.1rem 1.25rem; }
   .layout-left,.layout-right { width:90%; margin-left:5%; margin-right:5%; }
-  .layout-pair { grid-template-columns:1fr; gap:2px; }
-  .layout-pair img { aspect-ratio:4/3; }
+  .layout-pair,.layout-pair-mixed { grid-template-columns:1fr; gap:2px; }
+  .layout-portrait-center,.layout-portrait-large,.layout-portrait-left,.layout-portrait-right { max-width:90%; width:90%; margin-left:auto; margin-right:auto; }
   .form-row { grid-template-columns:1fr; }
   body { cursor:auto; }
   #cur { display:none; }
@@ -533,17 +570,22 @@ function showPage(name){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-// LAYOUT SEQUENCE — varied, intentional
-const layouts = [
-  'full','gap-lg','center','gap-md','left','gap-sm','right',
-  'gap-lg','wide','gap-md','thin','gap-lg','pair',
-  'gap-md','full','gap-lg','right','gap-md','left',
-  'gap-lg','center','gap-md','wide','gap-md','thin',
-];
+// Detect image orientation then build feed
+function getOrientation(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
+    img.onerror = () => resolve('landscape');
+    img.src = url;
+  });
+}
 
+// Layout sequences per orientation
+const landscapeLayouts = ['full','center','left','right','wide','thin','pair'];
+const portraitLayouts  = ['portrait-large','portrait-center','portrait-left','portrait-right','portrait-center','portrait-large'];
+const gapsBetween      = ['gap-lg','gap-md','gap-sm','gap-md','gap-lg','gap-md','gap-md'];
 
-
-function buildFeed(prints) {
+async function buildFeed(prints) {
   const feed = document.getElementById('feed');
   const introImg = document.getElementById('intro-img');
   const intro = document.getElementById('intro');
@@ -555,53 +597,75 @@ function buildFeed(prints) {
     return;
   }
 
-  // Make sure intro is visible
   intro.style.display = '';
-
-  // Set intro image to first print
   const firstUrl = prints[0].image_url || prints[0].url || '';
   introImg.src = firstUrl;
   introImg.classList.remove('loaded');
   introImg.onload = () => introImg.classList.add('loaded');
-  introImg.onerror = () => console.error('Intro image failed to load:', firstUrl);
 
-  // Start feed from second print — first is used as hero above
-  let printIdx = 1;
-  let layoutIdx = 0;
+  // Detect orientations for all prints starting from index 1
+  const feedPrints = prints.slice(1);
+  const orientations = await Promise.all(
+    feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
+  );
 
-  while (printIdx < prints.length && layoutIdx < layouts.length * 3) {
-    const lt = layouts[layoutIdx % layouts.length];
-    layoutIdx++;
+  let lIdx = 0, pIdx = 0;
 
-    if (lt.startsWith('gap')) {
-      const g = document.createElement('div');
-      g.className = lt.replace('-', ' ');
-      feed.appendChild(g);
-      continue;
-    }
+  while (pIdx < feedPrints.length) {
+    const p = feedPrints[pIdx];
+    const ori = orientations[pIdx];
+    pIdx++;
 
-    if (lt === 'pair') {
-      if (printIdx + 1 >= prints.length) continue;
-      const p1 = prints[printIdx++];
-      const p2 = prints[printIdx++];
+    // Gap before each item
+    const gap = document.createElement('div');
+    gap.className = gapsBetween[lIdx % gapsBetween.length];
+    feed.appendChild(gap);
+
+    // Try pairing: two consecutive same-orientation images
+    const nextP = feedPrints[pIdx];
+    const nextOri = orientations[pIdx];
+    if (nextP && nextOri === ori) {
+      // Pair them
       const item = document.createElement('div');
-      item.className = 'feed-item layout-pair';
+      if (ori === 'portrait') {
+        item.className = 'feed-item layout-pair';
+      } else {
+        item.className = 'feed-item layout-pair';
+      }
       item.innerHTML = `
-        <div class="img-wrap"><img src="${p1.image_url||p1.url}" alt="${p1.title||''}" loading="lazy"><span class="img-label">${p1.title||''}</span></div>
-        <div class="img-wrap"><img src="${p2.image_url||p2.url}" alt="${p2.title||''}" loading="lazy"><span class="img-label">${p2.title||''}</span></div>`;
+        <div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>
+        <div class="img-wrap"><img src="${nextP.image_url||nextP.url}" alt="${nextP.title||''}" loading="lazy"><span class="img-label">${nextP.title||''}</span></div>`;
       feed.appendChild(item);
       observe(item);
+      pIdx++;
+      lIdx++;
       continue;
     }
 
-    if (printIdx >= prints.length) break;
-    const p = prints[printIdx++];
+    // Single image — pick layout based on orientation
+    let layoutClass;
+    if (ori === 'portrait') {
+      const pl = portraitLayouts[lIdx % portraitLayouts.length];
+      layoutClass = `layout-${pl}`;
+    } else {
+      const ll = landscapeLayouts[lIdx % landscapeLayouts.length];
+      // Landscape: skip 'full' for the first item so we don't repeat the intro feel
+      const safe = ll === 'full' && lIdx === 0 ? 'wide' : ll;
+      layoutClass = `layout-${safe}`;
+    }
+
     const item = document.createElement('div');
-    item.className = `feed-item layout-${lt}`;
+    item.className = `feed-item ${layoutClass}`;
     item.innerHTML = `<div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>`;
     feed.appendChild(item);
     observe(item);
+    lIdx++;
   }
+
+  // Final gap
+  const endGap = document.createElement('div');
+  endGap.className = 'gap-lg';
+  feed.appendChild(endGap);
 }
 
 // INTERSECTION OBSERVER
