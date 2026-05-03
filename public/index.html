@@ -750,29 +750,29 @@ async function buildFeed(prints) {
 
   intro.style.display = '';
 
-  // If a dedicated hero image is set in admin, use it
-  // Otherwise pick a random landscape photo from the portfolio
-  let heroUrl = window._heroImageUrl || '';
-  if (!heroUrl && prints.length) {
-    const landscapes = prints.filter((_, i) => orientations[i] === 'landscape');
-    const pool = landscapes.length ? landscapes : prints;
-    heroUrl = pool[Math.floor(Math.random() * pool.length)].image_url || '';
-  }
-
   function applyHeroOrientation() {
     const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
     intro.classList.remove('landscape','portrait');
     intro.classList.add(isPortrait ? 'portrait' : 'landscape');
   }
-  introImg.onload = applyHeroOrientation;
-  introImg.src = heroUrl;
-  if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
 
-  // Detect orientations
+  // Detect orientations first — needed for hero selection and column layout
   const feedPrints = prints.slice(0);
   const orientations = await Promise.all(
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
+
+  // Now pick hero — prefer landscape, random each load
+  let heroUrl = window._heroImageUrl || '';
+  if (!heroUrl) {
+    const landscapes = feedPrints.filter((_, i) => orientations[i] === 'landscape');
+    const pool = landscapes.length ? landscapes : feedPrints;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    heroUrl = pick.image_url || pick.url || '';
+  }
+  introImg.onload = applyHeroOrientation;
+  introImg.src = heroUrl;
+  if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
 
   // Build two true columns
   const colsWrap = document.createElement('div');
