@@ -230,20 +230,27 @@ nav {
 .feed { padding: 0; }
 
 .feed-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 4vw;
-  row-gap: 0;
+  display: flex;
+  gap: 4vw;
   padding: 4vw 5vw 6vw;
-  align-items: start;
+  align-items: flex-start;
+}
+
+.feed-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4vw;
+}
+
+/* Right column offset downward for stagger */
+.feed-col:last-child {
+  margin-top: 8vw;
 }
 
 .feed-col-item {
   opacity: 0; /* GSAP animates to 1 */
-  margin-bottom: 4vw;
 }
-.feed-col-item.col-left  { margin-top: 0; }
-.feed-col-item.col-right { margin-top: 6vw; }
 
 .feed-col-item .img-wrap img {
   width: 100%;
@@ -251,6 +258,10 @@ nav {
   max-height: 85vh;
   object-fit: contain;
   display: block;
+}
+.feed-col-item.portrait .img-wrap {
+  display: flex;
+  justify-content: center;
 }
 .feed-col-item.portrait .img-wrap img {
   max-height: 85vh;
@@ -400,11 +411,17 @@ nav {
   bottom: 2rem; left: 50%;
   transform: translateX(-50%);
   font-family: var(--fm);
-  font-size: 8.5px;
+  font-size: 8px;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: rgba(250,250,248,.4);
+  color: rgba(250,250,248,.95);
   white-space: nowrap;
+  background: rgba(17,17,16,0.42);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: .28rem .65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
 }
 
 /* CONTACT PAGE */
@@ -518,8 +535,9 @@ nav {
 
 /* RESPONSIVE */
 @media(max-width:768px){
-  .feed-cols { grid-template-columns: 1fr; padding: 4vw 4vw 8vw; column-gap:0; }
-  .feed-col-item.col-right { margin-top: 0; }
+  .feed-cols { flex-direction: column; padding: 4vw 4vw 8vw; gap: 6vw; }
+  .feed-col:last-child { margin-top: 0; }
+  .feed-col { gap: 6vw; }
   .intro-title { font-size:clamp(2rem,8vw,4rem); }
 }
 @media(max-width:480px){
@@ -747,24 +765,32 @@ async function buildFeed(prints) {
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
 
-  // Build two-column grid container
+  // Build two true columns
   const colsWrap = document.createElement('div');
   colsWrap.className = 'feed-cols';
   feed.appendChild(colsWrap);
 
+  const colLeft  = document.createElement('div');
+  const colRight = document.createElement('div');
+  colLeft.className  = 'feed-col';
+  colRight.className = 'feed-col';
+  colsWrap.appendChild(colLeft);
+  colsWrap.appendChild(colRight);
+
   feedPrints.forEach((p, i) => {
-    const ori   = orientations[i];
-    const col   = i % 2 === 0 ? 'col-left' : 'col-right';
+    const ori      = orientations[i];
+    const isLeft   = i % 2 === 0;
     const imgUrl   = p.image_url || p.url || '';
     const imgTitle = p.title || '';
 
     const item = document.createElement('div');
-    item.className = `feed-col-item ${col} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
+    item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}')">
       <img src="${imgUrl}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
     </div>`;
-    colsWrap.appendChild(item);
+
+    (isLeft ? colLeft : colRight).appendChild(item);
   });
 
   // GSAP per-item animation after DOM is ready
