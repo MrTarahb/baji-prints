@@ -759,7 +759,7 @@ function getOrientation(url) {
 }
 
 // Layout sequences per orientation
-const landscapeLayouts = ['full','center','left','right','wide','thin','pair'];
+const landscapeLayouts = ['full','center','left','right','wide','thin'];
 const portraitLayouts  = ['portrait-large','portrait-center','portrait-left','portrait-right','portrait-center','portrait-large'];
 
 async function buildFeed(prints) {
@@ -802,27 +802,6 @@ async function buildFeed(prints) {
     const p = feedPrints[pIdx];
     const ori = orientations[pIdx];
     pIdx++;
-
-    // Try pairing: two consecutive same-orientation images
-    const nextP = feedPrints[pIdx];
-    const nextOri = orientations[pIdx];
-    if (nextP && nextOri === ori) {
-      // Pair them
-      const item = document.createElement('div');
-      if (ori === 'portrait') {
-        item.className = 'feed-item layout-pair';
-      } else {
-        item.className = 'feed-item layout-pair';
-      }
-      item.innerHTML = `
-        <div class="img-wrap" onclick="openLightbox('${(p.image_url||p.url).replace(/'/g,"\\'")}','${(p.title||'').replace(/'/g,"\\'")}')"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>
-        <div class="img-wrap" onclick="openLightbox('${(nextP.image_url||nextP.url).replace(/'/g,"\\'")}','${(nextP.title||'').replace(/'/g,"\\'")}')"><img src="${nextP.image_url||nextP.url}" alt="${nextP.title||''}" loading="lazy"><span class="img-label">${nextP.title||''}</span></div>`;
-      feed.appendChild(item);
-      observe(item);
-      pIdx++;
-      lIdx++;
-      continue;
-    }
 
     // Single image — pick layout based on orientation
     let layoutClass;
