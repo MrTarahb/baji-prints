@@ -91,64 +91,69 @@ nav {
 }
 .nav-links a:hover { color: rgba(250,250,248,1); }
 
-/* INTRO — first screen */
+/* INTRO */
 .intro {
   position: relative;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-/* LANDSCAPE: full viewport crop */
-.intro.landscape {
-  height: 100vh;
-}
-.intro.landscape .intro-bg {
-  position: absolute; inset: 0;
+  background: var(--black);
   overflow: hidden;
 }
-.intro.landscape .intro-bg img {
-  width: 100%; height: 100%;
-  object-fit: cover; object-position: center;
-  display: block;
-  opacity: 0; transition: opacity 1.6s ease;
-  filter: grayscale(0.25) brightness(0.7);
+.intro-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
-.intro.landscape .intro-overlay {
+.intro-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  filter: grayscale(0.25) brightness(0.72);
+}
+.intro-overlay {
   position: absolute; inset: 0;
   background: linear-gradient(to bottom,
-    rgba(17,17,16,0.4) 0%, rgba(17,17,16,0.1) 45%, rgba(17,17,16,0.55) 100%);
+    rgba(17,17,16,0.38) 0%,
+    rgba(17,17,16,0.08) 45%,
+    rgba(17,17,16,0.52) 100%);
+  z-index: 1;
+  pointer-events: none;
 }
-/* PORTRAIT: show full image, no crop */
+/* Portrait: let image show at full height, no crop */
 .intro.portrait {
   height: auto;
-  background: var(--black);
+  overflow: visible;
 }
 .intro.portrait .intro-bg {
   position: relative;
-  width: 100%;
+  inset: auto;
+  overflow: visible;
 }
 .intro.portrait .intro-bg img {
-  width: 100%; height: auto;
-  display: block;
-  opacity: 0; transition: opacity 1.6s ease;
-  filter: grayscale(0.2) brightness(0.85);
+  height: auto;
+  object-fit: unset;
 }
 .intro.portrait .intro-overlay {
-  position: absolute;
-  bottom: 0; left: 0; right: 0; height: 35%;
-  background: linear-gradient(to bottom, transparent, rgba(17,17,16,0.6));
+  inset: auto;
+  bottom: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, rgba(17,17,16,0.55));
 }
 .intro.portrait .intro-text {
   position: absolute;
   bottom: 2.5rem; left: 2rem;
-  text-align: left; z-index: 2;
+  text-align: left;
 }
 .intro.portrait .intro-scroll {
-  bottom: 1.5rem; right: 2rem; left: auto;
+  position: absolute;
+  bottom: 1.5rem; right: 2rem;
+  left: auto; transform: none;
 }
-/* Shared */
-.intro-bg img.loaded { opacity: 1; }
 .intro-text {
   position: relative; z-index: 2;
   text-align: center;
