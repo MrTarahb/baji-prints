@@ -234,16 +234,16 @@ nav {
   grid-template-columns: 1fr 1fr;
   column-gap: 4vw;
   row-gap: 0;
-  padding: 4vw 5vw 8vw;
+  padding: 4vw 5vw 6vw;
   align-items: start;
 }
 
 .feed-col-item {
-  opacity: 0;
-  margin-bottom: 8vw;
+  opacity: 0; /* GSAP animates to 1 */
+  margin-bottom: 4vw;
 }
 .feed-col-item.col-left  { margin-top: 0; }
-.feed-col-item.col-right { margin-top: 12vw; }
+.feed-col-item.col-right { margin-top: 6vw; }
 
 .feed-col-item .img-wrap img {
   width: 100%;
@@ -410,11 +410,14 @@ nav {
 /* CONTACT PAGE */
 #contact-page {
   display: none;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  background: var(--white);
+  overflow-y: auto;
+  z-index: 100;
   padding: 8rem 2rem 4rem;
-  max-width: 600px;
-  margin: 0 auto;
 }
+#contact-page .inner { max-width: 600px; margin: 0 auto; }
 #contact-page.active { display: block; }
 #main-content.hidden { display: none; }
 
@@ -476,11 +479,14 @@ nav {
 /* ABOUT PAGE */
 #about-page {
   display: none;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  background: var(--white);
+  overflow-y: auto;
+  z-index: 100;
   padding: 8rem 2rem 4rem;
-  max-width: 680px;
-  margin: 0 auto;
 }
+#about-page .inner { max-width: 680px; margin: 0 auto; }
 #about-page.active { display: block; }
 .about-heading {
   font-family: var(--fi);
@@ -557,7 +563,7 @@ nav {
     </div>
   </div>
 
-  </div><!-- .intro -->
+  </div><!-- /.intro -->
 
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
@@ -575,19 +581,22 @@ nav {
 
 <!-- ABOUT PAGE -->
 <div id="about-page">
-  <h1 class="about-heading">About.</h1>
-  <div class="about-body">
-    <p id="c-about_p1">I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.</p>
-    <p id="c-about_p2">I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.</p>
-    <p id="c-about_p3">Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.</p>
-    <div class="about-divider"></div>
-    <p class="about-spec" id="c-atelier_spec">Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more</p>
+  <div class="inner">
+    <h1 class="about-heading">About.</h1>
+    <div class="about-body">
+      <p id="c-about_p1">I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.</p>
+      <p id="c-about_p2">I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.</p>
+      <p id="c-about_p3">Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.</p>
+      <div class="about-divider"></div>
+      <p class="about-spec" id="c-atelier_spec">Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more</p>
+    </div>
   </div>
 </div>
 
 <!-- CONTACT PAGE -->
 <div id="contact-page">
-  <h1 class="contact-heading" id="c-contact_title">Say hello.</h1>
+  <div class="inner">
+    <h1 class="contact-heading" id="c-contact_title">Say hello.</h1>
   <div class="form-row">
     <div class="form-group"><label>Name</label><input type="text" id="f-name" placeholder="Anna Müller"></div>
     <div class="form-group"><label>Email</label><input type="email" id="f-email" placeholder="anna@example.com"></div>
@@ -605,6 +614,7 @@ nav {
   <div class="form-group"><label>Message</label><textarea id="f-message" placeholder="Tell me what you're thinking..."></textarea></div>
   <button class="btn-send" id="btn-submit">Send message</button>
   <p class="form-msg" id="form-msg"></p>
+  </div><!-- /.inner -->
 </div>
 
 <!-- LIGHTBOX -->
@@ -686,9 +696,15 @@ async function loadContent() {
 // PAGE ROUTING
 function showPage(name){
   document.getElementById('main-content').classList.toggle('hidden', name!=='main');
-  document.getElementById('about-page').classList.toggle('active', name==='about');
-  document.getElementById('contact-page').classList.toggle('active', name==='contact');
-  window.scrollTo({top:0,behavior:'smooth'});
+  const aboutEl = document.getElementById('about-page');
+  const contactEl = document.getElementById('contact-page');
+  aboutEl.classList.toggle('active', name==='about');
+  contactEl.classList.toggle('active', name==='contact');
+  // Reset scroll inside fixed pages
+  if (name === 'about') aboutEl.scrollTop = 0;
+  if (name === 'contact') contactEl.scrollTop = 0;
+  // Scroll main back to top when returning
+  if (name === 'main') { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
 }
 
 // Detect image orientation then build feed
