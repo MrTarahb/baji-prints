@@ -219,33 +219,11 @@ nav {
   animation: pulse 2s 2s ease infinite;
 }
 
-/* SCROLL TRANSITION CONTAINER */
-.scroll-stage {
-  position: relative;
-}
-/* Hero sticks while scroll happens */
-.intro-sticky-wrap {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  z-index: 10;
-  pointer-events: none;
-}
-/* The actual intro animates via JS transform */
-.intro {
-  will-change: transform, opacity;
-}
-/* Trigger zone — tall enough to drive the animation */
-.scroll-trigger {
-  height: 250vh;
-  position: relative;
-  z-index: 1;
-}
-/* First feed item rises over the hero */
+/* First feed item — starts slightly below, GSAP brings it in */
 .feed-item-first {
   position: relative;
   z-index: 20;
-  opacity: 0; /* GSAP animates this */
+  opacity: 0;
 }
 
 /* FEED — varying layout */
@@ -255,8 +233,14 @@ nav {
   opacity: 0;
   transform: translateY(30px);
   transition: opacity .9s ease, transform .9s ease;
+  margin-bottom: 3vw;
 }
 .feed-item.visible { opacity: 1; transform: translateY(0); }
+
+/* Pair gap — between the two images in a pair */
+.layout-pair, .layout-pair-mixed {
+  gap: 12px;
+}
 
 /* Layout types */
 .layout-full {
@@ -621,13 +605,11 @@ nav {
 <!-- MAIN FEED -->
 <div id="main-content">
 
-  <!-- SCROLL STAGE: sticky hero + trigger -->
-  <div class="scroll-stage">
-    <div class="intro-sticky-wrap">
-      <div class="intro landscape" id="intro">
-        <div class="intro-bg">
-          <img id="intro-img" src="" alt="Bharat Bhatia">
-        </div>
+  <!-- HERO -->
+  <div class="intro landscape" id="intro">
+    <div class="intro-bg">
+      <img id="intro-img" src="" alt="Bharat Bhatia">
+    </div>
     <div class="intro-overlay"></div>
     <div class="intro-text">
       <h1 class="intro-title">Bharat Bhatia</h1>
@@ -639,10 +621,7 @@ nav {
     </div>
   </div>
 
-      </div><!-- .intro -->
-    </div><!-- .intro-sticky-wrap -->
-    <div class="scroll-trigger" id="scroll-trigger"></div>
-  </div><!-- .scroll-stage -->
+  </div><!-- .intro -->
 
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
@@ -700,42 +679,43 @@ nav {
 </div>
 
 <script>
-// SCROLL ANIMATION — initialised after feed is built
+// SCROLL ANIMATION — GSAP ScrollTrigger, triggered by actual feed content
 function initScrollAnimation() {
   const intro     = document.getElementById('intro');
-  const trigger   = document.getElementById('scroll-trigger');
   const firstItem = document.querySelector('.feed-item-first');
-  if (!intro || !trigger || typeof gsap === 'undefined') return;
+  if (!intro || typeof gsap === 'undefined') return;
 
   gsap.registerPlugin(ScrollTrigger);
 
-  // Hero exits left + scales + fades
+  // Hero: parallax upward + fade as user scrolls into feed
+  // Triggers as soon as intro bottom hits viewport bottom (natural scroll start)
   gsap.to(intro, {
-    x: '-38vw',
-    scale: 0.9,
+    yPercent: -12,
+    scale: 0.94,
+    x: '-22vw',
     opacity: 0,
-    ease: 'power2.inOut',
+    ease: 'none',
     scrollTrigger: {
-      trigger: trigger,
-      start: 'top bottom',
-      end: 'center top',
-      scrub: 1.2,
+      trigger: intro,
+      start: 'bottom bottom',   // when bottom of intro hits bottom of viewport
+      end: 'bottom top',        // when bottom of intro hits top of viewport
+      scrub: 0.8,
     }
   });
 
-  // First portfolio image rises from below, overlapping hero exit
+  // First portfolio image: rises naturally from just below
   if (firstItem) {
     gsap.fromTo(firstItem,
-      { y: '85vh', opacity: 0 },
+      { y: 60, opacity: 0 },
       {
-        y: '0vh',
+        y: 0,
         opacity: 1,
-        ease: 'power2.out',
+        ease: 'none',
         scrollTrigger: {
-          trigger: trigger,
-          start: '15% bottom',
-          end: '70% top',
-          scrub: 1.2,
+          trigger: firstItem,
+          start: 'top 90%',    // starts when top of item is 90% down the viewport
+          end: 'top 30%',      // fully in by the time it's 30% down
+          scrub: 0.8,
         }
       }
     );
