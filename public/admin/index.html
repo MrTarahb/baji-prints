@@ -97,12 +97,18 @@ textarea.field-input{resize:vertical;min-height:70px}
 .upload-zone-icon{font-size:1.4rem;color:var(--text-l);margin-bottom:.35rem}
 .upload-zone p{font-size:.78rem;color:var(--text-l)}
 .upload-zone strong{color:var(--ink)}
-.prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.65rem;margin-bottom:1.25rem}
+.prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.65rem;margin-bottom:1.25rem}
 .print-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;overflow:hidden}
 .print-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
 .print-card-body{padding:.55rem .75rem}
 .print-card-title{font-size:.78rem;font-weight:500;color:var(--ink);margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .print-card-order{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-l);margin-bottom:.4rem}
+.print-edit-row{margin-bottom:.5rem}
+.print-card-actions{display:flex;gap:.4rem;margin-top:.6rem;margin-bottom:.25rem}
+.btn-save-print{background:var(--ink);color:white;border:none;padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .18s}
+.btn-save-print:hover{background:#333}
+.btn-save-print:disabled{opacity:.5;cursor:default}
+.save-print-msg{font-size:.65rem;display:block;min-height:.9rem}
 .btn-del-print{background:none;border:1px solid rgba(200,144,122,.2);color:var(--pink);padding:.22rem .55rem;font-size:.65rem;border-radius:1px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
 .btn-del-print:hover{background:var(--pink);color:white}
 .prints-empty{color:var(--text-l);font-style:italic;font-size:.8rem;grid-column:1/-1;padding:.5rem 0}
@@ -361,13 +367,41 @@ async function loadPrints(){
       card.innerHTML=`
         <img src="${p.image_url}" alt="${esc(p.title)}">
         <div class="print-card-body">
-          <p class="print-card-title">${esc(p.title)}</p>
-          <p class="print-card-order">Order: ${p.sort_order}</p>
-          <button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button>
+          <div class="print-edit-row">
+            <label class="field-label">Title</label>
+            <input class="field-input" id="pt-${p.id}" value="${esc(p.title)}" placeholder="Title">
+          </div>
+          <div class="print-edit-row">
+            <label class="field-label">Description</label>
+            <input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}" placeholder="Description">
+          </div>
+          <div class="print-edit-row">
+            <label class="field-label">Sort order</label>
+            <input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px">
+          </div>
+          <div class="print-card-actions">
+            <button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button>
+            <button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button>
+          </div>
+          <span class="save-print-msg" id="pm-${p.id}"></span>
         </div>`;
       grid.appendChild(card);
     });
   }catch(e){}
+}
+
+async function savePrint(id, btn){
+  const title = document.getElementById('pt-'+id).value.trim();
+  const desc  = document.getElementById('pd-'+id).value.trim();
+  const order = document.getElementById('po-'+id).value;
+  const msg   = document.getElementById('pm-'+id);
+  if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
+  btn.textContent='Saving...';btn.disabled=true;
+  try{
+    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,sort_order:parseInt(order)||0})});
+    if(res.ok){btn.textContent='Saved ✓';msg.style.color='#4A7A55';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
+    else{msg.style.color='var(--pink)';msg.textContent='Error saving.';btn.textContent='Save';btn.disabled=false;}
+  }catch(e){msg.textContent='Connection error.';btn.textContent='Save';btn.disabled=false;}
 }
 async function addPrint(){
   const file=document.getElementById('print-file').files[0];
