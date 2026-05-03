@@ -549,9 +549,16 @@ function buildFeed(prints) {
     return;
   }
 
+  // Make sure intro is visible
+  intro.style.display = '';
+
   // Set intro image to first print
-  introImg.src = prints[0].url || prints[0].image_url;
+  const firstUrl = prints[0].image_url || prints[0].url || '';
+  console.log('First print URL:', firstUrl);
+  introImg.src = firstUrl;
+  introImg.classList.remove('loaded');
   introImg.onload = () => introImg.classList.add('loaded');
+  introImg.onerror = () => console.error('Intro image failed to load:', firstUrl);
 
   let printIdx = 0;
   let layoutIdx = 0;
@@ -574,8 +581,8 @@ function buildFeed(prints) {
       const item = document.createElement('div');
       item.className = 'feed-item layout-pair';
       item.innerHTML = `
-        <div class="img-wrap"><img src="${p1.url||p1.image_url}" alt="${p1.title||''}" loading="lazy"><span class="img-label">${p1.title||''}</span></div>
-        <div class="img-wrap"><img src="${p2.url||p2.image_url}" alt="${p2.title||''}" loading="lazy"><span class="img-label">${p2.title||''}</span></div>`;
+        <div class="img-wrap"><img src="${p1.image_url||p1.url}" alt="${p1.title||''}" loading="lazy"><span class="img-label">${p1.title||''}</span></div>
+        <div class="img-wrap"><img src="${p2.image_url||p2.url}" alt="${p2.title||''}" loading="lazy"><span class="img-label">${p2.title||''}</span></div>`;
       feed.appendChild(item);
       observe(item);
       continue;
@@ -585,7 +592,7 @@ function buildFeed(prints) {
     const p = prints[printIdx++];
     const item = document.createElement('div');
     item.className = `feed-item layout-${lt}`;
-    item.innerHTML = `<div class="img-wrap"><img src="${p.url||p.image_url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>`;
+    item.innerHTML = `<div class="img-wrap"><img src="${p.image_url||p.url}" alt="${p.title||''}" loading="lazy"><span class="img-label">${p.title||''}</span></div>`;
     feed.appendChild(item);
     observe(item);
   }
