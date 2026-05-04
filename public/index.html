@@ -703,7 +703,10 @@ function initScrollAnimation() {
     if (y > 40) {
       nav.classList.add('visible');
     } else {
-      nav.classList.remove('visible');
+      // Only hide if we're on the main page
+      const onSubPage = document.getElementById('about-page').classList.contains('active') ||
+                        document.getElementById('contact-page').classList.contains('active');
+      if (!onSubPage) nav.classList.remove('visible');
     }
     nav.classList.toggle('scrolled', y > 80);
     lastY = y;
