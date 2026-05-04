@@ -310,7 +310,8 @@ async function loadPrints(){
     grid.innerHTML='';
     prints.forEach(p=>{
       const card=document.createElement('div');card.className='print-card';
-      card.innerHTML=`<img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Sort order</label><input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px"></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      const excluded = p.exclude_from_hero ? 'checked' : '';
+      card.innerHTML=`<img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Sort order</label><input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px"></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
   }catch(e){}
@@ -322,8 +323,9 @@ async function savePrint(id,btn){
   const msg=document.getElementById('pm-'+id);
   if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
   btn.textContent='Saving...';btn.disabled=true;
+  const exclude = document.getElementById('ph-'+id)?.checked || false;
   try{
-    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,sort_order:parseInt(order)||0})});
+    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,sort_order:parseInt(order)||0,exclude_from_hero:exclude})});
     if(res.ok){btn.textContent='Saved ✓';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
     else{msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
   }catch(e){msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}

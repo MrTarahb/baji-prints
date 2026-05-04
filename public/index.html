@@ -785,9 +785,22 @@ async function buildFeed(prints) {
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
 
-  // Pick hero randomly from landscape images, different each load
-  const landscapes = feedPrints.filter((_, i) => orientations[i] === 'landscape');
-  const heroPool = landscapes.length ? landscapes : feedPrints;
+  // Pick hero randomly — landscape on desktop, portrait on mobile held vertically
+  // Exclude any prints marked exclude_from_hero
+  const eligible = feedPrints.filter(p => !p.exclude_from_hero);
+  const pool = eligible.length ? eligible : feedPrints;
+
+  const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
+
+  let heroPool;
+  if (isMobilePortrait) {
+    const portraits = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'portrait');
+    heroPool = portraits.length ? portraits : pool;
+  } else {
+    const landscapes = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'landscape');
+    heroPool = landscapes.length ? landscapes : pool;
+  }
+
   const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
   const heroUrl = heroPick.image_url || heroPick.url || '';
   introImg.onload = applyHeroOrientation;
