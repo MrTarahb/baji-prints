@@ -265,6 +265,11 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 .feed-col-item {
   opacity: 0; /* GSAP animates to 1 */
 }
+.feed-col-item.portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
 
 .feed-col-item .img-wrap img {
   width: 100%;
@@ -274,13 +279,15 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   display: block;
 }
 .feed-col-item.portrait .img-wrap {
-  display: flex;
-  justify-content: center;
+  display: inline-block;
+  position: relative;
+  max-height: 85vh;
 }
 .feed-col-item.portrait .img-wrap img {
   max-height: 85vh;
   width: auto;
   max-width: 100%;
+  display: block;
 }
 
 /* First item — full width hero entry */
@@ -310,17 +317,20 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 
 .img-label {
   position: absolute;
-  bottom: .85rem; left: .85rem;
-  font-size: 8px;
-  letter-spacing: .12em;
+  bottom: .75rem; left: .75rem;
+  font-size: 7.5px;
+  letter-spacing: .1em;
   text-transform: uppercase;
-  color: transparent;
-  -webkit-text-stroke: .5px rgba(255,255,255,0.85);
-  text-stroke: .5px rgba(255,255,255,0.85);
+  color: rgba(255,255,255,.92);
+  background: rgba(0,0,0,0.45);
+  padding: .22rem .55rem;
+  border-radius: 2px;
   opacity: 0;
   transform: translateY(4px);
   transition: opacity .25s, transform .25s;
   pointer-events: none;
+  /* Ensure label sits on the actual image, not the container */
+  z-index: 2;
 }
 .img-wrap:hover .img-label { opacity: 1; transform: translateY(0); }
 
