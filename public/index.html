@@ -218,6 +218,12 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   opacity: 0;
   animation: fadeIn 1s 1.6s ease forwards;
   z-index: 2;
+  transition: opacity .5s ease, transform .5s ease;
+}
+.intro-scroll.hidden {
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(8px);
+  pointer-events: none;
 }
 .intro-scroll span {
   font-size: 8px;
@@ -362,6 +368,11 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--gray);
+}
+.footer-contact {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
 }
 .footer-contact a {
   font-size: 9px;
@@ -609,6 +620,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
       <span class="footer-loc" id="c-footer_loc">Zürich · Fine art print</span>
     </div>
     <div class="footer-contact">
+      <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
     </div>
   </footer>
@@ -711,6 +723,10 @@ function initScrollAnimation() {
   let lastY = 0;
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
+    // Hide scroll indicator once user starts scrolling
+    const scrollHint = document.querySelector('.intro-scroll');
+    if (scrollHint) scrollHint.classList.toggle('hidden', y > 30);
+
     if (y > 40) {
       nav.classList.add('visible');
     } else {
@@ -729,7 +745,10 @@ const cur = document.getElementById('cur');
 let mx=0,my=0,rx=0,ry=0;
 document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
 document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
-  el.addEventListener('mouseenter',()=>cur.classList.add('big'));
+  el.addEventListener('mouseenter',()=>{
+    if (el.closest('nav') && !document.querySelector('nav').classList.contains('visible')) return;
+    cur.classList.add('big');
+  });
   el.addEventListener('mouseleave',()=>cur.classList.remove('big'));
 });
 
@@ -737,12 +756,20 @@ document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
 async function loadContent() {
   try {
     const d = await fetch('/api/content').then(r=>r.json());
-
     Object.entries(d).forEach(([k,v]) => {
       document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
         if (v) el.textContent = v;
       });
     });
+    // IG link — update href and label separately
+    if (d.footer_ig) {
+      const igEl = document.getElementById('c-footer_ig_link');
+      if (igEl) {
+        const handle = d.footer_ig.replace('@','').trim();
+        igEl.href = 'https://instagram.com/' + handle;
+        igEl.textContent = '@' + handle;
+      }
+    }
   } catch(e) {}
 }
 
