@@ -507,6 +507,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   position: fixed;
   inset: 0;
   background: var(--bg);
+  transition: background .4s;
   overflow-y: auto;
   z-index: 100;
   padding: 8rem 2rem 4rem;
@@ -576,6 +577,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   position: fixed;
   inset: 0;
   background: var(--bg);
+  transition: background .4s;
   overflow-y: auto;
   z-index: 100;
   padding: 8rem 2rem 4rem;
@@ -601,12 +603,12 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 }
 .about-body p:last-child { margin-bottom: 0; }
 .about-body strong { color: var(--fg); font-weight: 400; }
-.about-divider { width: 40px; height: 1px; background: rgba(17,17,16,.12); margin: 2rem 0; }
+.about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
 .about-spec {
   font-size: 9px;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--gray);
+  color: var(--fg-l);
   line-height: 1.8;
 }
 
@@ -639,7 +641,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
       <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
       <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
     </ul>
-    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">☽</button>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">▲</button>
   </div>
 </nav>
 
@@ -788,7 +790,7 @@ function initScrollAnimation() {
   }
 
   function updateIcon() {
-    if (btn) btn.textContent = isDark() ? '○' : '☽';
+    if (btn) btn.textContent = isDark() ? '▽' : '▲';
   }
 
   window.toggleTheme = function() {
