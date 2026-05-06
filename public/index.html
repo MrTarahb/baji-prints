@@ -13,17 +13,64 @@
 html { scroll-behavior: smooth; }
 
 :root {
-  --white: #FAFAF8;
-  --black: #111110;
-  --gray:  #999896;
-  --pink:  #C8907A;
+  --white:   #FAFAF8;
+  --black:   #111110;
+  --gray:    #999896;
+  --pink:    #C8907A;
+  --pink-d:  #A87060;
   --fm: 'DM Mono', monospace;
   --fi: 'Playfair Display', Georgia, serif;
+
+  /* Light mode tokens */
+  --bg:        #FAFAF8;
+  --bg-2:      #F0EFEC;
+  --fg:        #111110;
+  --fg-m:      rgba(17,17,16,.6);
+  --fg-l:      rgba(17,17,16,.35);
+  --border:    rgba(17,17,16,.1);
+  --surface:   rgba(17,17,16,.04);
+  --input-bg:  transparent;
+  --btn-bg:    #111110;
+  --btn-color: #FAFAF8;
+  --overlay-bg:rgba(250,250,248,.95);
+}
+
+/* Dark mode tokens */
+[data-theme="dark"] {
+  --bg:        #0E0E0C;
+  --bg-2:      #1A1A18;
+  --fg:        #F0EFEC;
+  --fg-m:      rgba(240,239,236,.55);
+  --fg-l:      rgba(240,239,236,.3);
+  --border:    rgba(240,239,236,.1);
+  --surface:   rgba(240,239,236,.05);
+  --input-bg:  rgba(240,239,236,.04);
+  --btn-bg:    #F0EFEC;
+  --btn-color: #0E0E0C;
+  --overlay-bg:rgba(14,14,12,.96);
+}
+
+/* System preference — auto */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0E0E0C;
+    --bg-2:      #1A1A18;
+    --fg:        #F0EFEC;
+    --fg-m:      rgba(240,239,236,.55);
+    --fg-l:      rgba(240,239,236,.3);
+    --border:    rgba(240,239,236,.1);
+    --surface:   rgba(240,239,236,.05);
+    --input-bg:  rgba(240,239,236,.04);
+    --btn-bg:    #F0EFEC;
+    --btn-color: #0E0E0C;
+    --overlay-bg:rgba(14,14,12,.96);
+  }
 }
 
 body {
-  background: var(--white);
-  color: var(--black);
+  background: var(--bg);
+  color: var(--fg);
+  transition: background .4s, color .4s;
   font-family: var(--fm);
   font-size: 11px;
   letter-spacing: .04em;
@@ -104,8 +151,8 @@ nav.on-light .nav-links a {
   -webkit-text-stroke: 0;
   text-stroke: 0;
 }
-nav.on-light .nav-name { color: var(--black); }
-nav.on-light .nav-links a:hover { color: var(--black); }
+nav.on-light .nav-name { color: var(--fg); }
+nav.on-light .nav-links a:hover { color: var(--fg); }
 
 /* INTRO */
 .intro {
@@ -341,7 +388,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 .img-wrap:hover .img-label { opacity: 1; transform: translateY(0); }
 
 /* Gap between images */
-.gap-sm { height: 2px; background: var(--white); }
+.gap-sm { height: 2px; background: var(--bg); }
 .gap-md { height: 6vw; }
 .gap-lg { height: 10vw; }
 
@@ -351,7 +398,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  border-top: 1px solid rgba(17,17,16,.08);
+  border-top: 1px solid var(--border);
   margin-top: 8vw;
 }
 .footer-left {}
@@ -359,7 +406,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   font-family: var(--fi);
   font-size: 15px;
   font-style: italic;
-  color: var(--black);
+  color: var(--fg);
   display: block;
   margin-bottom: .4rem;
 }
@@ -459,7 +506,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   display: none;
   position: fixed;
   inset: 0;
-  background: var(--white);
+  background: var(--bg);
   overflow-y: auto;
   z-index: 100;
   padding: 8rem 2rem 4rem;
@@ -475,7 +522,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   font-weight: 400;
   line-height: .95;
   letter-spacing: -.03em;
-  color: var(--black);
+  color: var(--fg);
   margin-bottom: 2.5rem;
 }
 .form-group { margin-bottom: .9rem; }
@@ -492,34 +539,34 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 .form-group textarea {
   width: 100%;
   padding: .65rem .8rem;
-  border: 1px solid rgba(17,17,16,.12);
+  border: 1px solid var(--border);
   border-radius: 1px;
   font-family: var(--fm);
   font-size: 11px;
   letter-spacing: .03em;
-  color: var(--black);
+  color: var(--fg);
   background: transparent;
   outline: none;
   transition: border-color .18s;
   appearance: none;
 }
 .form-group input::placeholder,
-.form-group textarea::placeholder { color: rgba(17,17,16,.25); }
-.form-group select option { background: var(--white); }
+.form-group textarea::placeholder { color: var(--fg-l); }
+.form-group select option { background: var(--bg); }
 .form-group input:focus,
 .form-group select:focus,
-.form-group textarea:focus { border-color: var(--black); }
+.form-group textarea:focus { border-color: var(--fg); }
 .form-group textarea { resize: vertical; min-height: 100px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
 .btn-send {
-  width: 100%; background: var(--black); color: var(--white);
+  width: 100%; background: var(--btn-bg); color: var(--btn-color);
   border: none; padding: .8rem;
   font-family: var(--fm); font-size: 9px; letter-spacing: .14em;
   text-transform: uppercase; cursor: none;
   transition: background .2s; margin-top: .25rem;
   border-radius: 1px;
 }
-.btn-send:hover { background: #333; }
+.btn-send:hover { background: var(--fg-m); }
 .btn-send:disabled { opacity: .45; cursor: default; }
 .form-msg { font-size: 9px; letter-spacing: .06em; margin-top: .4rem; min-height: 1rem; color: var(--gray); }
 
@@ -528,7 +575,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   display: none;
   position: fixed;
   inset: 0;
-  background: var(--white);
+  background: var(--bg);
   overflow-y: auto;
   z-index: 100;
   padding: 8rem 2rem 4rem;
@@ -542,7 +589,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   font-weight: 400;
   line-height: .95;
   letter-spacing: -.03em;
-  color: var(--black);
+  color: var(--fg);
   margin-bottom: 2.5rem;
 }
 .about-body p {
@@ -553,7 +600,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   margin-bottom: 1rem;
 }
 .about-body p:last-child { margin-bottom: 0; }
-.about-body strong { color: var(--black); font-weight: 400; }
+.about-body strong { color: var(--fg); font-weight: 400; }
 .about-divider { width: 40px; height: 1px; background: rgba(17,17,16,.12); margin: 2rem 0; }
 .about-spec {
   font-size: 9px;
@@ -584,13 +631,16 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 
 <div id="cur"></div>
 
-<nav>
+<nav id="nav">
   <a class="nav-name" onclick="showPage('main')" id="c-nav_name">Bharat Bhatia</a>
-  <ul class="nav-links">
-    <li><a onclick="showPage('main')" id="c-nav_work">Work</a></li>
-    <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
-    <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
-  </ul>
+  <div style="display:flex;align-items:center;gap:1.75rem">
+    <ul class="nav-links">
+      <li><a onclick="showPage('main')" id="c-nav_work">Work</a></li>
+      <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
+      <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
+    </ul>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">☽</button>
+  </div>
 </nav>
 
 <!-- MAIN FEED -->
@@ -722,9 +772,40 @@ function initScrollAnimation() {
   });
 }
 
+// THEME
+(function(){
+  const root = document.documentElement;
+  const btn  = document.getElementById('theme-toggle');
+  // Check stored preference, else use system
+  const stored = localStorage.getItem('theme');
+  if (stored) root.setAttribute('data-theme', stored);
+
+  function isDark() {
+    const t = root.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function updateIcon() {
+    if (btn) btn.textContent = isDark() ? '○' : '☽';
+  }
+
+  window.toggleTheme = function() {
+    const dark = isDark();
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('theme', dark ? 'light' : 'dark');
+    updateIcon();
+  };
+
+  // Listen for system changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateIcon);
+  updateIcon();
+})();
+
 // NAV — show on scroll, hide at very top
 (function(){
-  const nav = document.getElementById('nav') || document.querySelector('nav');
+  const nav = document.getElementById('nav');
   let lastY = 0;
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
@@ -789,7 +870,7 @@ function showPage(name){
   if (name === 'contact') contactEl.scrollTop = 0;
   if (name === 'main') { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
   // Nav: always visible on sub-pages, scroll-driven on main
-  const nav = document.querySelector('nav');
+  const nav = document.getElementById('nav');
   if (name !== 'main') {
     nav.classList.add('visible', 'on-light');
     nav.classList.remove('scrolled');
