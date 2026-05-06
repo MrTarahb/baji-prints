@@ -174,14 +174,20 @@ nav.on-light .nav-links a {
 nav.on-light .nav-name { color: var(--fg); }
 nav.on-light .nav-links a:hover { color: var(--fg); }
 
-/* Light mode: strengthen text shadow on hero so nav is readable over any photo */
+/* Light mode: darken nav text so it reads over gradient and against white cursor */
 [data-theme="light"] nav:not(.on-light) .nav-name,
-[data-theme="light"] nav:not(.on-light) .nav-links a,
+[data-theme="light"] nav:not(.on-light) .nav-links a {
+  color: rgba(17,17,16,0.82);
+  text-shadow: 0 1px 6px rgba(255,255,255,0.4);
+}
+[data-theme="light"] nav:not(.on-light) .nav-links a:hover { color: var(--black); }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) nav:not(.on-light) .nav-name,
   :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a {
-    text-shadow: 0 1px 10px rgba(0,0,0,0.6), 0 0 24px rgba(0,0,0,0.35);
+    color: rgba(17,17,16,0.82);
+    text-shadow: 0 1px 6px rgba(255,255,255,0.4);
   }
+  :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a:hover { color: var(--black); }
 }
 
 /* INTRO */
