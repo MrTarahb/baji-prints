@@ -641,7 +641,9 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
       <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
       <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
     </ul>
-    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">▲</button>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    </button>
   </div>
 </nav>
 
@@ -790,7 +792,16 @@ function initScrollAnimation() {
   }
 
   function updateIcon() {
-    if (btn) btn.textContent = isDark() ? '▽' : '▲';
+    const thumb = document.querySelector('.toggle-thumb');
+    const track = document.querySelector('.toggle-track');
+    if (!thumb) return;
+    if (isDark()) {
+      thumb.style.left = 'calc(100% - 12px)';
+      track.style.background = 'rgba(250,250,248,.15)';
+    } else {
+      thumb.style.left = '3px';
+      track.style.background = 'transparent';
+    }
   }
 
   window.toggleTheme = function() {
