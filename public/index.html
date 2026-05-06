@@ -40,8 +40,8 @@ html { scroll-behavior: smooth; }
   --bg:        #0E0E0C;
   --bg-2:      #1A1A18;
   --fg:        #F0EFEC;
-  --fg-m:      rgba(240,239,236,.55);
-  --fg-l:      rgba(240,239,236,.3);
+  --fg-m:      rgba(240,239,236,.72);
+  --fg-l:      rgba(240,239,236,.42);
   --border:    rgba(240,239,236,.1);
   --surface:   rgba(240,239,236,.05);
   --input-bg:  rgba(240,239,236,.04);
@@ -56,8 +56,8 @@ html { scroll-behavior: smooth; }
     --bg:        #0E0E0C;
     --bg-2:      #1A1A18;
     --fg:        #F0EFEC;
-    --fg-m:      rgba(240,239,236,.55);
-    --fg-l:      rgba(240,239,236,.3);
+    --fg-m:      rgba(240,239,236,.72);
+    --fg-l:      rgba(240,239,236,.42);
     --border:    rgba(240,239,236,.1);
     --surface:   rgba(240,239,236,.05);
     --input-bg:  rgba(240,239,236,.04);
@@ -146,7 +146,7 @@ nav.visible {
 }
 nav.on-light .nav-name,
 nav.on-light .nav-links a {
-  color: rgba(26,24,20,0.7);
+  color: var(--fg-m);
   text-shadow: none;
   -webkit-text-stroke: 0;
   text-stroke: 0;
@@ -597,7 +597,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 .about-body p {
   font-size: 12px;
   letter-spacing: .02em;
-  color: rgba(17,17,16,.65);
+  color: var(--fg-m);
   line-height: 1.9;
   margin-bottom: 1rem;
 }
