@@ -409,18 +409,23 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 }
 #lightbox img {
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100vh - 6rem);
   object-fit: contain;
   display: block;
-  transform: scale(0.88);
-  opacity: 0;
-  transition: transform .45s cubic-bezier(0.16,1,0.3,1), opacity .35s ease;
+  opacity: 1;
   border-radius: 1px;
   cursor: none;
 }
 #lightbox.open img {
-  transform: scale(1);
   opacity: 1;
+}
+#lightbox-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+  max-width: 100%;
+  max-height: 100%;
 }
 #lightbox-close {
   position: absolute;
@@ -438,9 +443,6 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 }
 #lightbox-close:hover { color: rgba(250,250,248,.9); }
 #lightbox-caption {
-  position: absolute;
-  bottom: 2rem; left: 50%;
-  transform: translateX(-50%);
   font-family: var(--fm);
   font-size: 8px;
   letter-spacing: .14em;
@@ -449,6 +451,7 @@ nav.on-light .nav-links a:hover { color: var(--black); }
   -webkit-text-stroke: .5px rgba(255,255,255,0.75);
   text-stroke: .5px rgba(255,255,255,0.75);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* CONTACT PAGE */
@@ -667,8 +670,10 @@ nav.on-light .nav-links a:hover { color: var(--black); }
 <!-- LIGHTBOX -->
 <div id="lightbox">
   <button id="lightbox-close" onclick="closeLightbox()">Close ✕</button>
-  <img id="lightbox-img" src="" alt="">
-  <span id="lightbox-caption"></span>
+  <div id="lightbox-inner">
+    <img id="lightbox-img" src="" alt="">
+    <span id="lightbox-caption"></span>
+  </div>
 </div>
 
 <script>
@@ -934,10 +939,20 @@ function openLightbox(src, title) {
   const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   const cap = document.getElementById('lightbox-caption');
+  const inner = document.getElementById('lightbox-inner');
   img.src = src;
   cap.textContent = title || '';
+  // Reset animation
+  inner.style.transform = 'scale(0.88)';
+  inner.style.opacity = '0';
+  inner.style.transition = 'none';
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    inner.style.transition = 'transform .45s cubic-bezier(0.16,1,0.3,1), opacity .35s ease';
+    inner.style.transform = 'scale(1)';
+    inner.style.opacity = '1';
+  });
 }
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
