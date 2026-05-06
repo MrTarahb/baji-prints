@@ -107,7 +107,7 @@ nav {
   justify-content: space-between;
   padding: 1.4rem 2rem;
   pointer-events: none;
-  background: transparent;
+  background: linear-gradient(to bottom, rgba(17,17,16,0.45) 0%, transparent 100%);
   opacity: 0;
   transform: translateY(-8px);
   transition: opacity .5s ease, transform .5s ease, padding .3s;
@@ -118,17 +118,13 @@ nav.visible {
   pointer-events: all;
 }
 #theme-toggle {
-  background: none; border: none; padding: 0;
-  display: flex; align-items: center;
+  background: none;
+  border: none;
+  padding: .2rem;
+  display: flex;
+  align-items: center;
   color: rgba(250,250,248,.65);
   transition: color .3s;
-  /* frosted glass just on the button */
-  background: rgba(17,17,16,0.28);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: .35rem .4rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.08);
 }
 .nav-name {
   font-family: var(--fi);
@@ -817,10 +813,9 @@ function initScrollAnimation() {
   }
 
   function updateIcon() {
-    const sun = document.getElementById('horizon-sun');
-    if (!sun) return;
-    // Dark: sun slides below horizon line (~50% translateY)
-    sun.style.transform = isDark() ? 'translateY(50%)' : 'translateY(0)';
+    const svg = document.getElementById('horizon-svg');
+    if (!svg) return;
+    svg.classList.toggle('dark', isDark());
   }
 
   window.toggleTheme = function() {
