@@ -260,7 +260,13 @@ function relTime(str){const d=new Date(str),now=new Date(),m=Math.floor((now-d)/
 
 // MESSAGES
 async function loadMessages(){
-  try{const res=await fetch('/api/admin/messages',{credentials:'include'});allMessages=await res.json();renderMessages();updateBadge();}catch(e){}
+  try{
+    const res=await fetch('/api/admin/messages',{credentials:'include'});
+    if(!res.ok){console.error('Messages fetch failed:',res.status,await res.text());return;}
+    allMessages=await res.json();
+    renderMessages();
+    updateBadge();
+  }catch(e){console.error('loadMessages error:',e);}
 }
 function updateBadge(){const n=allMessages.filter(m=>!m.read).length;const b=document.getElementById('unread-badge');b.style.display=n>0?'inline':'none';b.textContent=n;}
 function filterMsgs(f,btn){currentFilter=f;document.querySelectorAll('.msg-filters button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMessages();}

@@ -325,6 +325,28 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ── MESSAGES ──────────────────────────────────────────────────────────────────
+app.get('/api/admin/messages', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM messages ORDER BY created_at DESC');
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/messages/:id/read', requireAuth, async (req, res) => {
+  try {
+    await pool.query('UPDATE messages SET read=true WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/messages/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM messages WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
 app.get('/api/coming-soon', (req, res) => res.json({ active: process.env.COMING_SOON === 'true' }));
