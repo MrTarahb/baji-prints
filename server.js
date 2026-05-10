@@ -78,6 +78,7 @@ async function initDB() {
     );
     -- Add column if upgrading existing DB
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS exclude_from_hero BOOLEAN DEFAULT FALSE;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'abstract';
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -154,7 +155,7 @@ app.get('/api/content', async (req, res) => {
 
 app.get('/api/prints', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, category, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -298,11 +299,11 @@ app.post('/api/admin/prints', requireAuth, (req, res, next) => {
 });
 
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
-  const { title, description, sort_order, exclude_from_hero } = req.body;
+  const { title, description, sort_order, exclude_from_hero, category } = req.body;
   try {
     const { rows } = await pool.query(
-      'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4 WHERE id=$5 RETURNING *',
-      [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, req.params.id]
+      'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, category=$5 WHERE id=$6 RETURNING *',
+      [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, category || 'abstract', req.params.id]
     );
     res.json(rows[0]);
   } catch (e) {

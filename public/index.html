@@ -329,6 +329,40 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   opacity: 0;
 }
 
+/* FILTER BAR */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 1.5rem 5vw .75rem;
+  border-bottom: 1px solid var(--border);
+}
+.filter-btn {
+  font-family: var(--fm);
+  font-size: 8px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  background: none;
+  border: none;
+  padding: .3rem .9rem .3rem 0;
+  cursor: none;
+  transition: color .2s;
+  position: relative;
+}
+.filter-btn::after {
+  content: '·';
+  position: absolute;
+  right: .3rem;
+  color: var(--border);
+}
+.filter-btn:last-child::after { display: none; }
+.filter-btn:hover { color: var(--fg); }
+.filter-btn.active {
+  color: var(--fg);
+  font-weight: 500;
+}
+
 /* FEED — two column */
 .feed { padding: 0; }
 
@@ -716,6 +750,12 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 
   </div><!-- /.intro -->
 
+  <!-- FILTER BAR -->
+  <div class="filter-bar" id="filter-bar" style="display:none">
+    <button class="filter-btn" data-filter="abstract" onclick="setFilter('abstract',this)">Abstract</button>
+    <button class="filter-btn" data-filter="all" onclick="setFilter('all',this)">All</button>
+  </div>
+
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
 
@@ -934,6 +974,64 @@ function showPage(name){
   }
 }
 
+// GLOBAL STATE
+let allPrints = [];
+let allOrientations = [];
+let currentFilter = 'abstract';
+
+// FILTER
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderFeed();
+}
+
+function renderFeed() {
+  const filtered = currentFilter === 'all'
+    ? allPrints
+    : allPrints.filter(p => (p.category || 'abstract').toLowerCase().includes('abstract'));
+
+  // Rebuild columns
+  const feed = document.getElementById('feed');
+  feed.innerHTML = '';
+  if (!filtered.length) {
+    feed.innerHTML = '<div style="padding:10vw 5vw;font-family:var(--fm);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-l)">No photos in this category yet.</div>';
+    return;
+  }
+
+  const colsWrap = document.createElement('div');
+  colsWrap.className = 'feed-cols';
+  feed.appendChild(colsWrap);
+
+  const colLeft  = document.createElement('div');
+  const colRight = document.createElement('div');
+  colLeft.className  = 'feed-col';
+  colRight.className = 'feed-col';
+  colsWrap.appendChild(colLeft);
+  colsWrap.appendChild(colRight);
+
+  filtered.forEach((p, i) => {
+    const globalIdx = allPrints.indexOf(p);
+    const ori = allOrientations[globalIdx] || 'landscape';
+    const isLeft = i % 2 === 0;
+    const imgUrl   = p.image_url || p.url || '';
+    const imgTitle = p.title || '';
+
+    const item = document.createElement('div');
+    item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
+    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}')">
+      <img src="${imgUrl}" alt="${imgTitle}" loading="lazy">
+      <span class="img-label">${imgTitle}</span>
+    </div>`;
+
+    (isLeft ? colLeft : colRight).appendChild(item);
+  });
+
+  // Re-init GSAP animations
+  setTimeout(initScrollAnimation, 80);
+}
+
 // Detect image orientation then build feed
 function getOrientation(url) {
   return new Promise(resolve => {
@@ -971,13 +1069,14 @@ async function buildFeed(prints) {
     feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
   );
 
-  // Pick hero randomly — landscape on desktop, portrait on mobile held vertically
-  // Exclude any prints marked exclude_from_hero
+  // Store globally for filter
+  allPrints = feedPrints;
+  allOrientations = orientations;
+
+  // Pick hero — exclude_from_hero aware, orientation aware
   const eligible = feedPrints.filter(p => !p.exclude_from_hero);
   const pool = eligible.length ? eligible : feedPrints;
-
   const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
-
   let heroPool;
   if (isMobilePortrait) {
     const portraits = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'portrait');
@@ -986,43 +1085,22 @@ async function buildFeed(prints) {
     const landscapes = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'landscape');
     heroPool = landscapes.length ? landscapes : pool;
   }
-
   const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
   const heroUrl = heroPick.image_url || heroPick.url || '';
   introImg.onload = applyHeroOrientation;
   introImg.src = heroUrl;
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
 
-  // Build two true columns
-  const colsWrap = document.createElement('div');
-  colsWrap.className = 'feed-cols';
-  feed.appendChild(colsWrap);
+  // Show filter bar only if there are non-abstract photos
+  const hasOther = feedPrints.some(p => !(p.category || 'abstract').toLowerCase().includes('abstract'));
+  const filterBar = document.getElementById('filter-bar');
+  if (hasOther) {
+    filterBar.style.display = 'flex';
+    document.querySelector('.filter-btn[data-filter="abstract"]').classList.add('active');
+  }
 
-  const colLeft  = document.createElement('div');
-  const colRight = document.createElement('div');
-  colLeft.className  = 'feed-col';
-  colRight.className = 'feed-col';
-  colsWrap.appendChild(colLeft);
-  colsWrap.appendChild(colRight);
-
-  feedPrints.forEach((p, i) => {
-    const ori      = orientations[i];
-    const isLeft   = i % 2 === 0;
-    const imgUrl   = p.image_url || p.url || '';
-    const imgTitle = p.title || '';
-
-    const item = document.createElement('div');
-    item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
-    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}')">
-      <img src="${imgUrl}" alt="${imgTitle}" loading="lazy">
-      <span class="img-label">${imgTitle}</span>
-    </div>`;
-
-    (isLeft ? colLeft : colRight).appendChild(item);
-  });
-
-  // GSAP per-item animation after DOM is ready
-  setTimeout(initScrollAnimation, 80);
+  // Render feed — default to abstract
+  renderFeed();
 }
 
 // INTERSECTION OBSERVER
