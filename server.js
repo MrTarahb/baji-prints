@@ -169,13 +169,16 @@ app.post('/api/contact', async (req, res) => {
 
   console.log(`[ENQUIRY] ${name} <${email}> — ${interest || 'no category'}: ${message || ''}`);
 
-  // Always store message in DB
   try {
     await pool.query(
       'INSERT INTO messages (name, email, interest, message) VALUES ($1, $2, $3, $4)',
       [name, email, interest || null, message || null]
     );
-  } catch(e) { console.error('Failed to store message:', e); }
+    console.log('[ENQUIRY] Stored in DB successfully');
+  } catch(e) {
+    console.error('[ENQUIRY] Failed to store message:', e.message);
+    return res.status(500).json({ error: 'Failed to save message: ' + e.message });
+  }
 
   if (!resend) {
     return res.json({ ok: true });

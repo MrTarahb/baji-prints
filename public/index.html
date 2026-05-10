@@ -1133,8 +1133,11 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   try {
     const res = await fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,interest,message})});
     if (res.ok) { btn.textContent='Sent.'; msg.textContent="Thank you — I'll be in touch."; }
-    else throw new Error();
-  } catch(e) { btn.disabled=false; btn.textContent='Send message'; msg.textContent='Something went wrong.'; }
+    else {
+      const d = await res.json().catch(()=>({}));
+      throw new Error(d.error || res.status);
+    }
+  } catch(e) { btn.disabled=false; btn.textContent='Send message'; msg.textContent='Error: ' + e.message; }
 });
 
 // COOKIE
