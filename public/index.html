@@ -1220,6 +1220,9 @@ document.addEventListener('keydown', e => {
 });
 
 loadContent().then(() => load());
+
+// Track pageview — fire and forget, don't block anything
+fetch('/api/pageview', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:'/'})}).catch(()=>{});
 </script>
 </body>
 </html>

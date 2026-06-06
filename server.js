@@ -79,6 +79,12 @@ async function initDB() {
     -- Add column if upgrading existing DB
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS exclude_from_hero BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'abstract';
+    CREATE TABLE IF NOT EXISTS pageviews (
+      id SERIAL PRIMARY KEY,
+      visited_at TIMESTAMPTZ DEFAULT NOW(),
+      path TEXT DEFAULT '/'
+    );
+
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -323,6 +329,39 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── PAGEVIEW TRACKING ────────────────────────────────────────────────────────
+// Track visits to the main site (not admin, not API)
+app.post('/api/pageview', async (req, res) => {
+  try {
+    await pool.query('INSERT INTO pageviews (path) VALUES ($1)', [req.body.path || '/']);
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+app.get('/api/admin/stats', requireAuth, async (req, res) => {
+  try {
+    const total   = await pool.query('SELECT COUNT(*) FROM pageviews');
+    const today   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '1 day'");
+    const week    = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '7 days'");
+    const month   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'");
+    // Daily breakdown for last 30 days
+    const daily   = await pool.query(`
+      SELECT DATE(visited_at) as day, COUNT(*) as count
+      FROM pageviews
+      WHERE visited_at > NOW() - INTERVAL '30 days'
+      GROUP BY DATE(visited_at)
+      ORDER BY day ASC
+    `);
+    res.json({
+      total:  parseInt(total.rows[0].count),
+      today:  parseInt(today.rows[0].count),
+      week:   parseInt(week.rows[0].count),
+      month:  parseInt(month.rows[0].count),
+      daily:  daily.rows,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── SEO FILES ─────────────────────────────────────────────────────────────────

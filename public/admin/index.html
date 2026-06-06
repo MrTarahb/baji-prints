@@ -11,6 +11,17 @@
 :root{--ink:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);--pink:#C8907A;--border:rgba(26,24,20,.1);--bg:#F8F8F6;--surface:#fff}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
 
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin-bottom:2rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.1rem 1.25rem}
+.stat-value{font-family:'Playfair Display',serif;font-size:1.8rem;font-style:italic;color:var(--ink);line-height:1;margin-bottom:.2rem}
+.stat-label{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l)}
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.25rem}
+.chart-title{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-l);margin-bottom:1rem;display:block}
+.chart-bars{display:flex;align-items:flex-end;gap:3px;height:80px}
+.chart-bar{flex:1;background:var(--ink);border-radius:1px 1px 0 0;min-height:2px;transition:height .4s ease;position:relative}
+.chart-bar:hover::after{content:attr(data-count);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);font-family:'DM Mono',monospace;font-size:.58rem;color:var(--text-l);white-space:nowrap;background:var(--surface);padding:.1rem .3rem;border-radius:1px}
+
 /* LOGIN */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1814}
 .login-box{background:#F8F8F6;padding:2.5rem;width:100%;max-width:340px;border-radius:2px}
@@ -134,8 +145,10 @@ textarea.field-input{resize:vertical;min-height:70px}
   </div>
   <div class="admin-layout">
     <aside class="sidebar">
+      <span class="sidebar-label">Overview</span>
+      <button class="sidebar-btn active" onclick="showPanel('stats',this)">Visits</button>
       <span class="sidebar-label">Inbox</span>
-      <button class="sidebar-btn active" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
+      <button class="sidebar-btn" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
       <span class="sidebar-label">Portfolio</span>
       <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
       <span class="sidebar-label">Text content</span>
@@ -149,8 +162,24 @@ textarea.field-input{resize:vertical;min-height:70px}
 
     <main class="admin-main">
 
+      <!-- STATS -->
+      <div class="panel active" id="panel-stats">
+        <h2 class="panel-title">Visits</h2>
+        <p class="panel-sub">How many times your site has been loaded.</p>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">All time</div></div>
+          <div class="stat-card"><div class="stat-value" id="stat-today">—</div><div class="stat-label">Today</div></div>
+          <div class="stat-card"><div class="stat-value" id="stat-week">—</div><div class="stat-label">Last 7 days</div></div>
+          <div class="stat-card"><div class="stat-value" id="stat-month">—</div><div class="stat-label">Last 30 days</div></div>
+        </div>
+        <div class="chart-wrap">
+          <span class="chart-title">Daily visits — last 30 days</span>
+          <div class="chart-bars" id="chart-bars"></div>
+        </div>
+      </div>
+
       <!-- MESSAGES -->
-      <div class="panel active" id="panel-messages">
+      <div class="panel" id="panel-messages">
         <h2 class="panel-title">Messages</h2>
         <p class="panel-sub">Contact form submissions — newest first.</p>
         <div class="msg-toolbar">
@@ -413,8 +442,38 @@ async function loadAll(){
     ['seo_image', 'Preview image URL (shown when link is shared)', false],
   ]);
 
+  await loadStats();
   await loadMessages();
   await loadPrints();
+}
+
+async function loadStats(){
+  try{
+    const d=await fetch('/api/admin/stats',{credentials:'include'}).then(r=>r.json());
+    document.getElementById('stat-total').textContent=d.total.toLocaleString();
+    document.getElementById('stat-today').textContent=d.today.toLocaleString();
+    document.getElementById('stat-week').textContent=d.week.toLocaleString();
+    document.getElementById('stat-month').textContent=d.month.toLocaleString();
+    // Draw bar chart
+    const bars=document.getElementById('chart-bars');
+    bars.innerHTML='';
+    if(d.daily&&d.daily.length){
+      const max=Math.max(...d.daily.map(r=>parseInt(r.count)),1);
+      // Fill in missing days
+      const days=[];
+      for(let i=29;i>=0;i--){const dt=new Date();dt.setDate(dt.getDate()-i);days.push(dt.toISOString().slice(0,10));}
+      days.forEach(day=>{
+        const row=d.daily.find(r=>r.day.slice(0,10)===day);
+        const count=row?parseInt(row.count):0;
+        const bar=document.createElement('div');
+        bar.className='chart-bar';
+        bar.style.height=Math.max(2,(count/max)*80)+'px';
+        bar.setAttribute('data-count',count);
+        bar.title=day+': '+count;
+        bars.appendChild(bar);
+      });
+    }
+  }catch(e){}
 }
 
 checkAuth();
