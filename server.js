@@ -372,23 +372,20 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
       FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'
       GROUP BY DATE(visited_at) ORDER BY day ASC
     `);
-    const referrers = await pool.query(`
-      SELECT
-        CASE
-          WHEN referrer IS NULL OR referrer = '' THEN 'Direct'
-          WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
-          WHEN referrer ILIKE '%google%' THEN 'Google'
-          WHEN referrer ILIKE '%facebook%' THEN 'Facebook'
-          WHEN referrer ILIKE '%linkedin%' THEN 'LinkedIn'
-          WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'
-          WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'
-          ELSE regexp_replace(referrer, '^https?://([^/]+).*', '\1')
-        END as source,
-        COUNT(*) as count
-      FROM pageviews
-      WHERE visited_at > NOW() - INTERVAL '30 days'
-      GROUP BY source ORDER BY count DESC LIMIT 8
-    `);
+    const referrers = await pool.query(
+      "SELECT CASE" +
+      " WHEN referrer IS NULL OR referrer = '' THEN 'Direct'" +
+      " WHEN referrer ILIKE '%instagram%' THEN 'Instagram'" +
+      " WHEN referrer ILIKE '%google%' THEN 'Google'" +
+      " WHEN referrer ILIKE '%facebook%' THEN 'Facebook'" +
+      " WHEN referrer ILIKE '%linkedin%' THEN 'LinkedIn'" +
+      " WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'" +
+      " WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'" +
+      " ELSE regexp_replace(referrer, '^https?://([^/]+).*', " + "'\\1')" +
+      " END as source, COUNT(*) as count" +
+      " FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'" +
+      " GROUP BY source ORDER BY count DESC LIMIT 8"
+    );
     const topPhotos = await pool.query(`
       SELECT p.id, p.title, p.image_url, COUNT(pv.id) as views
       FROM prints p
