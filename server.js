@@ -199,8 +199,7 @@ app.post('/api/contact', async (req, res) => {
   }
 
   try {
-    const { rows } = await pool.query("SELECT value FROM content WHERE key = 'contact_email'");
-    const to = rows[0]?.value || process.env.EMAIL_TO || 'bajiprints@bharatbhatia.photography';
+    const to = process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com';
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'hello@bajiprints.ch',
