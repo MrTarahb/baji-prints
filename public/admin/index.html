@@ -21,6 +21,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .chart-bars{display:flex;align-items:flex-end;gap:3px;height:80px}
 .chart-bar{flex:1;background:var(--ink);border-radius:1px 1px 0 0;min-height:2px;transition:height .4s ease;position:relative}
 .chart-bar:hover::after{content:attr(data-count);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);font-family:'DM Mono',monospace;font-size:.58rem;color:var(--text-l);white-space:nowrap;background:var(--surface);padding:.1rem .3rem;border-radius:1px}
+.ref-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border);gap:.5rem}
+.ref-row:last-child{border-bottom:none}
+.ref-source{font-size:.78rem;color:var(--text)}
+.ref-bar-wrap{flex:1;height:4px;background:var(--border);border-radius:2px;margin:0 .75rem}
+.ref-bar-fill{height:100%;background:var(--ink);border-radius:2px;transition:width .5s ease}
+.ref-count{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0}
+.top-photo-row{display:flex;align-items:center;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border)}
+.top-photo-row:last-child{border-bottom:none}
+.top-photo-row img{width:36px;height:36px;object-fit:cover;border-radius:1px;flex-shrink:0}
+.top-photo-title{font-size:.78rem;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-photo-views{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0}
 
 /* LOGIN */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1814}
@@ -175,6 +186,16 @@ textarea.field-input{resize:vertical;min-height:70px}
         <div class="chart-wrap">
           <span class="chart-title">Daily visits — last 30 days</span>
           <div class="chart-bars" id="chart-bars"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.65rem">
+          <div class="chart-wrap">
+            <span class="chart-title">Where visitors come from (30 days)</span>
+            <div id="referrer-list"></div>
+          </div>
+          <div class="chart-wrap">
+            <span class="chart-title">Most viewed photos</span>
+            <div id="top-photos-list"></div>
+          </div>
         </div>
       </div>
 

@@ -1053,7 +1053,7 @@ function renderFeed() {
 
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
-    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}')">
+    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
       <img src="${imgUrl}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
     </div>`;
@@ -1184,7 +1184,10 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
 })();
 
 // LIGHTBOX
-function openLightbox(src, title) {
+function openLightbox(src, title, printId) {
+  if (printId) {
+    fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
+  }
   const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   const cap = document.getElementById('lightbox-caption');
@@ -1221,8 +1224,12 @@ document.addEventListener('keydown', e => {
 
 loadContent().then(() => load());
 
-// Track pageview — fire and forget, don't block anything
-fetch('/api/pageview', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:'/'})}).catch(()=>{});
+// Track pageview with referrer
+fetch('/api/pageview', {
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({path:'/', referrer: document.referrer || ''})
+}).catch(()=>{});
 </script>
 </body>
 </html>

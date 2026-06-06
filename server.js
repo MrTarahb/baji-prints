@@ -82,7 +82,15 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS pageviews (
       id SERIAL PRIMARY KEY,
       visited_at TIMESTAMPTZ DEFAULT NOW(),
-      path TEXT DEFAULT '/'
+      path TEXT DEFAULT '/',
+      referrer TEXT
+    );
+    ALTER TABLE pageviews ADD COLUMN IF NOT EXISTS referrer TEXT;
+
+    CREATE TABLE IF NOT EXISTS photo_views (
+      id SERIAL PRIMARY KEY,
+      print_id INTEGER REFERENCES prints(id) ON DELETE CASCADE,
+      viewed_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -335,31 +343,67 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 // Track visits to the main site (not admin, not API)
 app.post('/api/pageview', async (req, res) => {
   try {
-    await pool.query('INSERT INTO pageviews (path) VALUES ($1)', [req.body.path || '/']);
+    const { path, referrer } = req.body;
+    await pool.query(
+      'INSERT INTO pageviews (path, referrer) VALUES ($1, $2)',
+      [path || '/', referrer || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+app.post('/api/photoview', async (req, res) => {
+  try {
+    const { print_id } = req.body;
+    if (!print_id) return res.json({ ok: false });
+    await pool.query('INSERT INTO photo_views (print_id) VALUES ($1)', [print_id]);
     res.json({ ok: true });
   } catch(e) { res.json({ ok: false }); }
 });
 
 app.get('/api/admin/stats', requireAuth, async (req, res) => {
   try {
-    const total   = await pool.query('SELECT COUNT(*) FROM pageviews');
-    const today   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '1 day'");
-    const week    = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '7 days'");
-    const month   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'");
-    // Daily breakdown for last 30 days
-    const daily   = await pool.query(`
+    const total  = await pool.query('SELECT COUNT(*) FROM pageviews');
+    const today  = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '1 day'");
+    const week   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '7 days'");
+    const month  = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'");
+    const daily  = await pool.query(`
       SELECT DATE(visited_at) as day, COUNT(*) as count
+      FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'
+      GROUP BY DATE(visited_at) ORDER BY day ASC
+    `);
+    const referrers = await pool.query(`
+      SELECT
+        CASE
+          WHEN referrer IS NULL OR referrer = '' THEN 'Direct'
+          WHEN referrer ILIKE '%instagram%' THEN 'Instagram'
+          WHEN referrer ILIKE '%google%' THEN 'Google'
+          WHEN referrer ILIKE '%facebook%' THEN 'Facebook'
+          WHEN referrer ILIKE '%linkedin%' THEN 'LinkedIn'
+          WHEN referrer ILIKE '%twitter%' OR referrer ILIKE '%x.com%' THEN 'Twitter/X'
+          WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'
+          ELSE regexp_replace(referrer, '^https?://([^/]+).*', '\1')
+        END as source,
+        COUNT(*) as count
       FROM pageviews
       WHERE visited_at > NOW() - INTERVAL '30 days'
-      GROUP BY DATE(visited_at)
-      ORDER BY day ASC
+      GROUP BY source ORDER BY count DESC LIMIT 8
+    `);
+    const topPhotos = await pool.query(`
+      SELECT p.id, p.title, p.image_url, COUNT(pv.id) as views
+      FROM prints p
+      LEFT JOIN photo_views pv ON pv.print_id = p.id
+      GROUP BY p.id, p.title, p.image_url
+      ORDER BY views DESC LIMIT 5
     `);
     res.json({
-      total:  parseInt(total.rows[0].count),
-      today:  parseInt(today.rows[0].count),
-      week:   parseInt(week.rows[0].count),
-      month:  parseInt(month.rows[0].count),
-      daily:  daily.rows,
+      total:     parseInt(total.rows[0].count),
+      today:     parseInt(today.rows[0].count),
+      week:      parseInt(week.rows[0].count),
+      month:     parseInt(month.rows[0].count),
+      daily:     daily.rows,
+      referrers: referrers.rows,
+      topPhotos: topPhotos.rows,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
