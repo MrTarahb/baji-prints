@@ -144,6 +144,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('about',this)">About page</button>
       <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
       <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
+      <button class="sidebar-btn" onclick="showPanel('seo',this)">SEO & sharing</button>
     </aside>
 
     <main class="admin-main">
@@ -219,6 +220,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Footer</h2>
         <p class="panel-sub">Text in the site footer.</p>
         <div id="footer-fields"></div>
+      </div>
+
+      <!-- SEO -->
+      <div class="panel" id="panel-seo">
+        <h2 class="panel-title">SEO & sharing</h2>
+        <p class="panel-sub">Controls how your site appears in Google and when shared as a link (WhatsApp, iMessage, LinkedIn etc).</p>
+        <div id="seo-fields"></div>
       </div>
 
     </main>
@@ -397,6 +405,12 @@ async function loadAll(){
     ['footer_loc',  'Location / tagline',        false],
     ['footer_cta',  '"Get in touch" link text',  false],
     ['footer_ig',   'Instagram handle (without @)', false],
+  ]);
+
+  buildFields('seo-fields',[
+    ['seo_title', 'Page title (shown in browser tab + Google)', false],
+    ['seo_desc',  'Description (shown in Google results + link previews)', true],
+    ['seo_image', 'Preview image URL (shown when link is shared)', false],
   ]);
 
   await loadMessages();

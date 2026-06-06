@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bharat Bhatia</title>
+<title id="meta-title">Bharat Bhatia — Fine Art Photographer, Zürich</title>
+<meta name="description" id="meta-desc" content="Fine art photographer and printer based in Zürich. Abstract, ICM and macro photography.">
+<meta property="og:title" id="meta-og-title" content="Bharat Bhatia — Fine Art Photographer, Zürich">
+<meta property="og:description" id="meta-og-desc" content="Fine art photographer and printer based in Zürich. Abstract, ICM and macro photography.">
+<meta property="og:image" id="meta-og-image" content="https://res.cloudinary.com/dqsl63ax7/image/upload/v1777886744/baji-prints/zazpsby8txguspgnfhis.jpg">
+<meta property="og:url" content="https://bharatbhatia.photography">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://bharatbhatia.photography">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -952,6 +959,20 @@ async function loadContent() {
         if (v) el.textContent = v;
       });
     });
+    // SEO meta tags
+    if (d.seo_title) {
+      document.title = d.seo_title;
+      const t = document.getElementById('meta-title'); if(t) t.textContent = d.seo_title;
+      const ot = document.getElementById('meta-og-title'); if(ot) ot.setAttribute('content', d.seo_title);
+    }
+    if (d.seo_desc) {
+      const md = document.getElementById('meta-desc'); if(md) md.setAttribute('content', d.seo_desc);
+      const od = document.getElementById('meta-og-desc'); if(od) od.setAttribute('content', d.seo_desc);
+    }
+    if (d.seo_image) {
+      const mi = document.getElementById('meta-og-image'); if(mi) mi.setAttribute('content', d.seo_image);
+    }
+
     // IG link — update href and label separately
     if (d.footer_ig) {
       const igEl = document.getElementById('c-footer_ig_link');
