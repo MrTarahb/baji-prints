@@ -33,6 +33,64 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .top-photo-title{font-size:.78rem;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-photo-views{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0}
 
+/* MOBILE SIDEBAR */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.sidebar-overlay.open { opacity: 1; }
+
+.menu-btn {
+  display: none;
+  background: none; border: none;
+  padding: .4rem;
+  cursor: pointer;
+  color: rgba(248,248,246,.7);
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+.menu-btn span {
+  display: block;
+  width: 18px; height: 1.5px;
+  background: currentColor;
+  transition: transform .25s, opacity .25s;
+}
+.menu-btn.open span:nth-child(1) { transform: translateY(5.5px) rotate(45deg); }
+.menu-btn.open span:nth-child(2) { opacity: 0; }
+.menu-btn.open span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
+
+@media(max-width: 680px) {
+  .menu-btn { display: flex; }
+  .admin-layout { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 240px;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.18);
+  }
+  .sidebar-overlay { display: block; pointer-events: none; }
+  .sidebar-overlay.open { pointer-events: all; }
+  .admin-main { padding: 1.5rem 1.25rem; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .prints-grid { grid-template-columns: 1fr 1fr; }
+  .form-row-2 { grid-template-columns: 1fr; }
+}
+
 /* LOGIN */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1A1814}
 .login-box{background:#F8F8F6;padding:2.5rem;width:100%;max-width:340px;border-radius:2px}
@@ -147,8 +205,16 @@ textarea.field-input{resize:vertical;min-height:70px}
 </div>
 
 <div id="admin-screen">
+  <!-- Sidebar overlay for mobile -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <div class="admin-bar">
-    <span class="admin-bar-logo">Bharat Bhatia</span>
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <button class="menu-btn" id="menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <span class="admin-bar-logo">Bharat Bhatia</span>
+    </div>
     <div class="admin-bar-links">
       <a href="/" target="_blank">View site ↗</a>
       <a onclick="logout()">Sign out</a>
@@ -310,6 +376,8 @@ function showPanel(name,btn){
   document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(btn)btn.classList.add('active');
+  // Close sidebar on mobile after selection
+  if(window.innerWidth <= 680) closeSidebar();
 }
 
 // HELPERS
@@ -495,6 +563,26 @@ async function loadStats(){
       });
     }
   }catch(e){}
+}
+
+// MOBILE SIDEBAR
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('menu-btn');
+  const open = sidebar.classList.toggle('open');
+  overlay.classList.toggle('open', open);
+  btn.classList.toggle('open', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('menu-btn');
+  sidebar.classList.remove('open');
+  overlay.classList.remove('open');
+  btn.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 checkAuth();
