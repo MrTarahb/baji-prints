@@ -314,6 +314,19 @@ app.post('/api/admin/prints', requireAuth, (req, res, next) => {
   }
 });
 
+app.put('/api/admin/prints/reorder', requireAuth, async (req, res) => {
+  const { order } = req.body; // array of print IDs in new order
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
+  try {
+    await Promise.all(order.map((id, i) =>
+      pool.query('UPDATE prints SET sort_order=$1 WHERE id=$2', [i, id])
+    ));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
   const { title, description, sort_order, exclude_from_hero, category } = req.body;
   try {
@@ -327,19 +340,6 @@ app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
     }
     const { rows } = await pool.query(query, params);
     res.json(rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.put('/api/admin/prints/reorder', requireAuth, async (req, res) => {
-  const { order } = req.body; // array of print IDs in new order
-  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
-  try {
-    await Promise.all(order.map((id, i) =>
-      pool.query('UPDATE prints SET sort_order=$1 WHERE id=$2', [i, id])
-    ));
-    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

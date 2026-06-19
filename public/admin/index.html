@@ -454,8 +454,9 @@ async function loadPrints(){
       const card=document.createElement('div');card.className='print-card';card.dataset.id=p.id;
       const excluded = p.exclude_from_hero ? 'checked' : '';
       const cat = p.category || 'abstract';
-      const catOpts = ['abstract-bnw','abstract-colour','other'].map(v =>
-        `<option value="${v}" ${cat===v?'selected':''}>${v.replace('-',' ').replace(/\w/g,l=>l.toUpperCase())}</option>`
+      const normalisedCat = cat === 'abstract-colour' ? 'abstract-bnw' : cat;
+      const catOpts = [['abstract-bnw','Abstract'],['other','Other']].map(([v,label]) =>
+        `<option value="${v}" ${normalisedCat===v?'selected':''}>${label}</option>`
       ).join('');
       card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Category</label><select class="field-input" id="pc-${p.id}" style="cursor:pointer">${catOpts}</select></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
