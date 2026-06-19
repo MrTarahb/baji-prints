@@ -6,6 +6,7 @@
 <title>Admin — Bharat Bhatia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);--pink:#C8907A;--border:rgba(26,24,20,.1);--bg:#F8F8F6;--surface:#fff}
@@ -165,6 +166,13 @@ textarea.field-input{resize:vertical;min-height:70px}
 
 /* PRINTS */
 .prints-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.65rem;margin-bottom:1.25rem}
+.prints-hint{font-size:.78rem;color:var(--text-l);font-style:italic;margin-bottom:.85rem;display:flex;align-items:center;gap:.4rem}
+.print-card{position:relative;cursor:grab}
+.print-card.sortable-ghost{opacity:.35}
+.print-card.sortable-drag{cursor:grabbing;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.drag-handle{position:absolute;top:.5rem;right:.5rem;width:26px;height:26px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:2;font-size:.85rem;color:var(--text-l);touch-action:none}
+.drag-handle:active{cursor:grabbing}
+.print-order-badge{position:absolute;top:.5rem;left:.5rem;background:rgba(0,0,0,.6);color:white;font-family:'DM Mono',monospace;font-size:.62rem;padding:.15rem .4rem;border-radius:3px;z-index:2}
 .print-card{background:var(--surface);border:1px solid var(--border);border-radius:2px;overflow:hidden}
 .print-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
 .print-card-body{padding:.65rem .85rem}
@@ -434,35 +442,65 @@ function buildFields(containerId,fields){
 }
 
 // PRINTS
+let sortableInstance = null;
+
 async function loadPrints(){
   try{
     const res=await fetch('/api/prints');const prints=await res.json();
     const grid=document.getElementById('prints-grid');
     if(!prints.length){grid.innerHTML='<p class="prints-empty">No prints yet.</p>';return;}
     grid.innerHTML='';
-    prints.forEach(p=>{
-      const card=document.createElement('div');card.className='print-card';
+    prints.forEach((p,i)=>{
+      const card=document.createElement('div');card.className='print-card';card.dataset.id=p.id;
       const excluded = p.exclude_from_hero ? 'checked' : '';
       const cat = p.category || 'abstract';
       const catOpts = ['abstract-bnw','abstract-colour','other'].map(v =>
-        `<option value="${v}" ${cat===v?'selected':''}>${v.replace('-',' ').replace(/\w/g,l=>l.toUpperCase())}</option>`
+        `<option value="${v}" ${cat===v?'selected':''}>${v.replace('-',' ').replace(/\w/g,l=>l.toUpperCase())}</option>`
       ).join('');
-      card.innerHTML=`<img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Category</label><select class="field-input" id="pc-${p.id}" style="cursor:pointer">${catOpts}</select></div><div class="print-edit-row"><label class="field-label">Sort order</label><input class="field-input" id="po-${p.id}" type="number" value="${p.sort_order}" style="width:80px"></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Category</label><select class="field-input" id="pc-${p.id}" style="cursor:pointer">${catOpts}</select></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
+
+    if (sortableInstance) sortableInstance.destroy();
+    sortableInstance = new Sortable(grid, {
+      animation: 200,
+      handle: '.drag-handle',
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      delay: 80,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 4,
+      onEnd: saveNewOrder,
+    });
   }catch(e){}
+}
+
+async function saveNewOrder(){
+  const grid = document.getElementById('prints-grid');
+  const ids = Array.from(grid.children).map(card => parseInt(card.dataset.id));
+  Array.from(grid.children).forEach((card, i) => {
+    const badge = card.querySelector('.print-order-badge');
+    if (badge) badge.textContent = i + 1;
+  });
+  try {
+    await fetch('/api/admin/prints/reorder', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({ order: ids })
+    });
+  } catch(e) { console.error('Reorder failed:', e); }
 }
 async function savePrint(id,btn){
   const title=document.getElementById('pt-'+id).value.trim();
   const desc=document.getElementById('pd-'+id).value.trim();
-  const order=document.getElementById('po-'+id).value;
   const msg=document.getElementById('pm-'+id);
   if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
   btn.textContent='Saving...';btn.disabled=true;
   const exclude = document.getElementById('ph-'+id)?.checked || false;
   const category = document.getElementById('pc-'+id)?.value || 'abstract';
   try{
-    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,sort_order:parseInt(order)||0,exclude_from_hero:exclude,category})});
+    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,exclude_from_hero:exclude,category})});
     if(res.ok){btn.textContent='Saved ✓';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
     else{msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
   }catch(e){msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
