@@ -618,6 +618,172 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 #privacy-page .inner { max-width: 600px; margin: 0 auto; }
 #privacy-page.active { display: block; }
 
+/* SHOP PAGE */
+#shop-page, #shop-success-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 5rem;
+}
+#shop-page .inner, #shop-success-page .inner { max-width: 900px; margin: 0 auto; }
+#shop-page.active, #shop-success-page.active { display: block; }
+
+.shop-heading {
+  font-family: var(--fi);
+  font-size: clamp(2.5rem,5vw,4.5rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: .95;
+  letter-spacing: -.03em;
+  color: var(--fg);
+  margin-bottom: .75rem;
+}
+.shop-sub {
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.8;
+  margin-bottom: 2.5rem;
+  max-width: 50ch;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+.shop-card {
+  cursor: none;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity .7s ease, transform .7s ease;
+}
+.shop-card.visible { opacity: 1; transform: translateY(0); }
+.shop-card-img-wrap {
+  width: 100%;
+  aspect-ratio: 4/5;
+  overflow: hidden;
+  background: var(--bg-2);
+  margin-bottom: .65rem;
+  position: relative;
+}
+.shop-card-img-wrap img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform .5s ease;
+}
+.shop-card:hover .shop-card-img-wrap img { transform: scale(1.04); }
+.shop-card-title { font-size: 11px; color: var(--fg); margin-bottom: .15rem; }
+.shop-card-price { font-family: var(--fm); font-size: 9px; color: var(--fg-l); letter-spacing: .04em; }
+.shop-card-soldout {
+  position: absolute; top: .6rem; left: .6rem;
+  font-family: var(--fm); font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--fg); color: var(--bg); padding: .2rem .5rem; border-radius: 2px;
+}
+.shop-empty { padding: 4rem 0; text-align: center; color: var(--fg-l); font-style: italic; font-size: 11px; }
+
+/* PRODUCT DETAIL OVERLAY */
+#shop-detail {
+  display: none;
+  position: fixed; inset: 0; z-index: 150;
+  background: var(--overlay-bg);
+  overflow-y: auto;
+  padding: 6rem 2rem 4rem;
+}
+#shop-detail.open { display: block; }
+.shop-detail-inner {
+  max-width: 900px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+}
+.shop-detail-img { width: 100%; aspect-ratio: 4/5; object-fit: cover; background: var(--bg-2); }
+.shop-detail-title { font-family: var(--fi); font-size: 1.8rem; font-style: italic; color: var(--fg); margin-bottom: .5rem; }
+.shop-detail-desc { font-size: 11px; color: var(--fg-m); line-height: 1.8; margin-bottom: 1.5rem; }
+.shop-size-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .85rem 1rem; border: 1px solid var(--border); margin-bottom: .5rem;
+  cursor: none; transition: border-color .2s;
+}
+.shop-size-option.selected { border-color: var(--fg); }
+.shop-size-option.disabled { opacity: .35; cursor: default; }
+.shop-size-name { font-size: 11px; color: var(--fg); }
+.shop-size-meta { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
+.shop-size-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
+.btn-add-cart {
+  width: 100%; background: var(--btn-bg); color: var(--btn-color);
+  border: none; padding: .85rem; margin-top: 1rem;
+  font-family: var(--fb,'DM Sans',sans-serif); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+  cursor: none; transition: opacity .2s;
+}
+.btn-add-cart:disabled { opacity: .4; cursor: default; }
+.shop-detail-close {
+  position: absolute; top: 1.5rem; right: 2rem;
+  font-family: var(--fm); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--fg-l); background: none; border: none; cursor: none; padding: .5rem;
+}
+.shop-detail-close:hover { color: var(--fg); }
+
+/* CART */
+.shop-cart-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
+  background: var(--fg); color: var(--bg);
+  padding: .85rem 2rem;
+  display: none;
+  align-items: center; justify-content: space-between;
+  transition: background .4s, color .4s;
+}
+.shop-cart-bar.visible { display: flex; }
+.shop-cart-bar-info { font-size: 10px; letter-spacing: .04em; }
+.shop-cart-bar-btn {
+  font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  background: none; border: 1px solid var(--bg); color: var(--bg);
+  padding: .4rem 1rem; cursor: none; transition: opacity .2s;
+}
+.shop-cart-bar-btn:hover { opacity: .7; }
+
+#shop-cart {
+  display: none;
+  position: fixed; inset: 0; z-index: 160;
+  background: var(--overlay-bg);
+  overflow-y: auto;
+  padding: 6rem 2rem 4rem;
+}
+#shop-cart.open { display: block; }
+.shop-cart-inner { max-width: 600px; margin: 0 auto; }
+.cart-item {
+  display: grid; grid-template-columns: 70px 1fr auto; gap: 1rem; align-items: center;
+  padding: 1rem 0; border-bottom: 1px solid var(--border);
+}
+.cart-item img { width: 70px; height: 70px; object-fit: cover; }
+.cart-item-title { font-size: 11px; color: var(--fg); }
+.cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
+.cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
+.cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
+.cart-delivery-title { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin: 2rem 0 .85rem; }
+.cart-delivery-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .85rem 1rem; border: 1px solid var(--border); margin-bottom: .5rem; cursor: none;
+}
+.cart-delivery-option.selected { border-color: var(--fg); }
+.cart-delivery-option.disabled { opacity: .3; cursor: default; }
+.cart-total-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: 1.25rem; margin-top: .5rem; border-top: 1px solid var(--border);
+  font-family: var(--fi); font-style: italic; font-size: 1.3rem; color: var(--fg);
+}
+.cart-empty { padding: 3rem 0; text-align: center; color: var(--fg-l); font-style: italic; font-size: 11px; }
+
+/* SUCCESS PAGE */
+.success-icon { font-family: var(--fi); font-size: 2.5rem; font-style: italic; color: var(--fg); margin-bottom: 1rem; }
+.success-detail { font-size: 11px; color: var(--fg-m); line-height: 1.9; margin-bottom: 2rem; }
+.success-order-line { display: flex; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--fg-m); }
+
+@media(max-width: 768px) {
+  .shop-detail-inner { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+
 .contact-heading {
   font-family: var(--fi);
   font-size: clamp(2.5rem,5vw,4.5rem);
@@ -741,6 +907,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
     <ul class="nav-links">
       <li><a onclick="showPage('main')" id="c-nav_work">Work</a></li>
       <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
+      <li><a onclick="showPage('shop')" id="c-nav_shop">Shop</a></li>
       <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
     </ul>
     <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -760,6 +927,12 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
     </button>
   </div>
 </nav>
+
+<!-- CART BAR -->
+<div class="shop-cart-bar" id="shop-cart-bar">
+  <span class="shop-cart-bar-info" id="cart-bar-info">0 items in cart</span>
+  <button class="shop-cart-bar-btn" onclick="openCart()">View cart</button>
+</div>
 
 <!-- MAIN FEED -->
 <div id="main-content">
@@ -864,6 +1037,51 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
       <div class="about-divider"></div>
       <p class="about-spec">Questions about this policy can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
     </div>
+  </div>
+</div>
+
+<!-- SHOP PAGE -->
+<div id="shop-page">
+  <div class="inner">
+    <h1 class="shop-heading">Shop.</h1>
+    <p class="shop-sub">Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.</p>
+    <div class="shop-grid" id="shop-grid">
+      <div class="shop-empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT DETAIL -->
+<div id="shop-detail">
+  <button class="shop-detail-close" onclick="closeShopDetail()">Close ✕</button>
+  <div class="shop-detail-inner" id="shop-detail-inner"></div>
+</div>
+
+<!-- CART -->
+<div id="shop-cart">
+  <div class="shop-cart-inner">
+    <h1 class="shop-heading" style="font-size:2rem">Your cart.</h1>
+    <button class="shop-detail-close" onclick="closeCart()">Close ✕</button>
+    <div id="cart-items"></div>
+    <div id="cart-delivery-section" style="display:none">
+      <p class="cart-delivery-title">Delivery</p>
+      <div id="cart-delivery-options"></div>
+    </div>
+    <div class="cart-total-row" id="cart-total-row" style="display:none">
+      <span>Total</span><span id="cart-total-amount"></span>
+    </div>
+    <button class="btn-add-cart" id="btn-checkout" onclick="goToCheckout()" style="margin-top:1.5rem" disabled>Select a delivery option</button>
+    <p class="form-msg" id="checkout-msg" style="margin-top:.65rem"></p>
+  </div>
+</div>
+
+<!-- SHOP SUCCESS PAGE -->
+<div id="shop-success-page">
+  <div class="inner">
+    <p class="success-icon">Thank you.</p>
+    <p class="shop-sub" id="success-message">Your order has been received. A confirmation will be sent to your email shortly.</p>
+    <div id="success-order-details"></div>
+    <button class="btn-add-cart" style="max-width:240px;margin-top:2rem" onclick="showPage('main')">Back to the work</button>
   </div>
 </div>
 
@@ -1031,12 +1249,18 @@ function showPage(name){
   const aboutEl = document.getElementById('about-page');
   const contactEl = document.getElementById('contact-page');
   const privacyEl = document.getElementById('privacy-page');
+  const shopEl = document.getElementById('shop-page');
+  const shopSuccessEl = document.getElementById('shop-success-page');
   aboutEl.classList.toggle('active', name==='about');
   contactEl.classList.toggle('active', name==='contact');
   privacyEl.classList.toggle('active', name==='privacy');
+  shopEl.classList.toggle('active', name==='shop');
+  shopSuccessEl.classList.toggle('active', name==='shop-success');
   if (name === 'about') aboutEl.scrollTop = 0;
   if (name === 'contact') contactEl.scrollTop = 0;
   if (name === 'privacy') privacyEl.scrollTop = 0;
+  if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
+  if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
   if (name === 'main') { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
   // Nav: always visible on sub-pages, scroll-driven on main
   const nav = document.getElementById('nav');
@@ -1046,6 +1270,10 @@ function showPage(name){
   } else {
     nav.classList.remove('on-light');
     nav.classList.toggle('visible', window.scrollY > 40);
+  }
+  // Update URL so direct links / refresh work for shop pages
+  if (name === 'shop' || name === 'shop-success') {
+    history.replaceState(null, '', name === 'shop' ? '/shop' : location.pathname + location.search);
   }
 }
 
@@ -1264,7 +1492,314 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeLightbox();
 });
 
+// ── SHOP ──────────────────────────────────────────────────────────────────────
+let shopProducts = [];
+let shippingRatesData = [];
+let cart = JSON.parse(localStorage.getItem('cart') || '[]'); // [{print_id, title, image_url, size, price_chf}]
+let selectedDelivery = null;
+let selectedDetailProduct = null;
+let selectedDetailSize = null;
+
+const SIZE_LABELS = { A4: 'A4 — flat mailer', A3: 'A3 — postal tube', A2: 'A2 — postal tube' };
+const DELIVERY_OPTION_LABELS = {
+  ch: 'Standard shipping (Switzerland)',
+  personal: 'Personal delivery (Zürich)',
+  intl: 'International shipping',
+};
+const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
+
+function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
+
+function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); updateCartBar(); }
+
+function updateCartBar() {
+  const bar = document.getElementById('shop-cart-bar');
+  const info = document.getElementById('cart-bar-info');
+  if (cart.length) {
+    bar.classList.add('visible');
+    info.textContent = cart.length + (cart.length === 1 ? ' item in cart' : ' items in cart');
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+// Load products into the shop grid
+async function loadShopProducts() {
+  const grid = document.getElementById('shop-grid');
+  try {
+    const [products, rates] = await Promise.all([
+      fetch('/api/shop/products').then(r => r.json()),
+      fetch('/api/shop/shipping-rates').then(r => r.json()),
+    ]);
+    shopProducts = products;
+    shippingRatesData = rates;
+
+    if (!products.length) {
+      grid.innerHTML = '<div class="shop-empty">No prints for sale just yet — check back soon.</div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    products.forEach((p, i) => {
+      const validSizes = p.sizes.filter(s => s.price_chf > 0);
+      if (!validSizes.length) return;
+      const minPrice = Math.min(...validSizes.map(s => s.price_chf));
+      const allSoldOut = validSizes.every(s => s.sold_out);
+
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      card.style.transitionDelay = (i * 0.05) + 's';
+      card.innerHTML = `
+        <div class="shop-card-img-wrap">
+          ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
+          <img src="${p.image_url}" alt="${esc(p.title)}" loading="lazy">
+        </div>
+        <div class="shop-card-title">${esc(p.title)}</div>
+        <div class="shop-card-price">From ${fmtCHF(minPrice)}</div>
+      `;
+      card.addEventListener('click', () => openShopDetail(p.id));
+      grid.appendChild(card);
+      new IntersectionObserver(([e], o) => { if (e.isIntersecting) { card.classList.add('visible'); o.disconnect(); } }, { threshold: 0.1 }).observe(card);
+    });
+  } catch (e) {
+    grid.innerHTML = '<div class="shop-empty">Could not load the shop right now.</div>';
+  }
+}
+
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Open the product detail overlay
+function openShopDetail(printId) {
+  const p = shopProducts.find(p => p.id === printId);
+  if (!p) return;
+  selectedDetailProduct = p;
+  selectedDetailSize = null;
+
+  const validSizes = p.sizes.filter(s => s.price_chf > 0);
+  const inner = document.getElementById('shop-detail-inner');
+  inner.innerHTML = `
+    <img class="shop-detail-img" src="${p.image_url}" alt="${esc(p.title)}">
+    <div>
+      <p class="shop-detail-title">${esc(p.title)}</p>
+      <p class="shop-detail-desc">${esc(p.description || '')}</p>
+      ${p.edition_type === 'limited' ? `<p class="shop-card-price" style="margin-bottom:1rem">Limited edition of ${p.edition_size}</p>` : ''}
+      <div id="shop-size-options"></div>
+      <button class="btn-add-cart" id="btn-add-to-cart" disabled onclick="addSelectedToCart()">Select a size</button>
+    </div>
+  `;
+
+  const sizeWrap = document.getElementById('shop-size-options');
+  ['A4','A3','A2'].forEach(size => {
+    const s = validSizes.find(sz => sz.size === size);
+    const opt = document.createElement('div');
+    opt.className = 'shop-size-option' + (!s || s.sold_out ? ' disabled' : '');
+    opt.dataset.size = size;
+    opt.innerHTML = `
+      <div>
+        <div class="shop-size-name">${size}</div>
+        <div class="shop-size-meta">${!s ? 'Not available' : s.sold_out ? 'Sold out' : (s.remaining != null ? s.remaining + ' remaining' : '')}</div>
+      </div>
+      <span class="shop-size-price">${s ? fmtCHF(s.price_chf) : ''}</span>
+    `;
+    if (s && !s.sold_out) {
+      opt.addEventListener('click', () => selectDetailSize(size, s.price_chf));
+    }
+    sizeWrap.appendChild(opt);
+  });
+
+  document.getElementById('shop-detail').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function selectDetailSize(size, priceChf) {
+  selectedDetailSize = { size, price_chf: priceChf };
+  document.querySelectorAll('.shop-size-option').forEach(el => el.classList.toggle('selected', el.dataset.size === size));
+  const btn = document.getElementById('btn-add-to-cart');
+  btn.disabled = false;
+  btn.textContent = `Add to cart — ${fmtCHF(priceChf)}`;
+}
+
+function addSelectedToCart() {
+  if (!selectedDetailProduct || !selectedDetailSize) return;
+  cart.push({
+    print_id: selectedDetailProduct.id,
+    title: selectedDetailProduct.title,
+    image_url: selectedDetailProduct.image_url,
+    size: selectedDetailSize.size,
+    price_chf: selectedDetailSize.price_chf,
+  });
+  saveCart();
+  closeShopDetail();
+  openCart();
+}
+
+function closeShopDetail() {
+  document.getElementById('shop-detail').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── CART ──────────────────────────────────────────────────────────────────────
+function openCart() {
+  renderCart();
+  document.getElementById('shop-cart').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCart() {
+  document.getElementById('shop-cart').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderCart() {
+  const itemsWrap = document.getElementById('cart-items');
+  const deliverySection = document.getElementById('cart-delivery-section');
+  const totalRow = document.getElementById('cart-total-row');
+  const checkoutBtn = document.getElementById('btn-checkout');
+
+  if (!cart.length) {
+    itemsWrap.innerHTML = '<div class="cart-empty">Your cart is empty.</div>';
+    deliverySection.style.display = 'none';
+    totalRow.style.display = 'none';
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Cart is empty';
+    return;
+  }
+
+  itemsWrap.innerHTML = cart.map((item, i) => `
+    <div class="cart-item">
+      <img src="${item.image_url}" alt="${esc(item.title)}">
+      <div>
+        <div class="cart-item-title">${esc(item.title)}</div>
+        <div class="cart-item-size">${item.size}</div>
+        <button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button>
+      </div>
+      <div class="cart-item-price">${fmtCHF(item.price_chf)}</div>
+    </div>
+  `).join('');
+
+  // Determine which delivery methods are valid for every item in the cart
+  const cartProducts = cart.map(item => shopProducts.find(p => p.id === item.print_id)).filter(Boolean);
+  const deliveryAvailability = {
+    ch: cartProducts.every(p => p.delivery_ch),
+    personal: cartProducts.every(p => p.delivery_personal),
+    intl: cartProducts.every(p => p.delivery_intl),
+  };
+
+  deliverySection.style.display = 'block';
+  const deliveryWrap = document.getElementById('cart-delivery-options');
+  deliveryWrap.innerHTML = '';
+  ['ch','personal','intl'].forEach(method => {
+    const available = deliveryAvailability[method];
+    const price = available ? getShippingPriceForCart(method) : null;
+    const opt = document.createElement('div');
+    opt.className = 'cart-delivery-option' + (!available ? ' disabled' : '') + (selectedDelivery === method ? ' selected' : '');
+    opt.innerHTML = `<span>${DELIVERY_OPTION_LABELS[method]}</span><span>${available ? fmtCHF(price) : 'Not available'}</span>`;
+    if (available) opt.addEventListener('click', () => { selectedDelivery = method; renderCart(); });
+    deliveryWrap.appendChild(opt);
+  });
+
+  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
+  if (selectedDelivery && deliveryAvailability[selectedDelivery]) {
+    const shipping = getShippingPriceForCart(selectedDelivery);
+    totalRow.style.display = 'flex';
+    document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + shipping);
+    checkoutBtn.disabled = false;
+    checkoutBtn.textContent = 'Checkout';
+  } else {
+    totalRow.style.display = 'none';
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Select a delivery option';
+  }
+}
+
+function getShippingPriceForCart(method) {
+  const sizes = cart.map(i => i.size);
+  const largest = sizes.reduce((biggest, s) => (SIZE_RANK[s]||0) > (SIZE_RANK[biggest]||0) ? s : biggest, sizes[0]);
+  const rate = shippingRatesData.find(r => r.delivery_method === method && r.size === largest);
+  return rate ? rate.price_chf : 0;
+}
+
+function removeFromCart(index) {
+  cart.splice(index, 1);
+  saveCart();
+  renderCart();
+}
+
+async function goToCheckout() {
+  const btn = document.getElementById('btn-checkout');
+  const msg = document.getElementById('checkout-msg');
+  if (!cart.length || !selectedDelivery) return;
+  btn.disabled = true; btn.textContent = 'Redirecting…'; msg.textContent = '';
+
+  try {
+    const res = await fetch('/api/shop/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
+        delivery_method: selectedDelivery,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.url) {
+      localStorage.setItem('pending_cart', JSON.stringify(cart)); // kept in case checkout is abandoned
+      window.location.href = data.url;
+    } else {
+      throw new Error(data.error || 'Checkout failed');
+    }
+  } catch (e) {
+    msg.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'Checkout';
+  }
+}
+
+document.getElementById('shop-detail').addEventListener('click', e => { if (e.target === e.currentTarget) closeShopDetail(); });
+document.getElementById('shop-cart').addEventListener('click', e => { if (e.target === e.currentTarget) closeCart(); });
+
+// ── SHOP SUCCESS PAGE ─────────────────────────────────────────────────────────
+async function checkShopSuccess() {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+  if (!sessionId || window.location.pathname.indexOf('/shop/success') === -1) return;
+
+  // Clear the cart — order is complete
+  cart = [];
+  saveCart();
+
+  showPage('shop-success');
+  try {
+    const res = await fetch('/api/shop/order/' + sessionId);
+    const data = await res.json();
+    if (res.ok && data.order) {
+      const order = data.order;
+      const items = data.items || [];
+      document.getElementById('success-message').textContent =
+        `Thank you${order.customer_name ? ', ' + order.customer_name : ''} — your order has been received. A confirmation has been sent to ${order.customer_email || 'your email'}.`;
+      const detailsWrap = document.getElementById('success-order-details');
+      detailsWrap.innerHTML = items.map(i => `
+        <div class="success-order-line"><span>${esc(i.print_title)} — ${i.size}</span><span>${fmtCHF(i.price_chf)}</span></div>
+      `).join('') + `
+        <div class="success-order-line"><span>Delivery</span><span>${fmtCHF(order.delivery_price_chf)}</span></div>
+        <div class="success-order-line" style="font-weight:500;border-top:1px solid var(--border);margin-top:.25rem;padding-top:.65rem"><span>Total</span><span>${fmtCHF(order.total_chf)}</span></div>
+      `;
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+// Init cart bar state on load
+updateCartBar();
+
 loadContent().then(() => load());
+
+// Route based on initial URL path — handles direct visits and Stripe redirects
+(function initialRoute() {
+  const path = window.location.pathname;
+  if (path.indexOf('/shop/success') === 0) {
+    checkShopSuccess();
+  } else if (path.indexOf('/shop') === 0) {
+    showPage('shop');
+  }
+})();
 
 // Track pageview with referrer
 fetch('/api/pageview', {
