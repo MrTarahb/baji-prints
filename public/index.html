@@ -605,6 +605,19 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 #contact-page.active { display: block; }
 #main-content.hidden { display: none; }
 
+#privacy-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#privacy-page .inner { max-width: 600px; margin: 0 auto; }
+#privacy-page.active { display: block; }
+
 .contact-heading {
   font-family: var(--fi);
   font-size: clamp(2.5rem,5vw,4.5rem);
@@ -786,6 +799,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
     <div class="footer-contact">
       <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
+      <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
   </footer>
 </div>
@@ -826,6 +840,31 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   <button class="btn-send" id="btn-submit">Send message</button>
   <p class="form-msg" id="form-msg"></p>
   </div><!-- /.inner -->
+</div>
+
+<!-- PRIVACY POLICY PAGE -->
+<div id="privacy-page">
+  <div class="inner">
+    <h1 class="about-heading">Privacy policy.</h1>
+    <div class="about-body">
+      <p>This page explains what information is collected on bharatbhatia.photography, why, and how it's handled. Last updated June 2026.</p>
+
+      <p><strong>Contact form.</strong> If you fill in the contact form, I collect your name, email address, the category you select, and any message you write. This is stored so I can reply to you and is never shared with third parties. It's used only to respond to your enquiry.</p>
+
+      <p><strong>Site analytics.</strong> When you visit this site, I log the page visited, the time, and the referring site (e.g. Instagram, Google) if your browser provides one. This is anonymous — no cookies, no IP address storage, no tracking across other websites. It's used only to understand roughly how many people visit and where from.</p>
+
+      <p><strong>Admin session.</strong> A single session cookie is used only when I log into the admin panel to manage the site. It is never set for regular visitors.</p>
+
+      <p><strong>Orders and payments.</strong> If you purchase a print, payment is processed entirely by Stripe — I never see or store your card details. Stripe's own privacy policy governs that data. I store your name, shipping address, and order details only to fulfil and ship your order.</p>
+
+      <p><strong>Images.</strong> Photographs are hosted via Cloudinary, a third-party image hosting service. No personal data is attached to images.</p>
+
+      <p><strong>Your rights.</strong> You can ask me to delete any data I hold about you — message me via the contact form or email directly. I don't sell or share your data with advertisers, ever.</p>
+
+      <div class="about-divider"></div>
+      <p class="about-spec">Questions about this policy can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -991,10 +1030,13 @@ function showPage(name){
   document.getElementById('main-content').classList.toggle('hidden', name!=='main');
   const aboutEl = document.getElementById('about-page');
   const contactEl = document.getElementById('contact-page');
+  const privacyEl = document.getElementById('privacy-page');
   aboutEl.classList.toggle('active', name==='about');
   contactEl.classList.toggle('active', name==='contact');
+  privacyEl.classList.toggle('active', name==='privacy');
   if (name === 'about') aboutEl.scrollTop = 0;
   if (name === 'contact') contactEl.scrollTop = 0;
+  if (name === 'privacy') privacyEl.scrollTop = 0;
   if (name === 'main') { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
   // Nav: always visible on sub-pages, scroll-driven on main
   const nav = document.getElementById('nav');
