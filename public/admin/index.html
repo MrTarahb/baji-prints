@@ -34,6 +34,55 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .top-photo-title{font-size:.78rem;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-photo-views{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0}
 
+/* ORDERS */
+.order-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1.1rem 1.25rem;margin-bottom:.75rem}
+.order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.65rem;flex-wrap:wrap}
+.order-id{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l)}
+.order-customer{font-size:.92rem;font-weight:500;color:var(--ink);margin-top:.15rem}
+.order-email{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text-l)}
+.order-meta{text-align:right;flex-shrink:0}
+.order-total{font-family:'Playfair Display',serif;font-style:italic;font-size:1.15rem;color:var(--ink)}
+.order-date{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-l);margin-top:.2rem}
+.order-status{display:inline-block;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:.18rem .5rem;border-radius:10px;margin-top:.3rem}
+.order-status.paid{background:rgba(200,144,122,.15);color:var(--pink)}
+.order-status.fulfilled{background:rgba(74,122,85,.15);color:#4A7A55}
+.order-status.cancelled{background:rgba(0,0,0,.08);color:var(--text-l)}
+.order-items{border-top:1px solid var(--border);padding-top:.65rem;margin-top:.65rem}
+.order-item-row{display:flex;justify-content:space-between;font-size:.82rem;color:var(--text-m);padding:.2rem 0}
+.order-address{font-size:.78rem;color:var(--text-l);margin-top:.5rem;white-space:pre-wrap;line-height:1.5}
+.order-actions{display:flex;gap:.5rem;margin-top:.75rem}
+.btn-order-action{font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:500;letter-spacing:.04em;padding:.32rem .8rem;border-radius:1px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-m);transition:all .15s}
+.btn-order-action:hover{background:var(--ink);color:white;border-color:var(--ink)}
+.orders-empty{padding:3rem 1rem;text-align:center;color:var(--text-l);font-style:italic;font-size:.85rem}
+
+/* SHOP PRINT CARDS */
+.shop-print-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1.1rem 1.25rem;margin-bottom:.75rem;display:grid;grid-template-columns:90px 1fr;gap:1rem}
+.shop-print-card img{width:90px;height:90px;object-fit:cover;border-radius:2px}
+.shop-print-title{font-size:.92rem;font-weight:500;color:var(--ink);margin-bottom:.6rem}
+.shop-toggle-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem}
+.shop-toggle-row label{font-size:.82rem;color:var(--text-m);cursor:pointer}
+.shop-sub-grid{display:none}
+.shop-sub-grid.open{display:block}
+.shop-row-group{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem}
+.shop-edition-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap}
+.shop-edition-row select, .shop-edition-row input{width:auto}
+.shop-sizes-title{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l);margin:.75rem 0 .4rem}
+.shop-size-row{display:grid;grid-template-columns:50px 1fr auto auto;gap:.5rem;align-items:center;margin-bottom:.4rem}
+.shop-size-label{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text-m);font-weight:500}
+.shop-price-input{padding:.4rem .55rem;border:1px solid var(--border);border-radius:1px;font-size:.8rem;background:var(--bg);color:var(--ink);width:100%}
+.shop-sold-badge{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-l);white-space:nowrap}
+.shop-delivery-title{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l);margin:.85rem 0 .4rem}
+.shop-delivery-row{display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:.85rem}
+.shop-delivery-row label{display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--text-m);cursor:pointer}
+.btn-shop-save{background:var(--ink);color:white;border:none;padding:.4rem 1rem;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:1px;cursor:pointer}
+.btn-shop-save:hover{background:#333}
+.shop-save-msg{font-size:.7rem;color:#4A7A55;margin-left:.65rem}
+@media(max-width:680px){
+  .shop-print-card{grid-template-columns:1fr}
+  .shop-print-card img{width:100%;height:140px}
+  .shop-row-group{grid-template-columns:1fr}
+}
+
 /* MOBILE SIDEBAR */
 .sidebar-overlay {
   display: none;
@@ -236,6 +285,9 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
       <span class="sidebar-label">Portfolio</span>
       <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
+      <span class="sidebar-label">Shop</span>
+      <button class="sidebar-btn" onclick="showPanel('orders',this)">Orders <span class="badge" id="orders-badge" style="display:none">0</span></button>
+      <button class="sidebar-btn" onclick="showPanel('shop',this)">Prints for sale</button>
       <span class="sidebar-label">Text content</span>
       <button class="sidebar-btn" onclick="showPanel('nav',this)">Navigation</button>
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
@@ -286,6 +338,20 @@ textarea.field-input{resize:vertical;min-height:70px}
           <span class="msg-count" id="msg-count"></span>
         </div>
         <div class="msg-list" id="msg-list"><p class="msg-empty">No messages yet.</p></div>
+      </div>
+
+      <!-- ORDERS -->
+      <div class="panel" id="panel-orders">
+        <h2 class="panel-title">Orders</h2>
+        <p class="panel-sub">Paid orders, newest first. Mark as fulfilled once shipped or delivered.</p>
+        <div id="orders-list"></div>
+      </div>
+
+      <!-- SHOP MANAGEMENT -->
+      <div class="panel" id="panel-shop">
+        <h2 class="panel-title">Prints for sale</h2>
+        <p class="panel-sub">Choose which prints are for sale, set prices per size, and pick available delivery options. Sizes: A4 (flat), A3 / A2 (rolled in a tube).</p>
+        <div id="shop-prints-list"></div>
       </div>
 
       <!-- PRINTS -->
@@ -529,6 +595,210 @@ async function deletePrint(id,btn){
   try{const res=await fetch('/api/admin/prints/'+id,{method:'DELETE',credentials:'include'});if(res.ok)await loadPrints();}catch(e){}
 }
 
+// ── SHOP: MANAGE PRINTS FOR SALE ────────────────────────────────────────────
+const SHOP_SIZES = ['A4','A3','A2'];
+
+async function loadShopPrints(){
+  const list = document.getElementById('shop-prints-list');
+  try{
+    const res = await fetch('/api/prints');
+    const prints = await res.json();
+    if(!prints.length){ list.innerHTML='<p class="prints-empty">Upload prints first, then come back here to put them up for sale.</p>'; return; }
+
+    // Fetch shop details for every print in parallel
+    const details = await Promise.all(prints.map(p =>
+      fetch('/api/admin/shop/print/'+p.id, {credentials:'include'}).then(r=>r.json()).catch(()=>null)
+    ));
+
+    list.innerHTML = '';
+    prints.forEach((p, idx) => {
+      const d = details[idx];
+      if (!d || !d.print) return;
+      list.appendChild(buildShopCard(p, d.print, d.sizes));
+    });
+  }catch(e){ list.innerHTML='<p class="prints-empty">Could not load prints.</p>'; }
+}
+
+function buildShopCard(printMeta, shopPrint, sizes){
+  const card = document.createElement('div');
+  card.className = 'shop-print-card';
+  const id = shopPrint.id;
+
+  const sizeMap = {};
+  SHOP_SIZES.forEach(s => { sizeMap[s] = sizes.find(sz => sz.size === s) || { price_chf:0, enabled:false, edition_sold:0 }; });
+
+  const editionType = shopPrint.edition_type || 'open';
+  const editionSize = shopPrint.edition_size || '';
+
+  card.innerHTML = `
+    <img src="${printMeta.image_url}" alt="${esc(printMeta.title)}">
+    <div>
+      <div class="shop-print-title">${esc(printMeta.title)}</div>
+
+      <div class="shop-toggle-row">
+        <input type="checkbox" id="forsale-${id}" ${shopPrint.for_sale ? 'checked' : ''} onchange="toggleShopOpen(${id})">
+        <label for="forsale-${id}">For sale</label>
+      </div>
+
+      <div class="shop-sub-grid ${shopPrint.for_sale ? 'open' : ''}" id="shopsub-${id}">
+
+        <div class="shop-edition-row">
+          <label class="field-label" style="margin:0">Edition</label>
+          <select id="edtype-${id}" class="field-input" style="width:auto" onchange="toggleEditionSize(${id})">
+            <option value="open" ${editionType==='open'?'selected':''}>Open edition</option>
+            <option value="limited" ${editionType==='limited'?'selected':''}>Limited edition</option>
+          </select>
+          <input type="number" id="edsize-${id}" class="field-input" style="width:80px;display:${editionType==='limited'?'inline-block':'none'}" placeholder="e.g. 25" min="1" value="${editionSize}">
+        </div>
+
+        <div class="shop-sizes-title">Sizes & prices (CHF)</div>
+        ${SHOP_SIZES.map(size => `
+          <div class="shop-size-row">
+            <span class="shop-size-label">${size}</span>
+            <input type="number" class="shop-price-input" id="price-${id}-${size}" placeholder="Price" min="0" step="1" value="${sizeMap[size].price_chf ? (sizeMap[size].price_chf/100) : ''}">
+            <label style="display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--text-m);cursor:pointer">
+              <input type="checkbox" id="enabled-${id}-${size}" ${sizeMap[size].enabled ? 'checked' : ''}> Enabled
+            </label>
+            <span class="shop-sold-badge">${editionType==='limited' ? sizeMap[size].edition_sold+' sold' : ''}</span>
+          </div>
+        `).join('')}
+
+        <div class="shop-delivery-title">Delivery options</div>
+        <div class="shop-delivery-row">
+          <label><input type="checkbox" id="delch-${id}" ${shopPrint.delivery_ch ? 'checked' : ''}> Switzerland (Post)</label>
+          <label><input type="checkbox" id="delpersonal-${id}" ${shopPrint.delivery_personal ? 'checked' : ''}> Personal delivery</label>
+          <label><input type="checkbox" id="delintl-${id}" ${shopPrint.delivery_intl ? 'checked' : ''}> International</label>
+        </div>
+
+        <button class="btn-shop-save" onclick="saveShopPrint(${id},this)">Save</button>
+        <span class="shop-save-msg" id="shopmsg-${id}"></span>
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function toggleShopOpen(id){
+  const sub = document.getElementById('shopsub-'+id);
+  const checked = document.getElementById('forsale-'+id).checked;
+  sub.classList.toggle('open', checked);
+}
+
+function toggleEditionSize(id){
+  const type = document.getElementById('edtype-'+id).value;
+  document.getElementById('edsize-'+id).style.display = type === 'limited' ? 'inline-block' : 'none';
+}
+
+async function saveShopPrint(id, btn){
+  const msg = document.getElementById('shopmsg-'+id);
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const forSale = document.getElementById('forsale-'+id).checked;
+  const editionType = document.getElementById('edtype-'+id).value;
+  const editionSizeRaw = document.getElementById('edsize-'+id).value;
+  const editionSize = editionType === 'limited' && editionSizeRaw ? parseInt(editionSizeRaw) : null;
+  const deliveryCh = document.getElementById('delch-'+id).checked;
+  const deliveryPersonal = document.getElementById('delpersonal-'+id).checked;
+  const deliveryIntl = document.getElementById('delintl-'+id).checked;
+
+  try{
+    await fetch('/api/admin/shop/print/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({
+        for_sale: forSale, edition_type: editionType, edition_size: editionSize,
+        delivery_ch: deliveryCh, delivery_personal: deliveryPersonal, delivery_intl: deliveryIntl
+      })
+    });
+
+    // Save each size/price
+    for (const size of SHOP_SIZES) {
+      const priceInput = document.getElementById(`price-${id}-${size}`);
+      const enabledInput = document.getElementById(`enabled-${id}-${size}`);
+      const priceChf = Math.round((parseFloat(priceInput.value) || 0) * 100);
+      await fetch(`/api/admin/shop/print/${id}/size`, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({ size, price_chf: priceChf, enabled: enabledInput.checked })
+      });
+    }
+
+    msg.textContent = 'Saved ✓';
+    btn.textContent = 'Save';
+    btn.disabled = false;
+    setTimeout(()=>{ msg.textContent=''; }, 2500);
+  }catch(e){
+    msg.textContent = 'Error saving.';
+    btn.textContent = 'Save';
+    btn.disabled = false;
+  }
+}
+
+// ── ORDERS ────────────────────────────────────────────────────────────────────
+async function loadOrders(){
+  const list = document.getElementById('orders-list');
+  try{
+    const res = await fetch('/api/admin/orders', {credentials:'include'});
+    const orders = await res.json();
+
+    const unpaid = orders.filter(o => o.status === 'paid').length;
+    const badge = document.getElementById('orders-badge');
+    if (badge) { badge.style.display = unpaid > 0 ? 'inline' : 'none'; badge.textContent = unpaid; }
+
+    if (!orders.length) { list.innerHTML = '<p class="orders-empty">No orders yet.</p>'; return; }
+
+    list.innerHTML = '';
+    orders.forEach(o => list.appendChild(buildOrderCard(o)));
+  }catch(e){ list.innerHTML = '<p class="orders-empty">Could not load orders.</p>'; }
+}
+
+function buildOrderCard(o){
+  const card = document.createElement('div');
+  card.className = 'order-card';
+
+  const addr = o.shipping_address ? (typeof o.shipping_address === 'string' ? JSON.parse(o.shipping_address) : o.shipping_address) : null;
+  const addrText = addr ? [addr.line1, addr.line2, addr.postal_code, addr.city, addr.country].filter(Boolean).join('\n') : '';
+
+  const itemsHtml = (o.items || []).map(i => `
+    <div class="order-item-row"><span>${esc(i.print_title)} — ${i.size}</span><span>CHF ${(i.price_chf/100).toFixed(2)}</span></div>
+  `).join('');
+
+  const nextStatus = o.status === 'paid' ? 'fulfilled' : null;
+
+  card.innerHTML = `
+    <div class="order-head">
+      <div>
+        <div class="order-id">#${o.id} · ${o.stripe_session_id ? o.stripe_session_id.slice(0,18)+'…' : ''}</div>
+        <div class="order-customer">${esc(o.customer_name || 'Unknown')}</div>
+        <div class="order-email">${esc(o.customer_email || '')}</div>
+      </div>
+      <div class="order-meta">
+        <div class="order-total">CHF ${(o.total_chf/100).toFixed(2)}</div>
+        <div class="order-date">${relTime(o.created_at)}</div>
+        <span class="order-status ${o.status}">${o.status}</span>
+      </div>
+    </div>
+    <div class="order-items">
+      ${itemsHtml}
+      <div class="order-item-row" style="opacity:.6"><span>Delivery — ${esc(o.delivery_method)}</span><span>CHF ${(o.delivery_price_chf/100).toFixed(2)}</span></div>
+    </div>
+    ${addrText ? `<div class="order-address">${esc(addrText)}</div>` : ''}
+    <div class="order-actions">
+      ${nextStatus ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'${nextStatus}')">Mark fulfilled</button>` : ''}
+      ${o.status !== 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>` : ''}
+    </div>
+  `;
+  return card;
+}
+
+async function updateOrderStatus(id, status){
+  try{
+    await fetch(`/api/admin/orders/${id}/status`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ status })
+    });
+    await loadOrders();
+  }catch(e){}
+}
+
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
@@ -573,6 +843,8 @@ async function loadAll(){
   await loadStats();
   await loadMessages();
   await loadPrints();
+  await loadShopPrints();
+  await loadOrders();
 }
 
 async function loadStats(){
