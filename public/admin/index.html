@@ -77,6 +77,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .btn-shop-save{background:var(--ink);color:white;border:none;padding:.4rem 1rem;font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border-radius:1px;cursor:pointer}
 .btn-shop-save:hover{background:#333}
 .shop-save-msg{font-size:.7rem;color:#4A7A55;margin-left:.65rem}
+
+/* SHIPPING RATES */
+.shipping-table{background:var(--surface);border:1px solid var(--border);border-radius:3px;overflow:hidden;margin-bottom:1rem}
+.shipping-row{display:grid;grid-template-columns:1fr 80px 140px auto;gap:.75rem;align-items:center;padding:.75rem 1.1rem;border-bottom:1px solid var(--border)}
+.shipping-row:last-child{border-bottom:none}
+.shipping-row.head{background:var(--bg);font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-l)}
+.shipping-method-label{font-size:.85rem;font-weight:500;color:var(--ink)}
+.shipping-method-sub{font-size:.7rem;color:var(--text-l);margin-top:.1rem}
+.shipping-size-badge{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text-m);text-align:center;background:var(--bg);border-radius:2px;padding:.2rem 0}
+.shipping-price-wrap{display:flex;align-items:center;gap:.3rem}
+.shipping-price-wrap span{font-size:.78rem;color:var(--text-l)}
+.btn-shipping-save{background:var(--ink);color:white;border:none;padding:.32rem .75rem;font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:500;border-radius:1px;cursor:pointer}
+.btn-shipping-save:hover{background:#333}
+.btn-shipping-save.saved{background:#4A7A55}
+@media(max-width:680px){
+  .shipping-row{grid-template-columns:1fr 60px 1fr auto;gap:.5rem;padding:.65rem .85rem}
+}
 @media(max-width:680px){
   .shop-print-card{grid-template-columns:1fr}
   .shop-print-card img{width:100%;height:140px}
@@ -288,6 +305,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <span class="sidebar-label">Shop</span>
       <button class="sidebar-btn" onclick="showPanel('orders',this)">Orders <span class="badge" id="orders-badge" style="display:none">0</span></button>
       <button class="sidebar-btn" onclick="showPanel('shop',this)">Prints for sale</button>
+      <button class="sidebar-btn" onclick="showPanel('shipping',this)">Shipping rates</button>
       <span class="sidebar-label">Text content</span>
       <button class="sidebar-btn" onclick="showPanel('nav',this)">Navigation</button>
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
@@ -352,6 +370,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Prints for sale</h2>
         <p class="panel-sub">Choose which prints are for sale, set prices per size, and pick available delivery options. Sizes: A4 (flat), A3 / A2 (rolled in a tube).</p>
         <div id="shop-prints-list"></div>
+      </div>
+
+      <!-- SHIPPING RATES -->
+      <div class="panel" id="panel-shipping">
+        <h2 class="panel-title">Shipping rates</h2>
+        <p class="panel-sub">One price per delivery method and size. When an order has multiple items, the largest size in the cart sets the price (an A2 needs a bigger tube than an A4).</p>
+        <div id="shipping-rates-list"></div>
       </div>
 
       <!-- PRINTS -->
@@ -799,6 +824,71 @@ async function updateOrderStatus(id, status){
   }catch(e){}
 }
 
+// ── SHIPPING RATES ────────────────────────────────────────────────────────────
+const SHIPPING_METHODS = [
+  { key:'ch',       label:'Switzerland', sub:'Standard Swiss Post' },
+  { key:'personal', label:'Personal delivery', sub:'Zürich area, hand-delivered' },
+  { key:'intl',     label:'International', sub:'Outside Switzerland' },
+];
+
+async function loadShippingRates(){
+  const wrap = document.getElementById('shipping-rates-list');
+  try{
+    const res = await fetch('/api/admin/shipping-rates', {credentials:'include'});
+    const rates = await res.json();
+
+    wrap.innerHTML = '';
+    SHIPPING_METHODS.forEach(method => {
+      const table = document.createElement('div');
+      table.className = 'shipping-table';
+
+      const header = document.createElement('div');
+      header.innerHTML = `<div style="padding:.85rem 1.1rem;border-bottom:1px solid var(--border)">
+        <div class="shipping-method-label">${method.label}</div>
+        <div class="shipping-method-sub">${method.sub}</div>
+      </div>`;
+      table.appendChild(header);
+
+      SHOP_SIZES.forEach(size => {
+        const rate = rates.find(r => r.delivery_method === method.key && r.size === size);
+        const price = rate ? (rate.price_chf/100) : 0;
+        const row = document.createElement('div');
+        row.className = 'shipping-row';
+        row.innerHTML = `
+          <span class="shipping-method-label" style="font-weight:400;font-size:.8rem;color:var(--text-m)">${size === 'A4' ? 'A4 — flat mailer' : size+' — postal tube'}</span>
+          <span class="shipping-size-badge">${size}</span>
+          <div class="shipping-price-wrap">
+            <span>CHF</span>
+            <input type="number" class="field-input" id="ship-${method.key}-${size}" value="${price}" min="0" step="0.5" style="width:90px">
+          </div>
+          <button class="btn-shipping-save" onclick="saveShippingRate('${method.key}','${size}',this)">Save</button>
+        `;
+        table.appendChild(row);
+      });
+
+      wrap.appendChild(table);
+    });
+  }catch(e){ wrap.innerHTML = '<p class="prints-empty">Could not load shipping rates.</p>'; }
+}
+
+async function saveShippingRate(method, size, btn){
+  const input = document.getElementById(`ship-${method}-${size}`);
+  const priceChf = Math.round((parseFloat(input.value) || 0) * 100);
+  btn.disabled = true; btn.textContent = '...';
+  try{
+    await fetch('/api/admin/shipping-rates', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ delivery_method: method, size, price_chf: priceChf })
+    });
+    btn.textContent = 'Saved ✓';
+    btn.classList.add('saved');
+    setTimeout(()=>{ btn.textContent = 'Save'; btn.classList.remove('saved'); btn.disabled = false; }, 2000);
+  }catch(e){
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
@@ -845,6 +935,7 @@ async function loadAll(){
   await loadPrints();
   await loadShopPrints();
   await loadOrders();
+  await loadShippingRates();
 }
 
 async function loadStats(){

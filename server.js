@@ -25,17 +25,26 @@ if (process.env.STRIPE_SECRET_KEY) {
   stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 }
 
-// Delivery prices in CHF cents — adjust anytime
-const DELIVERY_PRICES = {
-  ch:       900,   // CHF 9.00 — standard Swiss Post
-  personal: 4000,  // CHF 40.00 — personal delivery (Zürich area)
-  intl:     2500,  // CHF 25.00 — flat international (Europe baseline)
-};
+// Delivery method display labels (prices now live in the shipping_rates table, editable from admin)
 const DELIVERY_LABELS = {
   ch:       'Standard shipping (Switzerland)',
   personal: 'Personal delivery (Zürich)',
   intl:     'International shipping',
 };
+
+// Size rank — used to pick the "largest" size in a cart for shipping calculation
+const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
+
+// Look up the shipping price for a delivery method given the largest size in the cart
+async function getShippingPrice(deliveryMethod, sizesInCart) {
+  const largestSize = sizesInCart.reduce((biggest, s) =>
+    (SIZE_RANK[s] || 0) > (SIZE_RANK[biggest] || 0) ? s : biggest, sizesInCart[0]);
+  const { rows } = await pool.query(
+    'SELECT price_chf FROM shipping_rates WHERE delivery_method=$1 AND size=$2',
+    [deliveryMethod, largestSize]
+  );
+  return rows[0] ? rows[0].price_chf : 0;
+}
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -181,6 +190,16 @@ async function initDB() {
       UNIQUE(print_id, size)
     );
 
+    -- Shipping rates: one price per (delivery method × size). Size-aware because
+    -- A4 ships flat (cheap), A3/A2 ship rolled in a tube (pricier).
+    CREATE TABLE IF NOT EXISTS shipping_rates (
+      id SERIAL PRIMARY KEY,
+      delivery_method TEXT NOT NULL, -- 'ch', 'personal', 'intl'
+      size TEXT NOT NULL,            -- 'A4', 'A3', 'A2'
+      price_chf INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(delivery_method, size)
+    );
+
     -- Orders
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
@@ -275,6 +294,26 @@ async function initDB() {
     );
   }
 
+  // Step 3: seed default shipping rates (CHF cents) — editable later from admin
+  const shippingDefaults = [
+    ['ch', 'A4', 700],        // CHF 7.00 — flat mailer
+    ['ch', 'A3', 900],        // CHF 9.00 — small tube
+    ['ch', 'A2', 1200],       // CHF 12.00 — larger tube
+    ['personal', 'A4', 4000], // CHF 40.00 — flat premium regardless of size
+    ['personal', 'A3', 4000],
+    ['personal', 'A2', 4000],
+    ['intl', 'A4', 1500],     // CHF 15.00
+    ['intl', 'A3', 2000],     // CHF 20.00
+    ['intl', 'A2', 2500],     // CHF 25.00
+  ];
+  for (const [method, size, price] of shippingDefaults) {
+    await pool.query(
+      `INSERT INTO shipping_rates (delivery_method, size, price_chf) VALUES ($1,$2,$3)
+       ON CONFLICT (delivery_method, size) DO NOTHING`,
+      [method, size, price]
+    );
+  }
+
   console.log('DB initialised');
 }
 
@@ -332,17 +371,29 @@ app.get('/api/shop/products', async (req, res) => {
   }
 });
 
+// Public: current shipping rates, so the shop frontend can show prices before checkout
+app.get('/api/shop/shipping-rates', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT delivery_method, size, price_chf FROM shipping_rates ORDER BY delivery_method, size');
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 // Create a Stripe Checkout session for a cart
 app.post('/api/shop/checkout', async (req, res) => {
   if (!stripe) return res.status(500).json({ error: 'Shop is not configured yet' });
   const { items, delivery_method } = req.body; // items: [{print_id, size}], delivery_method: 'ch'|'personal'|'intl'
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Cart is empty' });
-  if (!DELIVERY_PRICES[delivery_method]) return res.status(400).json({ error: 'Invalid delivery method' });
+  if (!DELIVERY_LABELS[delivery_method]) return res.status(400).json({ error: 'Invalid delivery method' });
 
   try {
     // Validate items & build Stripe line items from authoritative DB prices
     const lineItems = [];
     const orderItemsData = [];
+    const sizesInCart = [];
     let subtotal = 0;
 
     for (const item of items) {
@@ -374,20 +425,24 @@ app.post('/api/shop/checkout', async (req, res) => {
         quantity: 1,
       });
       orderItemsData.push({ print_id: row.id, print_title: row.title, size: row.size, price_chf: row.price_chf });
+      sizesInCart.push(row.size);
       subtotal += row.price_chf;
     }
+
+    // Shipping is size-aware: priced by the largest item in the cart for this delivery method
+    const shippingPrice = await getShippingPrice(delivery_method, sizesInCart);
 
     // Add delivery as its own line item
     lineItems.push({
       price_data: {
         currency: 'chf',
         product_data: { name: DELIVERY_LABELS[delivery_method] },
-        unit_amount: DELIVERY_PRICES[delivery_method],
+        unit_amount: shippingPrice,
       },
       quantity: 1,
     });
 
-    const total = subtotal + DELIVERY_PRICES[delivery_method];
+    const total = subtotal + shippingPrice;
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
     const session = await stripe.checkout.sessions.create({
@@ -405,11 +460,12 @@ app.post('/api/shop/checkout', async (req, res) => {
     const orderRes = await pool.query(
       `INSERT INTO orders (stripe_session_id, status, delivery_method, delivery_price_chf, subtotal_chf, total_chf)
        VALUES ($1, 'pending', $2, $3, $4, $5) RETURNING id`,
-      [session.id, delivery_method, DELIVERY_PRICES[delivery_method], subtotal, total]
+      [session.id, delivery_method, shippingPrice, subtotal, total]
     );
     const orderId = orderRes.rows[0].id;
     for (const oi of orderItemsData) {
       await pool.query(
+
         `INSERT INTO order_items (order_id, print_id, print_title, size, price_chf) VALUES ($1,$2,$3,$4,$5)`,
         [orderId, oi.print_id, oi.print_title, oi.size, oi.price_chf]
       );
@@ -672,6 +728,32 @@ app.put('/api/admin/shop/print/:id/size', requireAuth, async (req, res) => {
        VALUES ($1,$2,$3,$4)
        ON CONFLICT (print_id, size) DO UPDATE SET price_chf=$3, enabled=$4`,
       [req.params.id, size, parseInt(price_chf) || 0, enabled !== false]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── ADMIN SHIPPING RATES ─────────────────────────────────────────────────────
+app.get('/api/admin/shipping-rates', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM shipping_rates ORDER BY delivery_method, size');
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/shipping-rates', requireAuth, async (req, res) => {
+  const { delivery_method, size, price_chf } = req.body;
+  if (!['ch','personal','intl'].includes(delivery_method)) return res.status(400).json({ error: 'Invalid delivery method' });
+  if (!['A4','A3','A2'].includes(size)) return res.status(400).json({ error: 'Invalid size' });
+  try {
+    await pool.query(
+      `INSERT INTO shipping_rates (delivery_method, size, price_chf) VALUES ($1,$2,$3)
+       ON CONFLICT (delivery_method, size) DO UPDATE SET price_chf=$3`,
+      [delivery_method, size, parseInt(price_chf) || 0]
     );
     res.json({ ok: true });
   } catch (e) {
