@@ -19,6 +19,24 @@ if (process.env.RESEND_API_KEY) {
   resend = new Resend(process.env.RESEND_API_KEY);
 }
 
+// Stripe is optional — only initialise if secret key is set
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+}
+
+// Delivery prices in CHF cents — adjust anytime
+const DELIVERY_PRICES = {
+  ch:       900,   // CHF 9.00 — standard Swiss Post
+  personal: 4000,  // CHF 40.00 — personal delivery (Zürich area)
+  intl:     2500,  // CHF 25.00 — flat international (Europe baseline)
+};
+const DELIVERY_LABELS = {
+  ch:       'Standard shipping (Switzerland)',
+  personal: 'Personal delivery (Zürich)',
+  intl:     'International shipping',
+};
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -32,6 +50,70 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 app.use(cors());
+
+// Stripe webhook needs the RAW body for signature verification —
+// this route is registered BEFORE express.json() so the body stays unparsed
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send('Stripe not configured');
+  }
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    try {
+      await pool.query(
+        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE stripe_session_id=$2`,
+        [session.payment_intent, session.id]
+      );
+      // Increment edition_sold counts for limited editions
+      const { rows: items } = await pool.query(
+        `SELECT oi.print_id, oi.size FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id WHERE o.stripe_session_id = $1`,
+        [session.id]
+      );
+      for (const item of items) {
+        await pool.query(
+          `UPDATE print_sizes SET edition_sold = edition_sold + 1 WHERE print_id=$1 AND size=$2`,
+          [item.print_id, item.size]
+        );
+      }
+      // Notify via email
+      const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id=$1', [session.id]);
+      const order = orderRows[0];
+      if (resend && order) {
+        const itemsList = items.map(i => `${i.print_id} (${i.size})`).join(', ');
+        try {
+          await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+            to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
+            subject: `New order — CHF ${(order.total_chf/100).toFixed(2)}`,
+            html: `<div style="font-family: Georgia, serif; max-width: 560px;">
+              <h2>New print order</h2>
+              <p><strong>Customer:</strong> ${order.customer_name} (${order.customer_email})</p>
+              <p><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
+              <p><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+              <p><strong>Items:</strong> ${itemsList}</p>
+              <p>View full order details in the admin panel.</p>
+            </div>`
+          });
+        } catch (e) { console.error('Order email failed:', e); }
+      }
+    } catch (e) {
+      console.error('Error processing webhook:', e);
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// Everything else gets normal JSON parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -48,7 +130,7 @@ app.use(session({
   }
 }));
 
-// ── DEBUG ────────────────────────────────────────────────────────────────────
+
 app.get('/api/debug/cloudinary', (req, res) => {
   res.json({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'set' : 'MISSING',
@@ -79,6 +161,53 @@ async function initDB() {
     -- Add column if upgrading existing DB
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS exclude_from_hero BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'abstract';
+
+    -- ── SHOP: per-print sale settings ──────────────────────────────
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS for_sale BOOLEAN DEFAULT FALSE;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS edition_type TEXT DEFAULT 'open'; -- 'open' or 'limited'
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS edition_size INTEGER; -- e.g. 25, only used if limited
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_ch BOOLEAN DEFAULT TRUE;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_personal BOOLEAN DEFAULT FALSE;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_intl BOOLEAN DEFAULT FALSE;
+
+    -- Per-print, per-size pricing & remaining stock for limited editions
+    CREATE TABLE IF NOT EXISTS print_sizes (
+      id SERIAL PRIMARY KEY,
+      print_id INTEGER REFERENCES prints(id) ON DELETE CASCADE,
+      size TEXT NOT NULL, -- 'A4', 'A3', 'A2'
+      price_chf INTEGER NOT NULL, -- stored in cents (CHF * 100)
+      enabled BOOLEAN DEFAULT TRUE,
+      edition_sold INTEGER DEFAULT 0, -- only relevant if print.edition_type = 'limited'
+      UNIQUE(print_id, size)
+    );
+
+    -- Orders
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      stripe_session_id TEXT UNIQUE,
+      stripe_payment_intent TEXT,
+      status TEXT DEFAULT 'pending', -- pending, paid, fulfilled, cancelled
+      customer_name TEXT,
+      customer_email TEXT,
+      shipping_address JSONB,
+      delivery_method TEXT, -- 'ch', 'personal', 'intl'
+      delivery_price_chf INTEGER,
+      subtotal_chf INTEGER,
+      total_chf INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Order line items
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+      print_id INTEGER REFERENCES prints(id),
+      print_title TEXT,
+      size TEXT,
+      price_chf INTEGER,
+      edition_number INTEGER -- assigned at fulfilment time for limited editions
+    );
     CREATE TABLE IF NOT EXISTS pageviews (
       id SERIAL PRIMARY KEY,
       visited_at TIMESTAMPTZ DEFAULT NOW(),
@@ -171,6 +300,149 @@ app.get('/api/prints', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, category, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── SHOP: PUBLIC ──────────────────────────────────────────────────────────────
+// List all prints currently for sale, with their sizes/prices/availability
+app.get('/api/shop/products', async (req, res) => {
+  try {
+    const { rows: prints } = await pool.query(
+      `SELECT id, title, description, image_url, edition_type, edition_size,
+              delivery_ch, delivery_personal, delivery_intl
+       FROM prints WHERE for_sale = TRUE ORDER BY sort_order ASC`
+    );
+    const { rows: sizes } = await pool.query(
+      `SELECT print_id, size, price_chf, enabled, edition_sold FROM print_sizes WHERE enabled = TRUE`
+    );
+    const products = prints.map(p => ({
+      ...p,
+      sizes: sizes.filter(s => s.print_id === p.id).map(s => ({
+        size: s.size,
+        price_chf: s.price_chf,
+        sold_out: p.edition_type === 'limited' && p.edition_size != null && s.edition_sold >= p.edition_size,
+        remaining: p.edition_type === 'limited' && p.edition_size != null ? Math.max(0, p.edition_size - s.edition_sold) : null,
+      })),
+    }));
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create a Stripe Checkout session for a cart
+app.post('/api/shop/checkout', async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Shop is not configured yet' });
+  const { items, delivery_method } = req.body; // items: [{print_id, size}], delivery_method: 'ch'|'personal'|'intl'
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Cart is empty' });
+  if (!DELIVERY_PRICES[delivery_method]) return res.status(400).json({ error: 'Invalid delivery method' });
+
+  try {
+    // Validate items & build Stripe line items from authoritative DB prices
+    const lineItems = [];
+    const orderItemsData = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const { rows } = await pool.query(
+        `SELECT p.id, p.title, p.image_url, p.edition_type, p.edition_size,
+                ps.size, ps.price_chf, ps.edition_sold,
+                p.delivery_ch, p.delivery_personal, p.delivery_intl
+         FROM prints p JOIN print_sizes ps ON ps.print_id = p.id
+         WHERE p.id = $1 AND ps.size = $2 AND p.for_sale = TRUE AND ps.enabled = TRUE`,
+        [item.print_id, item.size]
+      );
+      const row = rows[0];
+      if (!row) return res.status(400).json({ error: `Item not available: ${item.print_id} ${item.size}` });
+
+      if (row.edition_type === 'limited' && row.edition_size != null && row.edition_sold >= row.edition_size) {
+        return res.status(400).json({ error: `${row.title} (${row.size}) is sold out` });
+      }
+      const deliveryAllowed = { ch: row.delivery_ch, personal: row.delivery_personal, intl: row.delivery_intl };
+      if (!deliveryAllowed[delivery_method]) {
+        return res.status(400).json({ error: `${row.title} doesn't support that delivery method` });
+      }
+
+      lineItems.push({
+        price_data: {
+          currency: 'chf',
+          product_data: { name: `${row.title} — ${row.size}`, images: [row.image_url] },
+          unit_amount: row.price_chf,
+        },
+        quantity: 1,
+      });
+      orderItemsData.push({ print_id: row.id, print_title: row.title, size: row.size, price_chf: row.price_chf });
+      subtotal += row.price_chf;
+    }
+
+    // Add delivery as its own line item
+    lineItems.push({
+      price_data: {
+        currency: 'chf',
+        product_data: { name: DELIVERY_LABELS[delivery_method] },
+        unit_amount: DELIVERY_PRICES[delivery_method],
+      },
+      quantity: 1,
+    });
+
+    const total = subtotal + DELIVERY_PRICES[delivery_method];
+    const origin = req.headers.origin || `https://${req.headers.host}`;
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'twint'],
+      line_items: lineItems,
+      shipping_address_collection: delivery_method === 'intl'
+        ? { allowed_countries: ['DE','FR','IT','AT','GB','US','CA','AU','NL','BE','ES'] }
+        : { allowed_countries: ['CH'] },
+      success_url: `${origin}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/shop`,
+    });
+
+    // Pre-create the order record as pending, fill in once webhook confirms payment
+    const orderRes = await pool.query(
+      `INSERT INTO orders (stripe_session_id, status, delivery_method, delivery_price_chf, subtotal_chf, total_chf)
+       VALUES ($1, 'pending', $2, $3, $4, $5) RETURNING id`,
+      [session.id, delivery_method, DELIVERY_PRICES[delivery_method], subtotal, total]
+    );
+    const orderId = orderRes.rows[0].id;
+    for (const oi of orderItemsData) {
+      await pool.query(
+        `INSERT INTO order_items (order_id, print_id, print_title, size, price_chf) VALUES ($1,$2,$3,$4,$5)`,
+        [orderId, oi.print_id, oi.print_title, oi.size, oi.price_chf]
+      );
+    }
+
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Checkout error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Fetch order details after successful checkout (for the success page)
+app.get('/api/shop/order/:sessionId', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id = $1', [req.params.sessionId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Order not found' });
+    const { rows: items } = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [rows[0].id]);
+
+    // Update customer details from Stripe session if not yet stored
+    if (stripe && !rows[0].customer_email) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(req.params.sessionId, { expand: ['customer_details'] });
+        if (session.customer_details) {
+          await pool.query(
+            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
+            [session.customer_details.name, session.customer_details.email, JSON.stringify(session.shipping_details || session.customer_details.address || {}), rows[0].id]
+          );
+        }
+      } catch (e) { /* non-fatal */ }
+    }
+
+    res.json({ order: rows[0], items });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -350,6 +622,84 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
     const { rows } = await pool.query('SELECT public_id FROM prints WHERE id=$1', [req.params.id]);
     if (rows[0]) await cloudinary.uploader.destroy(rows[0].public_id);
     await pool.query('DELETE FROM prints WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── ADMIN SHOP ────────────────────────────────────────────────────────────────
+// Get full shop settings for one print (sale status, edition, sizes, delivery)
+app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows: printRows } = await pool.query(
+      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl
+       FROM prints WHERE id=$1`, [req.params.id]
+    );
+    if (!printRows[0]) return res.status(404).json({ error: 'Not found' });
+    const { rows: sizes } = await pool.query(
+      `SELECT id, size, price_chf, enabled, edition_sold FROM print_sizes WHERE print_id=$1 ORDER BY
+       CASE size WHEN 'A4' THEN 1 WHEN 'A3' THEN 2 WHEN 'A2' THEN 3 ELSE 4 END`, [req.params.id]
+    );
+    res.json({ print: printRows[0], sizes });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update shop settings for a print (for_sale, edition info, delivery options)
+app.put('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
+  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl } = req.body;
+  try {
+    await pool.query(
+      `UPDATE prints SET for_sale=$1, edition_type=$2, edition_size=$3,
+       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6 WHERE id=$7`,
+      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upsert a size/price for a print (e.g. A4 -> CHF 80)
+app.put('/api/admin/shop/print/:id/size', requireAuth, async (req, res) => {
+  const { size, price_chf, enabled } = req.body;
+  if (!['A4','A3','A2'].includes(size)) return res.status(400).json({ error: 'Invalid size' });
+  try {
+    await pool.query(
+      `INSERT INTO print_sizes (print_id, size, price_chf, enabled)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (print_id, size) DO UPDATE SET price_chf=$3, enabled=$4`,
+      [req.params.id, size, parseInt(price_chf) || 0, enabled !== false]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// List all orders, newest first
+app.get('/api/admin/orders', requireAuth, async (req, res) => {
+  try {
+    const { rows: orders } = await pool.query('SELECT * FROM orders WHERE status != $1 ORDER BY created_at DESC', ['pending']);
+    const { rows: allItems } = await pool.query('SELECT * FROM order_items');
+    const result = orders.map(o => ({
+      ...o,
+      items: allItems.filter(i => i.order_id === o.id),
+    }));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update order status (e.g. mark as fulfilled/shipped)
+app.put('/api/admin/orders/:id/status', requireAuth, async (req, res) => {
+  const { status } = req.body;
+  if (!['paid','fulfilled','cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  try {
+    await pool.query('UPDATE orders SET status=$1, updated_at=NOW() WHERE id=$2', [status, req.params.id]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
