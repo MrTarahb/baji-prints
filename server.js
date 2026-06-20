@@ -285,6 +285,12 @@ async function initDB() {
     ['hero_image_url', ''],
     ['work_eyebrow', 'Work'],
     ['work_title', 'From the atelier.'],
+    ['nav_shop', 'Shop'],
+    ['shop_heading', 'Shop.'],
+    ['shop_intro', 'Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.'],
+    ['shop_cart_heading', 'Your cart.'],
+    ['shop_success_heading', 'Thank you.'],
+    ['shop_continue_btn', 'Continue browsing'],
   ];
 
   for (const [key, value] of defaults) {
@@ -764,13 +770,55 @@ app.put('/api/admin/shipping-rates', requireAuth, async (req, res) => {
 // List all orders, newest first
 app.get('/api/admin/orders', requireAuth, async (req, res) => {
   try {
-    const { rows: orders } = await pool.query('SELECT * FROM orders WHERE status != $1 ORDER BY created_at DESC', ['pending']);
+    // Show everything, including pending — stuck/pending orders usually mean
+    // the Stripe webhook hasn't fired yet (or failed), and that should be visible
+    // rather than silently hidden.
+    const { rows: orders } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
     const { rows: allItems } = await pool.query('SELECT * FROM order_items');
     const result = orders.map(o => ({
       ...o,
       items: allItems.filter(i => i.order_id === o.id),
     }));
     res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Manually re-sync an order's status from Stripe — useful if the webhook
+// never fired (e.g. wrong STRIPE_WEBHOOK_SECRET, endpoint URL typo, etc.)
+app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
+    const order = rows[0];
+    if (!order || !order.stripe_session_id) return res.status(404).json({ error: 'Order not found' });
+
+    const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id, { expand: ['customer_details'] });
+
+    if (session.payment_status === 'paid' && order.status === 'pending') {
+      await pool.query(
+        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE id=$2`,
+        [session.payment_intent, order.id]
+      );
+      if (session.customer_details) {
+        await pool.query(
+          `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
+          [session.customer_details.name, session.customer_details.email,
+           JSON.stringify(session.shipping_details || session.customer_details.address || {}), order.id]
+        );
+      }
+      // Increment edition_sold counts, same as the webhook would
+      const { rows: items } = await pool.query('SELECT print_id, size FROM order_items WHERE order_id=$1', [order.id]);
+      for (const item of items) {
+        await pool.query(
+          `UPDATE print_sizes SET edition_sold = edition_sold + 1 WHERE print_id=$1 AND size=$2`,
+          [item.print_id, item.size]
+        );
+      }
+      return res.json({ ok: true, status: 'paid' });
+    }
+    res.json({ ok: true, status: order.status, stripe_payment_status: session.payment_status });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

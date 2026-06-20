@@ -47,6 +47,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .order-status.paid{background:rgba(200,144,122,.15);color:var(--pink)}
 .order-status.fulfilled{background:rgba(74,122,85,.15);color:#4A7A55}
 .order-status.cancelled{background:rgba(0,0,0,.08);color:var(--text-l)}
+.order-status.pending{background:rgba(180,140,40,.15);color:#9A7A20}
 .order-items{border-top:1px solid var(--border);padding-top:.65rem;margin-top:.65rem}
 .order-item-row{display:flex;justify-content:space-between;font-size:.82rem;color:var(--text-m);padding:.2rem 0}
 .order-address{font-size:.78rem;color:var(--text-l);margin-top:.5rem;white-space:pre-wrap;line-height:1.5}
@@ -311,6 +312,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
       <button class="sidebar-btn" onclick="showPanel('about',this)">About page</button>
       <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
+      <button class="sidebar-btn" onclick="showPanel('shoptext',this)">Shop text</button>
       <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
       <button class="sidebar-btn" onclick="showPanel('seo',this)">SEO & sharing</button>
     </aside>
@@ -428,6 +430,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Contact page</h2>
         <p class="panel-sub">Text on the Contact page.</p>
         <div id="contact-fields"></div>
+      </div>
+
+      <!-- SHOP TEXT -->
+      <div class="panel" id="panel-shoptext">
+        <h2 class="panel-title">Shop text</h2>
+        <p class="panel-sub">Headings and labels on the Shop, cart, and order confirmation pages. Product names, prices, and descriptions are managed separately under "Prints for sale."</p>
+        <div id="shoptext-fields"></div>
       </div>
 
       <!-- FOOTER -->
@@ -806,12 +815,30 @@ function buildOrderCard(o){
       <div class="order-item-row" style="opacity:.6"><span>Delivery — ${esc(o.delivery_method)}</span><span>CHF ${(o.delivery_price_chf/100).toFixed(2)}</span></div>
     </div>
     ${addrText ? `<div class="order-address">${esc(addrText)}</div>` : ''}
+    ${o.status === 'pending' ? `<p style="font-size:.72rem;color:#9A7A20;margin-top:.5rem">Payment not yet confirmed by Stripe. If the customer completed checkout, click "Check with Stripe" — otherwise they likely abandoned checkout.</p>` : ''}
     <div class="order-actions">
+      ${o.status === 'pending' ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
       ${nextStatus ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'${nextStatus}')">Mark fulfilled</button>` : ''}
       ${o.status !== 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>` : ''}
     </div>
   `;
   return card;
+}
+
+async function syncOrder(id, btn){
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try{
+    const res = await fetch(`/api/admin/orders/${id}/sync`, {method:'POST', credentials:'include'});
+    const data = await res.json();
+    if (data.status === 'paid') {
+      await loadOrders();
+    } else {
+      btn.textContent = data.stripe_payment_status ? `Stripe says: ${data.stripe_payment_status}` : 'Still pending';
+      setTimeout(()=>{ btn.textContent = 'Check with Stripe'; btn.disabled = false; }, 2500);
+    }
+  }catch(e){
+    btn.textContent = 'Error checking'; btn.disabled = false;
+  }
 }
 
 async function updateOrderStatus(id, status){
@@ -915,6 +942,15 @@ async function loadAll(){
 
   buildFields('contact-fields',[
     ['contact_title', 'Page heading',            false],
+  ]);
+
+  buildFields('shoptext-fields',[
+    ['nav_shop',             'Nav link label',                false],
+    ['shop_heading',         'Shop page heading',              false],
+    ['shop_intro',           'Shop page intro line',           true],
+    ['shop_cart_heading',    'Cart page heading',              false],
+    ['shop_success_heading', 'Order confirmation heading',     false],
+    ['shop_continue_btn',    'Button text after checkout',     false],
   ]);
 
   buildFields('footer-fields',[
