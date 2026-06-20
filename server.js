@@ -81,10 +81,33 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE stripe_session_id=$2`,
         [session.payment_intent, session.id]
       );
-      // Increment edition_sold counts for limited editions
+
+      // Populate customer details from the Stripe session — must happen before
+      // we read the order back, otherwise the admin notification email shows
+      // "null (null)" for the customer.
+      try {
+        const fullSession = await stripe.checkout.sessions.retrieve(session.id, { expand: ['customer_details'] });
+        if (fullSession.customer_details) {
+          await pool.query(
+            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE stripe_session_id=$4`,
+            [
+              fullSession.customer_details.name,
+              fullSession.customer_details.email,
+              JSON.stringify(fullSession.shipping_details || fullSession.customer_details.address || {}),
+              session.id,
+            ]
+          );
+        }
+      } catch (e) { console.error('Could not fetch customer details for webhook email:', e.message); }
+
+      // Increment edition_sold counts for limited editions, and grab title/image
+      // for each item so the notification email can show real photos, not IDs.
       const { rows: items } = await pool.query(
-        `SELECT oi.print_id, oi.size FROM order_items oi
-         JOIN orders o ON o.id = oi.order_id WHERE o.stripe_session_id = $1`,
+        `SELECT oi.print_id, oi.size, oi.print_title, p.image_url
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         LEFT JOIN prints p ON p.id = oi.print_id
+         WHERE o.stripe_session_id = $1`,
         [session.id]
       );
       for (const item of items) {
@@ -93,11 +116,17 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           [item.print_id, item.size]
         );
       }
-      // Notify via email
+
+      // Notify via email — now with the customer details and titles freshly populated above
       const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id=$1', [session.id]);
       const order = orderRows[0];
       if (resend && order) {
-        const itemsList = items.map(i => `${i.print_id} (${i.size})`).join(', ');
+        const itemsHtml = items.map(i => `
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:3px;">` : ''}
+            <span>${i.print_title || ('Print #' + i.print_id)} — ${i.size}</span>
+          </div>
+        `).join('');
         try {
           await resend.emails.send({
             from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
@@ -105,10 +134,11 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
             subject: `New order — CHF ${(order.total_chf/100).toFixed(2)}`,
             html: `<div style="font-family: Georgia, serif; max-width: 560px;">
               <h2>New print order</h2>
-              <p><strong>Customer:</strong> ${order.customer_name} (${order.customer_email})</p>
+              <p><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
               <p><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
               <p><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-              <p><strong>Items:</strong> ${itemsList}</p>
+              <p><strong>Items:</strong></p>
+              ${itemsHtml}
               <p>View full order details in the admin panel.</p>
             </div>`
           });
@@ -213,9 +243,11 @@ async function initDB() {
       delivery_price_chf INTEGER,
       subtotal_chf INTEGER,
       total_chf INTEGER,
+      fulfilment_checklist JSONB DEFAULT '{}'::jsonb, -- e.g. {"printed":true,"packaged":false,"shipped":false,"shipping_email_sent":false}
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilment_checklist JSONB DEFAULT '{}'::jsonb;
 
     -- Order line items
     CREATE TABLE IF NOT EXISTS order_items (
@@ -774,7 +806,9 @@ app.get('/api/admin/orders', requireAuth, async (req, res) => {
     // the Stripe webhook hasn't fired yet (or failed), and that should be visible
     // rather than silently hidden.
     const { rows: orders } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-    const { rows: allItems } = await pool.query('SELECT * FROM order_items');
+    const { rows: allItems } = await pool.query(
+      `SELECT oi.*, p.image_url FROM order_items oi LEFT JOIN prints p ON p.id = oi.print_id`
+    );
     const result = orders.map(o => ({
       ...o,
       items: allItems.filter(i => i.order_id === o.id),
@@ -830,6 +864,67 @@ app.put('/api/admin/orders/:id/status', requireAuth, async (req, res) => {
   if (!['paid','fulfilled','cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
     await pool.query('UPDATE orders SET status=$1, updated_at=NOW() WHERE id=$2', [status, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update one item in the fulfilment checklist (e.g. {"printed": true})
+app.put('/api/admin/orders/:id/checklist', requireAuth, async (req, res) => {
+  const { key, value } = req.body;
+  if (!key) return res.status(400).json({ error: 'key required' });
+  try {
+    const { rows } = await pool.query('SELECT fulfilment_checklist FROM orders WHERE id=$1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Order not found' });
+    const checklist = rows[0].fulfilment_checklist || {};
+    checklist[key] = !!value;
+    await pool.query('UPDATE orders SET fulfilment_checklist=$1, updated_at=NOW() WHERE id=$2', [JSON.stringify(checklist), req.params.id]);
+    res.json({ ok: true, checklist });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Send the customer a "your print has shipped" email — call manually from admin
+app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) => {
+  if (!resend) return res.status(500).json({ error: 'Email is not configured (RESEND_API_KEY missing)' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
+    const order = rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order.customer_email) return res.status(400).json({ error: 'No customer email on file for this order' });
+
+    const { rows: items } = await pool.query(
+      `SELECT oi.print_title, oi.size, p.image_url FROM order_items oi LEFT JOIN prints p ON p.id = oi.print_id WHERE oi.order_id=$1`,
+      [order.id]
+    );
+    const itemsHtml = items.map(i => `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:3px;">` : ''}
+        <span>${i.print_title} — ${i.size}</span>
+      </div>
+    `).join('');
+
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+      to: order.customer_email,
+      subject: 'Your print is on its way',
+      html: `<div style="font-family: Georgia, serif; max-width: 560px;">
+        <h2>Your order has shipped</h2>
+        <p>Hi ${order.customer_name || ''},</p>
+        <p>Good news — your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
+        ${itemsHtml}
+        <p><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+        <p>Thanks for supporting the work.</p>
+      </div>`,
+    });
+
+    // Mark the checklist item automatically since we just did it
+    const checklist = order.fulfilment_checklist || {};
+    checklist.shipping_email_sent = true;
+    await pool.query('UPDATE orders SET fulfilment_checklist=$1 WHERE id=$2', [JSON.stringify(checklist), order.id]);
+
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -792,10 +792,21 @@ function buildOrderCard(o){
   const addrText = addr ? [addr.line1, addr.line2, addr.postal_code, addr.city, addr.country].filter(Boolean).join('\n') : '';
 
   const itemsHtml = (o.items || []).map(i => `
-    <div class="order-item-row"><span>${esc(i.print_title)} — ${i.size}</span><span>CHF ${(i.price_chf/100).toFixed(2)}</span></div>
+    <div class="order-item-row" style="display:flex;align-items:center;gap:.6rem">
+      ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:2px;flex-shrink:0">` : ''}
+      <span style="flex:1">${esc(i.print_title || i.title || ('Print #' + i.print_id))} — ${i.size}</span>
+      <span>CHF ${(i.price_chf/100).toFixed(2)}</span>
+    </div>
   `).join('');
 
   const nextStatus = o.status === 'paid' ? 'fulfilled' : null;
+  const checklist = o.fulfilment_checklist || {};
+  const checklistItems = [
+    ['printed', 'Printed'],
+    ['packaged', 'Packaged'],
+    ['shipped', 'Shipped / delivered'],
+    ['shipping_email_sent', 'Customer notified'],
+  ];
 
   card.innerHTML = `
     <div class="order-head">
@@ -816,13 +827,51 @@ function buildOrderCard(o){
     </div>
     ${addrText ? `<div class="order-address">${esc(addrText)}</div>` : ''}
     ${o.status === 'pending' ? `<p style="font-size:.72rem;color:#9A7A20;margin-top:.5rem">Payment not yet confirmed by Stripe. If the customer completed checkout, click "Check with Stripe" — otherwise they likely abandoned checkout.</p>` : ''}
+    ${(o.status === 'paid' || o.status === 'fulfilled') ? `
+      <div class="order-checklist" style="margin-top:.75rem;padding-top:.65rem;border-top:1px solid var(--border)">
+        <p style="font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-l);font-family:'DM Mono',monospace;margin-bottom:.5rem">Fulfilment checklist</p>
+        ${checklistItems.map(([key,label]) => `
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--text-m);margin-bottom:.4rem;cursor:pointer">
+            <input type="checkbox" ${checklist[key] ? 'checked' : ''} onchange="toggleChecklistItem(${o.id},'${key}',this.checked)">
+            ${label}
+          </label>
+        `).join('')}
+      </div>
+    ` : ''}
     <div class="order-actions">
       ${o.status === 'pending' ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
+      ${(o.status === 'paid' || o.status === 'fulfilled') && o.customer_email ? `<button class="btn-order-action" onclick="notifyShipped(${o.id},this)">${checklist.shipping_email_sent ? 'Resend shipped email' : 'Email customer: shipped'}</button>` : ''}
       ${nextStatus ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'${nextStatus}')">Mark fulfilled</button>` : ''}
       ${o.status !== 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>` : ''}
     </div>
   `;
   return card;
+}
+
+async function toggleChecklistItem(orderId, key, value){
+  try{
+    await fetch(`/api/admin/orders/${orderId}/checklist`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ key, value })
+    });
+  }catch(e){}
+}
+
+async function notifyShipped(id, btn){
+  if (!confirm('Send this customer an email saying their print has shipped?')) return;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const res = await fetch(`/api/admin/orders/${id}/notify-shipped`, {method:'POST', credentials:'include'});
+    const data = await res.json();
+    if (res.ok) {
+      await loadOrders();
+    } else {
+      btn.textContent = 'Failed: ' + (data.error || 'unknown error');
+      setTimeout(()=>{ btn.disabled = false; loadOrders(); }, 3000);
+    }
+  }catch(e){
+    btn.textContent = 'Error sending'; btn.disabled = false;
+  }
 }
 
 async function syncOrder(id, btn){
