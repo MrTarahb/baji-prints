@@ -196,7 +196,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
                 <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
                 <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
                 <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Just reply to this email and it'll reach me directly.</p>
+                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Email ${REPLY_TO_EMAIL} and it'll reach me directly.</p>
               `), customerEmail: true
             });
           } catch (e) { console.error('Customer confirmation email failed:', e); }
@@ -997,13 +997,15 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
       to: order.customer_email,
+      reply_to: REPLY_TO_EMAIL,
       subject: 'Your print is on its way',
       html: emailShell(`
         <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">On its way.</h2>
         <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Hi ${order.customer_name ? order.customer_name.split(' ')[0] : 'there'} — good news, your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
         <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${itemsHtml}</table>
         <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Thanks for supporting the work — I hope you enjoy living with it.</p>
+        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0 0 12px">Thanks for supporting the work — I hope you enjoy living with it.</p>
+        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Any questions? Email ${REPLY_TO_EMAIL} and it'll reach me directly.</p>
       `),
     });
 
