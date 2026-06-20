@@ -207,7 +207,18 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 // Everything else gets normal JSON parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    // index.html (and the admin's index.html) is the entry point and changes
+    // often — never let the browser cache a stale copy of it. Other static
+    // assets (if any are added later) can still cache normally.
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 app.set('trust proxy', 1);
 app.use(session({
   secret: process.env.SESSION_SECRET || 'baji-secret',
@@ -1090,7 +1101,12 @@ app.delete('/api/admin/messages/:id', requireAuth, async (req, res) => {
 // ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
 app.get('/api/coming-soon', (req, res) => res.json({ active: process.env.COMING_SOON === 'true' }));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
