@@ -116,16 +116,22 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         // 'customer_details' isn't a valid expandable field (passing it
         // throws, which was silently swallowing this whole block before).
         const fullSession = await stripe.checkout.sessions.retrieve(session.id);
+        console.log('[webhook] customer_details:', JSON.stringify(fullSession.customer_details));
+        console.log('[webhook] shipping_details:', JSON.stringify(fullSession.shipping_details));
         if (fullSession.customer_details) {
+          const addressToStore = fullSession.shipping_details || fullSession.customer_details.address || {};
+          console.log('[webhook] storing shipping_address as:', JSON.stringify(addressToStore));
           await pool.query(
             `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE stripe_session_id=$4`,
             [
               fullSession.customer_details.name,
               fullSession.customer_details.email,
-              JSON.stringify(fullSession.shipping_details || fullSession.customer_details.address || {}),
+              JSON.stringify(addressToStore),
               session.id,
             ]
           );
+        } else {
+          console.log('[webhook] no customer_details on session at all');
         }
       } catch (e) { console.error('Could not fetch customer details for webhook email:', e.message); }
 
@@ -906,19 +912,14 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
     if (!order || !order.stripe_session_id) return res.status(404).json({ error: 'Order not found' });
 
     const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
+    console.log('[sync] customer_details:', JSON.stringify(session.customer_details));
+    console.log('[sync] shipping_details:', JSON.stringify(session.shipping_details));
 
     if (session.payment_status === 'paid' && order.status === 'pending') {
       await pool.query(
         `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE id=$2`,
         [session.payment_intent, order.id]
       );
-      if (session.customer_details) {
-        await pool.query(
-          `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
-          [session.customer_details.name, session.customer_details.email,
-           JSON.stringify(session.shipping_details || session.customer_details.address || {}), order.id]
-        );
-      }
       // Increment edition_sold counts, same as the webhook would
       const { rows: items } = await pool.query('SELECT print_id, size FROM order_items WHERE order_id=$1', [order.id]);
       for (const item of items) {
@@ -927,9 +928,27 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
           [item.print_id, item.size]
         );
       }
-      return res.json({ ok: true, status: 'paid' });
     }
-    res.json({ ok: true, status: order.status, stripe_payment_status: session.payment_status });
+
+    // Backfill customer name/email/address whenever Stripe has it, regardless
+    // of whether this order was already marked paid — this is what lets you
+    // recover a missing address on an order you already confirmed.
+    let addressFound = false;
+    if (session.customer_details) {
+      const addressToStore = session.shipping_details || session.customer_details.address || {};
+      addressFound = Object.keys(addressToStore).length > 0;
+      await pool.query(
+        `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
+        [session.customer_details.name, session.customer_details.email, JSON.stringify(addressToStore), order.id]
+      );
+    }
+
+    res.json({
+      ok: true,
+      status: order.status === 'pending' && session.payment_status === 'paid' ? 'paid' : order.status,
+      stripe_payment_status: session.payment_status,
+      address_found: addressFound,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

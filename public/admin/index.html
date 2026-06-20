@@ -79,6 +79,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .btn-shop-save:hover{background:#333}
 .shop-save-msg{font-size:.7rem;color:#4A7A55;margin-left:.65rem}
 
+/* LIMITED EDITIONS SUMMARY */
+.editions-summary{display:none;margin-bottom:1.25rem}
+.editions-summary.has-items{display:block}
+.editions-summary-title{font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-l);margin-bottom:.6rem}
+.editions-summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
+.edition-summary-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:.75rem .9rem;display:flex;gap:.65rem;align-items:center}
+.edition-summary-card img{width:42px;height:42px;object-fit:cover;border-radius:2px;flex-shrink:0}
+.edition-summary-title{font-size:.78rem;font-weight:500;color:var(--ink);margin-bottom:.3rem}
+.edition-summary-row{display:flex;align-items:center;justify-content:space-between;font-size:.7rem;color:var(--text-m)}
+.edition-summary-bar{flex:1;height:4px;background:var(--bg);border-radius:2px;margin:0 .5rem;overflow:hidden}
+.edition-summary-bar-fill{height:100%;background:var(--pink);border-radius:2px}
+.edition-summary-bar-fill.soldout{background:#9A7A20}
+.edition-summary-count{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);white-space:nowrap}
+
 /* SHIPPING RATES */
 .shipping-table{background:var(--surface);border:1px solid var(--border);border-radius:3px;overflow:hidden;margin-bottom:1rem}
 .shipping-row{display:grid;grid-template-columns:1fr 80px 140px auto;gap:.75rem;align-items:center;padding:.75rem 1.1rem;border-bottom:1px solid var(--border)}
@@ -371,6 +385,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <div class="panel" id="panel-shop">
         <h2 class="panel-title">Prints for sale</h2>
         <p class="panel-sub">Choose which prints are for sale, set prices per size, and pick available delivery options. Sizes: A4 (flat), A3 / A2 (rolled in a tube).</p>
+        <div id="limited-editions-summary"></div>
         <div id="shop-prints-list"></div>
       </div>
 
@@ -634,6 +649,7 @@ const SHOP_SIZES = ['A4','A3','A2'];
 
 async function loadShopPrints(){
   const list = document.getElementById('shop-prints-list');
+  const summaryWrap = document.getElementById('limited-editions-summary');
   try{
     const res = await fetch('/api/prints');
     const prints = await res.json();
@@ -643,6 +659,42 @@ async function loadShopPrints(){
     const details = await Promise.all(prints.map(p =>
       fetch('/api/admin/shop/print/'+p.id, {credentials:'include'}).then(r=>r.json()).catch(()=>null)
     ));
+
+    // Build the "limited editions" at-a-glance summary first
+    const limitedCards = [];
+    prints.forEach((p, idx) => {
+      const d = details[idx];
+      if (!d || !d.print || d.print.edition_type !== 'limited' || !d.print.edition_size) return;
+      const sizesWithSales = d.sizes.filter(sz => sz.enabled);
+      sizesWithSales.forEach(sz => {
+        const sold = sz.edition_sold || 0;
+        const total = d.print.edition_size;
+        const pct = total > 0 ? Math.min(100, Math.round((sold/total)*100)) : 0;
+        limitedCards.push(`
+          <div class="edition-summary-card">
+            <img src="${p.image_url}" alt="">
+            <div style="flex:1;min-width:0">
+              <div class="edition-summary-title">${esc(p.title)} <span style="color:var(--text-l);font-weight:400">— ${sz.size}</span></div>
+              <div class="edition-summary-row">
+                <span class="edition-summary-count">${sold} / ${total} sold</span>
+                <div class="edition-summary-bar"><div class="edition-summary-bar-fill${sold>=total?' soldout':''}" style="width:${pct}%"></div></div>
+                <span class="edition-summary-count">${sold>=total ? 'Sold out' : (total-sold)+' left'}</span>
+              </div>
+            </div>
+          </div>
+        `);
+      });
+    });
+    if (limitedCards.length) {
+      summaryWrap.classList.add('has-items');
+      summaryWrap.innerHTML = `
+        <p class="editions-summary-title">Limited editions — at a glance</p>
+        <div class="editions-summary-grid">${limitedCards.join('')}</div>
+      `;
+    } else {
+      summaryWrap.classList.remove('has-items');
+      summaryWrap.innerHTML = '';
+    }
 
     list.innerHTML = '';
     prints.forEach((p, idx) => {
@@ -825,7 +877,7 @@ function buildOrderCard(o){
       ${itemsHtml}
       <div class="order-item-row" style="opacity:.6"><span>Delivery — ${esc(o.delivery_method)}</span><span>CHF ${(o.delivery_price_chf/100).toFixed(2)}</span></div>
     </div>
-    ${addrText ? `<div class="order-address">${esc(addrText)}</div>` : ''}
+    ${addrText ? `<div class="order-address">${esc(addrText)}</div>` : ((o.status === 'paid' || o.status === 'fulfilled') ? `<p style="font-size:.72rem;color:#9A7A20;margin-top:.5rem">No shipping address on file yet. Click "Check with Stripe" below to fetch it.</p>` : '')}
     ${o.status === 'pending' ? `<p style="font-size:.72rem;color:#9A7A20;margin-top:.5rem">Payment not yet confirmed by Stripe. If the customer completed checkout, click "Check with Stripe" — otherwise they likely abandoned checkout.</p>` : ''}
     ${(o.status === 'paid' || o.status === 'fulfilled') ? `
       <div class="order-checklist" style="margin-top:.75rem;padding-top:.65rem;border-top:1px solid var(--border)">
@@ -845,7 +897,7 @@ function buildOrderCard(o){
       <span class="save-note-msg" id="note-msg-${o.id}" style="font-size:.7rem;color:#4A7A55;margin-left:.5rem"></span>
     </div>
     <div class="order-actions">
-      ${o.status === 'pending' ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
+      ${(o.status === 'pending' || (o.status !== 'cancelled' && !addrText)) ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
       ${(o.status === 'paid' || o.status === 'fulfilled') && o.customer_email ? `<button class="btn-order-action" onclick="notifyShipped(${o.id},this)">${checklist.shipping_email_sent ? 'Resend shipped email' : 'Email customer: shipped'}</button>` : ''}
       ${nextStatus ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'${nextStatus}')">Mark fulfilled</button>` : ''}
       ${o.status !== 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>` : ''}
@@ -904,11 +956,14 @@ async function syncOrder(id, btn){
   try{
     const res = await fetch(`/api/admin/orders/${id}/sync`, {method:'POST', credentials:'include'});
     const data = await res.json();
-    if (data.status === 'paid') {
-      await loadOrders();
-    } else {
-      btn.textContent = data.stripe_payment_status ? `Stripe says: ${data.stripe_payment_status}` : 'Still pending';
-      setTimeout(()=>{ btn.textContent = 'Check with Stripe'; btn.disabled = false; }, 2500);
+    await loadOrders(); // always refresh — address/name/email may have been backfilled even if status didn't change
+    if (!data.address_found) {
+      // Card has been rebuilt by loadOrders, so grab the fresh sync button to show feedback on
+      const freshBtn = document.querySelector(`[onclick="syncOrder(${id},this)"]`);
+      if (freshBtn) {
+        freshBtn.textContent = 'No address from Stripe yet';
+        setTimeout(()=>{ if (freshBtn) freshBtn.textContent = 'Check with Stripe'; }, 3000);
+      }
     }
   }catch(e){
     btn.textContent = 'Error checking'; btn.disabled = false;
