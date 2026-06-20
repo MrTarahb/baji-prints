@@ -676,6 +676,10 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   transition: transform .5s ease;
 }
 .shop-card:hover .shop-card-img-wrap img { transform: scale(1.04); }
+/* Landscape prints: drop the cropped 4:5 frame, show the full image at its
+   own ratio instead — matches how the portfolio treats orientation. */
+.shop-card-img-wrap.landscape { aspect-ratio: auto; }
+.shop-card-img-wrap.landscape img { height: auto; aspect-ratio: 3/2; object-fit: cover; }
 .shop-card-title { font-size: 11px; color: var(--fg); margin-bottom: .15rem; }
 .shop-card-price { font-family: var(--fm); font-size: 9px; color: var(--fg-l); letter-spacing: .04em; }
 .shop-card-soldout {
@@ -699,6 +703,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
 }
 .shop-detail-img { width: 100%; aspect-ratio: 4/5; object-fit: cover; background: var(--bg-2); }
+.shop-detail-img.landscape { aspect-ratio: 3/2; }
 .shop-detail-title { font-family: var(--fi); font-size: 1.8rem; font-style: italic; color: var(--fg); margin-bottom: .5rem; }
 .shop-detail-desc { font-size: 11px; color: var(--fg-m); line-height: 1.8; margin-bottom: 1.5rem; }
 .shop-size-option {
@@ -756,7 +761,8 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   display: grid; grid-template-columns: 70px 1fr auto; gap: 1rem; align-items: center;
   padding: 1rem 0; border-bottom: 1px solid var(--border);
 }
-.cart-item img { width: 70px; height: 70px; object-fit: cover; }
+.cart-item-img-wrap { width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; background: var(--bg-2); overflow: hidden; }
+.cart-item img { max-width: 70px; max-height: 70px; object-fit: contain; display: block; }
 .cart-item-title { font-size: 11px; color: var(--fg); }
 .cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
 .cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
@@ -1589,6 +1595,13 @@ async function loadShopProducts() {
       card.addEventListener('click', () => openShopDetail(p.id));
       grid.appendChild(card);
       new IntersectionObserver(([e], o) => { if (e.isIntersecting) { card.classList.add('visible'); o.disconnect(); } }, { threshold: 0.1 }).observe(card);
+
+      // Landscape prints get shown at their own ratio instead of cropped to
+      // the default 4:5 card frame, same treatment as the main portfolio.
+      getOrientation(p.image_url).then(orientation => {
+        const wrap = card.querySelector('.shop-card-img-wrap');
+        if (wrap && orientation === 'landscape') wrap.classList.add('landscape');
+      });
     });
   } catch (e) {
     grid.innerHTML = '<div class="shop-empty">Could not load the shop right now.</div>';
@@ -1616,6 +1629,13 @@ function openShopDetail(printId) {
       <button class="btn-add-cart" id="btn-add-to-cart" disabled onclick="addSelectedToCart()">Select a size</button>
     </div>
   `;
+
+  // Same orientation-aware treatment as the portfolio and shop grid —
+  // landscape prints show at their own ratio instead of a cropped 4:5 frame.
+  getOrientation(p.image_url).then(orientation => {
+    const detailImg = inner.querySelector('.shop-detail-img');
+    if (detailImg && orientation === 'landscape') detailImg.classList.add('landscape');
+  });
 
   const sizeWrap = document.getElementById('shop-size-options');
   ['A4','A3','A2'].forEach(size => {
@@ -1695,7 +1715,7 @@ function renderCart() {
 
   itemsWrap.innerHTML = cart.map((item, i) => `
     <div class="cart-item">
-      <img src="${item.image_url}" alt="${esc(item.title)}">
+      <div class="cart-item-img-wrap"><img src="${item.image_url}" alt="${esc(item.title)}"></div>
       <div>
         <div class="cart-item-title">${esc(item.title)}</div>
         <div class="cart-item-size">${item.size}</div>

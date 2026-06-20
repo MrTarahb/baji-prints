@@ -838,6 +838,12 @@ function buildOrderCard(o){
         `).join('')}
       </div>
     ` : ''}
+    <div class="order-notes" style="margin-top:.75rem;padding-top:.65rem;border-top:1px solid var(--border)">
+      <p style="font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-l);font-family:'DM Mono',monospace;margin-bottom:.4rem">Notes (private — not shown to customer)</p>
+      <textarea id="notes-${o.id}" rows="2" placeholder="e.g. paper used, edition number, anything to remember…" style="width:100%;font-family:inherit;font-size:.78rem;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:.5rem;resize:vertical">${esc(o.notes || '')}</textarea>
+      <button class="btn-order-action" style="margin-top:.4rem" onclick="saveOrderNotes(${o.id},this)">Save note</button>
+      <span class="save-note-msg" id="note-msg-${o.id}" style="font-size:.7rem;color:#4A7A55;margin-left:.5rem"></span>
+    </div>
     <div class="order-actions">
       ${o.status === 'pending' ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
       ${(o.status === 'paid' || o.status === 'fulfilled') && o.customer_email ? `<button class="btn-order-action" onclick="notifyShipped(${o.id},this)">${checklist.shipping_email_sent ? 'Resend shipped email' : 'Email customer: shipped'}</button>` : ''}
@@ -846,6 +852,25 @@ function buildOrderCard(o){
     </div>
   `;
   return card;
+}
+
+async function saveOrderNotes(id, btn){
+  const textarea = document.getElementById('notes-'+id);
+  const msg = document.getElementById('note-msg-'+id);
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await fetch(`/api/admin/orders/${id}/notes`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ notes: textarea.value })
+    });
+    btn.textContent = 'Save note';
+    btn.disabled = false;
+    msg.textContent = 'Saved ✓';
+    setTimeout(()=>{ msg.textContent = ''; }, 2000);
+  }catch(e){
+    btn.textContent = 'Save note'; btn.disabled = false;
+    msg.style.color = '#9A7A20'; msg.textContent = 'Error saving';
+  }
 }
 
 async function toggleChecklistItem(orderId, key, value){

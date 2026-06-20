@@ -32,6 +32,10 @@ const DELIVERY_LABELS = {
   intl:     'International shipping',
 };
 
+// Where customer replies to order emails should actually land — noreply@ can't
+// receive mail, so we set this as the reply-to header instead.
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || 'bhartu.bhatia@gmail.com';
+
 // Size rank — used to pick the "largest" size in a cart for shipping calculation
 const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
 
@@ -60,9 +64,6 @@ function emailShell(innerHtml) {
           </td></tr>
           <tr><td style="padding:28px">
             ${innerHtml}
-          </td></tr>
-          <tr><td style="padding:18px 28px;background:#FAFAF8;border-top:1px solid #EFEFEC">
-            <span style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#9B9289;letter-spacing:.02em">Zürich · Wiedikon · bharatbhatia.photography</span>
           </td></tr>
         </table>
       </td></tr>
@@ -110,7 +111,11 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       // we read the order back, otherwise the admin notification email shows
       // "null (null)" for the customer.
       try {
-        const fullSession = await stripe.checkout.sessions.retrieve(session.id, { expand: ['customer_details'] });
+        // customer_details and shipping_details are already present on a
+        // retrieved Checkout Session by default — no expand needed, and
+        // 'customer_details' isn't a valid expandable field (passing it
+        // throws, which was silently swallowing this whole block before).
+        const fullSession = await stripe.checkout.sessions.retrieve(session.id);
         if (fullSession.customer_details) {
           await pool.query(
             `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE stripe_session_id=$4`,
@@ -148,7 +153,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       if (resend && order) {
         const adminItemsHtml = items.map(i => `
           <tr>
-            <td style="padding:8px 0;width:60px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+            <td style="padding:8px 0;width:64px"><table cellpadding="0" cellspacing="0" style="width:60px;height:60px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:60px;max-height:60px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
             <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)} <span style="color:#8A8680">— ${i.size}</span></td>
           </tr>
         `).join('');
@@ -174,7 +179,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         if (order.customer_email) {
           const customerItemsHtml = items.map(i => `
             <tr>
-              <td style="padding:10px 0;width:64px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+              <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
               <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''} <span style="color:#8A8680">— ${i.size}</span></td>
             </tr>
           `).join('');
@@ -183,6 +188,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
             await resend.emails.send({
               from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
               to: order.customer_email,
+              reply_to: REPLY_TO_EMAIL,
               subject: 'Your order — Bharat Bhatia',
               html: emailShell(`
                 <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
@@ -190,8 +196,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
                 <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
                 <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
                 <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Just reply to this email.</p>
-              `)
+                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Just reply to this email and it'll reach me directly.</p>
+              `), customerEmail: true
             });
           } catch (e) { console.error('Customer confirmation email failed:', e); }
         }
@@ -307,10 +313,12 @@ async function initDB() {
       subtotal_chf INTEGER,
       total_chf INTEGER,
       fulfilment_checklist JSONB DEFAULT '{}'::jsonb, -- e.g. {"printed":true,"packaged":false,"shipped":false,"shipping_email_sent":false}
+      notes TEXT, -- free-text field for your own reference, not shown to the customer
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilment_checklist JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
 
     -- Order line items
     CREATE TABLE IF NOT EXISTS order_items (
@@ -553,6 +561,9 @@ app.post('/api/shop/checkout', async (req, res) => {
       shipping_address_collection: delivery_method === 'intl'
         ? { allowed_countries: ['DE','FR','IT','AT','GB','US','CA','AU','NL','BE','ES'] }
         : { allowed_countries: ['CH'] },
+      // Stripe needs an actual Customer object to attach an invoice to in
+      // payment mode — without this, invoice_creation can silently no-op.
+      customer_creation: 'always',
       // Generates a proper PDF invoice and emails it to the customer automatically
       // the moment payment succeeds — independent of our own Resend setup.
       invoice_creation: { enabled: true },
@@ -592,7 +603,7 @@ app.get('/api/shop/order/:sessionId', async (req, res) => {
     // Update customer details from Stripe session if not yet stored
     if (stripe && !rows[0].customer_email) {
       try {
-        const session = await stripe.checkout.sessions.retrieve(req.params.sessionId, { expand: ['customer_details'] });
+        const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
         if (session.customer_details) {
           await pool.query(
             `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
@@ -894,7 +905,7 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
     const order = rows[0];
     if (!order || !order.stripe_session_id) return res.status(404).json({ error: 'Order not found' });
 
-    const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id, { expand: ['customer_details'] });
+    const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
 
     if (session.payment_status === 'paid' && order.status === 'pending') {
       await pool.query(
@@ -952,6 +963,17 @@ app.put('/api/admin/orders/:id/checklist', requireAuth, async (req, res) => {
   }
 });
 
+// Save your own private notes on an order — never shown to the customer
+app.put('/api/admin/orders/:id/notes', requireAuth, async (req, res) => {
+  const { notes } = req.body;
+  try {
+    await pool.query('UPDATE orders SET notes=$1, updated_at=NOW() WHERE id=$2', [notes || '', req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Send the customer a "your print has shipped" email — call manually from admin
 app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) => {
   if (!resend) return res.status(500).json({ error: 'Email is not configured (RESEND_API_KEY missing)' });
@@ -967,7 +989,7 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
     );
     const itemsHtml = items.map(i => `
       <tr>
-        <td style="padding:10px 0;width:64px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+        <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
         <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title} <span style="color:#8A8680">— ${i.size}</span></td>
       </tr>
     `).join('');
