@@ -1105,6 +1105,16 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Wipe all visit/photo-view tracking data — irreversible. Used to start
+// stats over from zero, e.g. after testing or before a real launch.
+app.post('/api/admin/stats/reset', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM pageviews');
+    await pool.query('DELETE FROM photo_views');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── SEO FILES ─────────────────────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');

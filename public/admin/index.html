@@ -368,8 +368,13 @@ textarea.field-input{resize:vertical;min-height:70px}
 
       <!-- STATS -->
       <div class="panel active" id="panel-stats">
-        <h2 class="panel-title">Visits</h2>
-        <p class="panel-sub">How many times your site has been loaded.</p>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div>
+            <h2 class="panel-title">Visits</h2>
+            <p class="panel-sub">How many times your site has been loaded.</p>
+          </div>
+          <button class="btn-order-action" id="btn-reset-stats" onclick="resetStats()" style="flex-shrink:0">Reset statistics</button>
+        </div>
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">All time</div></div>
           <div class="stat-card"><div class="stat-value" id="stat-today">—</div><div class="stat-label">Today</div></div>
@@ -1163,6 +1168,20 @@ async function loadStats(){
       });
     }
   }catch(e){}
+}
+
+async function resetStats(){
+  if(!confirm('This permanently deletes all visit and photo-view history. This cannot be undone — are you sure?'))return;
+  const btn=document.getElementById('btn-reset-stats');
+  btn.disabled=true; btn.textContent='Resetting…';
+  try{
+    await fetch('/api/admin/stats/reset',{method:'POST',credentials:'include'});
+    await loadStats();
+    btn.textContent='Reset ✓';
+    setTimeout(()=>{btn.textContent='Reset statistics';btn.disabled=false;},2000);
+  }catch(e){
+    btn.textContent='Error — try again'; btn.disabled=false;
+  }
 }
 
 // MOBILE SIDEBAR
