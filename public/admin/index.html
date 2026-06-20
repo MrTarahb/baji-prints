@@ -167,10 +167,43 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
   }
   .sidebar-overlay { display: block; pointer-events: none; }
   .sidebar-overlay.open { pointer-events: all; }
-  .admin-main { padding: 1.5rem 1.25rem; }
-  .stats-grid { grid-template-columns: 1fr 1fr; }
-  .prints-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Top bar needs to breathe on small screens, not keep desktop's 2rem padding */
+  .admin-bar { padding: .7rem 1rem; }
+  .admin-bar-logo { font-size: .85rem; }
+  .admin-bar-links { gap: 1rem; }
+  .admin-bar-links a { font-size: .65rem; }
+
+  /* Main content area was inheriting desktop's wide horizontal padding,
+     which is what made everything look squeezed against the left edge */
+  .admin-main { padding: 1.25rem 1rem; max-height: calc(100vh - 50px); }
+  .panel-title { font-size: 1rem; }
+  .panel-sub { font-size: .72rem; margin-bottom: 1.25rem; }
+
+  /* Grids that stayed multi-column and cramped on narrow screens */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .prints-grid { grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .editions-summary-grid { grid-template-columns: 1fr; }
   .form-row-2 { grid-template-columns: 1fr; }
+  .shop-print-card { grid-template-columns: 1fr; }
+  .shop-print-card img { width: 100%; height: 140px; }
+  .shop-row-group { grid-template-columns: 1fr; }
+  .shop-size-row { grid-template-columns: 40px 1fr auto; row-gap: .3rem; }
+  .shop-delivery-row { gap: .75rem; }
+  .shipping-row { grid-template-columns: 1fr; gap: .35rem; text-align: left; }
+  .shipping-row.head { display: none; }
+
+  /* Cards and toolbars that had fixed-width children or no wrap behaviour */
+  .msg-card, .order-card, .field, .add-form, .upload-zone, .shipping-table { width: 100%; }
+  .msg-toolbar { flex-direction: column; align-items: flex-start; gap: .6rem; }
+  .order-head { flex-direction: column; align-items: flex-start; gap: .5rem; }
+  .order-meta { align-items: flex-start; }
+  .order-actions { flex-wrap: wrap; }
+
+  /* Any inline two-column field group (used e.g. in the SEO panel) */
+  div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  .login-box { padding: 2rem 1.5rem; max-width: 100%; }
 }
 
 /* LOGIN */
