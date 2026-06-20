@@ -1043,8 +1043,8 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 <!-- SHOP PAGE -->
 <div id="shop-page">
   <div class="inner">
-    <h1 class="shop-heading">Shop.</h1>
-    <p class="shop-sub">Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.</p>
+    <h1 class="shop-heading" id="c-shop_heading">Shop.</h1>
+    <p class="shop-sub" id="c-shop_intro">Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.</p>
     <div class="shop-grid" id="shop-grid">
       <div class="shop-empty">Loading…</div>
     </div>
@@ -1060,7 +1060,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 <!-- CART -->
 <div id="shop-cart">
   <div class="shop-cart-inner">
-    <h1 class="shop-heading" style="font-size:2rem">Your cart.</h1>
+    <h1 class="shop-heading" style="font-size:2rem" id="c-shop_cart_heading">Your cart.</h1>
     <button class="shop-detail-close" onclick="closeCart()">Close ✕</button>
     <div id="cart-items"></div>
     <div id="cart-delivery-section" style="display:none">
@@ -1078,10 +1078,10 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 <!-- SHOP SUCCESS PAGE -->
 <div id="shop-success-page">
   <div class="inner">
-    <p class="success-icon">Thank you.</p>
+    <h1 class="shop-heading" id="c-shop_success_heading">Thank you.</h1>
     <p class="shop-sub" id="success-message">Your order has been received. A confirmation will be sent to your email shortly.</p>
     <div id="success-order-details"></div>
-    <button class="btn-add-cart" style="max-width:240px;margin-top:2rem" onclick="showPage('main')">Back to the work</button>
+    <button class="btn-add-cart" style="max-width:240px;margin-top:2rem" onclick="showPage('main')" id="c-shop_continue_btn">Continue browsing</button>
   </div>
 </div>
 
@@ -1261,19 +1261,46 @@ function showPage(name){
   if (name === 'privacy') privacyEl.scrollTop = 0;
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
-  if (name === 'main') { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
-  // Nav: always visible on sub-pages, scroll-driven on main
+  if (name === 'main') {
+    document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+    if (!mainFeedBuilt) {
+      load().then(success => { if (success) mainFeedBuilt = true; });
+    } else {
+      // Main content was hidden (display:none) — anything measured while hidden
+      // (hero image sizing, GSAP ScrollTrigger positions) needs to be redone now
+      // that it's visible again.
+      requestAnimationFrame(() => {
+        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+        const introImg = document.getElementById('intro-img');
+        const intro = document.getElementById('intro');
+        if (introImg && intro && introImg.complete && introImg.naturalWidth > 0) {
+          const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+          intro.classList.remove('landscape','portrait');
+          intro.classList.add(isPortrait ? 'portrait' : 'landscape');
+          introImg.classList.add('loaded');
+        }
+      });
+    }
+  }
+  // Nav: always visible on sub-pages; on main, show immediately if we're at
+  // the top right after a page switch (e.g. returning from the shop), then
+  // hand off to the normal scroll-driven behaviour.
   const nav = document.getElementById('nav');
   if (name !== 'main') {
     nav.classList.add('visible', 'on-light');
     nav.classList.remove('scrolled');
   } else {
     nav.classList.remove('on-light');
-    nav.classList.toggle('visible', window.scrollY > 40);
+    nav.classList.add('visible');
+    setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); }, 50);
   }
-  // Update URL so direct links / refresh work for shop pages
-  if (name === 'shop' || name === 'shop-success') {
-    history.replaceState(null, '', name === 'shop' ? '/shop' : location.pathname + location.search);
+  // Keep the URL in sync with whatever page is showing
+  if (name === 'shop') {
+    history.replaceState(null, '', '/shop');
+  } else if (name === 'shop-success') {
+    history.replaceState(null, '', location.pathname + location.search);
+  } else if (name === 'main') {
+    history.replaceState(null, '', '/');
   }
 }
 
@@ -1417,9 +1444,11 @@ function observe(el) {
 async function load() {
   try {
     const prints = await fetch('/api/prints').then(r=>r.json());
-    buildFeed(prints);
+    await buildFeed(prints);
+    return true;
   } catch(e) {
-    buildFeed([]);
+    await buildFeed([]);
+    return false; // signals showPage() to retry next time, rather than locking in a blank hero
   }
 }
 
@@ -1789,17 +1818,25 @@ async function checkShopSuccess() {
 // Init cart bar state on load
 updateCartBar();
 
-loadContent().then(() => load());
+// Tracks whether the main hero/feed has been built yet — avoids rebuilding
+// or building it while #main-content is hidden behind a shop overlay.
+let mainFeedBuilt = false;
 
-// Route based on initial URL path — handles direct visits and Stripe redirects
-(function initialRoute() {
-  const path = window.location.pathname;
-  if (path.indexOf('/shop/success') === 0) {
-    checkShopSuccess();
-  } else if (path.indexOf('/shop') === 0) {
-    showPage('shop');
-  }
-})();
+// Determine initial route FIRST, then decide whether to build the main feed.
+// This avoids a race where buildFeed() (GSAP/ScrollTrigger setup, hero image load)
+// runs while #main-content is about to be hidden by a shop/shop-success route.
+const initialPath = window.location.pathname;
+const startingOnShop = initialPath.indexOf('/shop') === 0;
+
+loadContent().then(() => {
+  if (!startingOnShop) { load().then(success => { if (success) mainFeedBuilt = true; }); }
+});
+
+if (initialPath.indexOf('/shop/success') === 0) {
+  checkShopSuccess();
+} else if (startingOnShop) {
+  showPage('shop');
+}
 
 // Track pageview with referrer
 fetch('/api/pageview', {

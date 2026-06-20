@@ -46,6 +46,30 @@ async function getShippingPrice(deliveryMethod, sizesInCart) {
   return rows[0] ? rows[0].price_chf : 0;
 }
 
+// Shared wrapper for all transactional emails — soft background, white card,
+// consistent header/footer, so every email (admin notification, customer
+// confirmation, shipped notice) looks like it belongs to the same site.
+function emailShell(innerHtml) {
+  return `
+  <body style="margin:0;padding:0;background:#F2EFE8;font-family:Georgia,serif">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#F2EFE8;padding:32px 16px">
+      <tr><td align="center">
+        <table width="100%" style="max-width:520px;background:#FFFFFF;border-radius:6px;overflow:hidden;border:1px solid #EFEFEC">
+          <tr><td style="padding:24px 28px;border-bottom:1px solid #EFEFEC">
+            <span style="font-family:Georgia,serif;font-style:italic;font-size:16px;color:#1A1714">Bharat Bhatia</span>
+          </td></tr>
+          <tr><td style="padding:28px">
+            ${innerHtml}
+          </td></tr>
+          <tr><td style="padding:18px 28px;background:#FAFAF8;border-top:1px solid #EFEFEC">
+            <span style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#9B9289;letter-spacing:.02em">Zürich · Wiedikon · bharatbhatia.photography</span>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>`;
+}
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -120,29 +144,57 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       // Notify via email — now with the customer details and titles freshly populated above
       const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id=$1', [session.id]);
       const order = orderRows[0];
+
       if (resend && order) {
-        const itemsHtml = items.map(i => `
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-            ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:3px;">` : ''}
-            <span>${i.print_title || ('Print #' + i.print_id)} — ${i.size}</span>
-          </div>
+        const adminItemsHtml = items.map(i => `
+          <tr>
+            <td style="padding:8px 0;width:60px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)} <span style="color:#8A8680">— ${i.size}</span></td>
+          </tr>
         `).join('');
+
         try {
           await resend.emails.send({
             from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
             to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
             subject: `New order — CHF ${(order.total_chf/100).toFixed(2)}`,
-            html: `<div style="font-family: Georgia, serif; max-width: 560px;">
-              <h2>New print order</h2>
-              <p><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
-              <p><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-              <p><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-              <p><strong>Items:</strong></p>
-              ${itemsHtml}
-              <p>View full order details in the admin panel.</p>
-            </div>`
+            html: emailShell(`
+              <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 18px;color:#1A1714">New print order</h2>
+              <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
+              <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
+              <p style="margin:0 0 18px;font-size:14px;color:#1A1714"><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+              <table style="width:100%;border-collapse:collapse;margin-bottom:18px">${adminItemsHtml}</table>
+              <p style="font-size:13px;color:#8A8680;margin:0">View full order details, the fulfilment checklist, and the customer's shipping address in the admin panel.</p>
+            `)
           });
         } catch (e) { console.error('Order email failed:', e); }
+
+        // Customer-facing confirmation — separate from Stripe's own invoice email,
+        // this one carries your own voice and shows the actual prints they bought.
+        if (order.customer_email) {
+          const customerItemsHtml = items.map(i => `
+            <tr>
+              <td style="padding:10px 0;width:64px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''} <span style="color:#8A8680">— ${i.size}</span></td>
+            </tr>
+          `).join('');
+
+          try {
+            await resend.emails.send({
+              from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+              to: order.customer_email,
+              subject: 'Your order — Bharat Bhatia',
+              html: emailShell(`
+                <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
+                <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way — you'll get another note from me once it ships.</p>
+                <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
+                <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+                <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
+                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Just reply to this email.</p>
+              `)
+            });
+          } catch (e) { console.error('Customer confirmation email failed:', e); }
+        }
       }
     } catch (e) {
       console.error('Error processing webhook:', e);
@@ -490,6 +542,9 @@ app.post('/api/shop/checkout', async (req, res) => {
       shipping_address_collection: delivery_method === 'intl'
         ? { allowed_countries: ['DE','FR','IT','AT','GB','US','CA','AU','NL','BE','ES'] }
         : { allowed_countries: ['CH'] },
+      // Generates a proper PDF invoice and emails it to the customer automatically
+      // the moment payment succeeds — independent of our own Resend setup.
+      invoice_creation: { enabled: true },
       success_url: `${origin}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/shop`,
     });
@@ -900,24 +955,23 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
       [order.id]
     );
     const itemsHtml = items.map(i => `
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-        ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:3px;">` : ''}
-        <span>${i.print_title} — ${i.size}</span>
-      </div>
+      <tr>
+        <td style="padding:10px 0;width:64px">${i.image_url ? `<img src="${i.image_url}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px;display:block">` : ''}</td>
+        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title} <span style="color:#8A8680">— ${i.size}</span></td>
+      </tr>
     `).join('');
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
       to: order.customer_email,
       subject: 'Your print is on its way',
-      html: `<div style="font-family: Georgia, serif; max-width: 560px;">
-        <h2>Your order has shipped</h2>
-        <p>Hi ${order.customer_name || ''},</p>
-        <p>Good news — your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
-        ${itemsHtml}
-        <p><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-        <p>Thanks for supporting the work.</p>
-      </div>`,
+      html: emailShell(`
+        <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">On its way.</h2>
+        <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Hi ${order.customer_name ? order.customer_name.split(' ')[0] : 'there'} — good news, your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${itemsHtml}</table>
+        <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Thanks for supporting the work — I hope you enjoy living with it.</p>
+      `),
     });
 
     // Mark the checklist item automatically since we just did it
