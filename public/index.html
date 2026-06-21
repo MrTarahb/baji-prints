@@ -605,19 +605,21 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 #lightbox-desc-toggle:hover { color: rgba(250,250,248,.85); }
 #lightbox-desc-toggle.has-desc { display: block; }
 #lightbox-desc {
+  display: grid;
+  grid-template-rows: 0fr;
   max-width: min(520px, 80vw);
-  max-height: 0;
-  overflow: hidden;
   opacity: 0;
-  transition: max-height .4s ease, opacity .3s ease, margin .4s ease;
+  transition: grid-template-rows .4s ease, opacity .3s ease, margin .4s ease;
 }
 #lightbox-desc.open {
-  max-height: 50vh;
+  grid-template-rows: 1fr;
   opacity: 1;
   margin-top: .25rem;
-  overflow-y: auto;
 }
-#lightbox-desc p {
+#lightbox-desc > p {
+  overflow: hidden;
+  max-height: 50vh;
+  overflow-y: auto;
   font-family: var(--fi);
   font-size: 13px;
   font-style: italic;
