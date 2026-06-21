@@ -126,33 +126,24 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         // 'customer_details' isn't a valid expandable field (passing it
         // throws, which was silently swallowing this whole block before).
         const fullSession = await stripe.checkout.sessions.retrieve(session.id);
-        console.log('[webhook] customer_details:', JSON.stringify(fullSession.customer_details));
-        console.log('[webhook] shipping_details:', JSON.stringify(fullSession.shipping_details));
         if (fullSession.customer_details) {
-          const addressToStore = fullSession.shipping_details || fullSession.customer_details.address || {};
-          const hasAddress = addressToStore && Object.keys(addressToStore).length > 0;
-          console.log('[webhook] storing shipping_address as:', JSON.stringify(addressToStore));
-          // Temporary diagnostic: write exactly what Stripe sent into the order's
-          // own notes field, so it's visible right in the admin panel — no need
-          // to check Railway logs to see what's actually coming back from Stripe.
-          const diagnosticNote = hasAddress
-            ? `[diagnostic] address received from Stripe: ${JSON.stringify(addressToStore)}`
-            : `[diagnostic] Stripe sent customer_details but NO address (neither shipping_details nor customer_details.address was present). Raw customer_details: ${JSON.stringify(fullSession.customer_details)}`;
+          // shipping_details is { name, phone, carrier, address: {...} } —
+          // the actual postal fields are nested one level under .address.
+          // Storing shipping_details directly (as before) put everything one
+          // level too deep, which is why the admin UI's addr.line1 / addr.city
+          // lookups were always coming back empty even though Stripe was
+          // sending the address correctly the whole time.
+          const addressToStore =
+            (fullSession.shipping_details && fullSession.shipping_details.address) ||
+            fullSession.customer_details.address || {};
           await pool.query(
-            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3, notes=$4 WHERE stripe_session_id=$5`,
+            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE stripe_session_id=$4`,
             [
               fullSession.customer_details.name,
               fullSession.customer_details.email,
               JSON.stringify(addressToStore),
-              diagnosticNote,
               session.id,
             ]
-          );
-        } else {
-          console.log('[webhook] no customer_details on session at all');
-          await pool.query(
-            `UPDATE orders SET notes=$1 WHERE stripe_session_id=$2`,
-            ['[diagnostic] Stripe session had no customer_details object at all.', session.id]
           );
         }
       } catch (e) { console.error('Could not fetch customer details for webhook email:', e.message); }
@@ -645,9 +636,10 @@ app.get('/api/shop/order/:sessionId', async (req, res) => {
       try {
         const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
         if (session.customer_details) {
+          const addressToStore = (session.shipping_details && session.shipping_details.address) || session.customer_details.address || {};
           await pool.query(
             `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
-            [session.customer_details.name, session.customer_details.email, JSON.stringify(session.shipping_details || session.customer_details.address || {}), rows[0].id]
+            [session.customer_details.name, session.customer_details.email, JSON.stringify(addressToStore), rows[0].id]
           );
         }
       } catch (e) { /* non-fatal */ }
@@ -969,7 +961,7 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
     // recover a missing address on an order you already confirmed.
     let addressFound = false;
     if (session.customer_details) {
-      const addressToStore = session.shipping_details || session.customer_details.address || {};
+      const addressToStore = (session.shipping_details && session.shipping_details.address) || session.customer_details.address || {};
       addressFound = Object.keys(addressToStore).length > 0;
       await pool.query(
         `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,

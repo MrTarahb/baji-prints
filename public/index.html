@@ -767,15 +767,16 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 }
 .shop-cart-bar-btn:hover { opacity: .7; }
 
-#shop-cart {
+#cart-page {
   display: none;
-  position: fixed; inset: 0; z-index: 160;
+  position: fixed; inset: 0; z-index: 100;
   background: var(--bg);
+  transition: background .4s;
   overflow-y: auto;
-  padding: 6rem 2rem 4rem;
+  padding: 8rem 2rem 5rem;
 }
-#shop-cart.open { display: block; }
-.shop-cart-inner { max-width: 600px; margin: 0 auto; }
+#cart-page.active { display: block; }
+#cart-page .inner { max-width: 600px; margin: 0 auto; }
 .cart-item {
   display: grid; grid-template-columns: 70px 1fr auto; gap: 1rem; align-items: center;
   padding: 1rem 0; border-bottom: 1px solid var(--border);
@@ -956,7 +957,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 <!-- CART BAR -->
 <div class="shop-cart-bar" id="shop-cart-bar">
   <span class="shop-cart-bar-info" id="cart-bar-info">0 items in cart</span>
-  <button class="shop-cart-bar-btn" onclick="openCart()">View cart</button>
+  <button class="shop-cart-bar-btn" onclick="showPage('cart')">View cart</button>
 </div>
 
 <!-- MAIN FEED -->
@@ -1084,11 +1085,11 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 </div>
 
 <!-- CART -->
-<div id="shop-cart">
-  <div class="shop-cart-inner">
-    <h1 class="shop-heading" style="font-size:2rem" id="c-shop_cart_heading">Your cart.</h1>
-    <button class="shop-detail-close" onclick="closeCart()">Close ✕</button>
-    <button class="cart-continue-link" onclick="closeCart()">← Continue browsing</button>
+<!-- CART PAGE -->
+<div id="cart-page">
+  <div class="inner">
+    <h1 class="shop-heading" id="c-shop_cart_heading">Your cart.</h1>
+    <button class="cart-continue-link" onclick="showPage('shop')">← Continue browsing</button>
     <div id="cart-items"></div>
     <div id="cart-delivery-section" style="display:none">
       <p class="cart-delivery-title">Delivery</p>
@@ -1213,9 +1214,12 @@ function initScrollAnimation() {
     if (y > 40) {
       nav.classList.add('visible');
     } else {
-      // Only hide if we're on the main page
-      const onSubPage = document.getElementById('about-page').classList.contains('active') ||
-                        document.getElementById('contact-page').classList.contains('active');
+      // Only hide if we're on the main page — check every sub-page that exists,
+      // not just about/contact, otherwise scrolling on shop/privacy/success
+      // incorrectly hides the nav since this list was never kept in sync with
+      // every page showPage() actually knows about.
+      const onSubPage = ['about-page','contact-page','privacy-page','shop-page','shop-success-page','cart-page']
+        .some(id => document.getElementById(id)?.classList.contains('active'));
       if (!onSubPage) nav.classList.remove('visible');
     }
     nav.classList.toggle('scrolled', y > 80);
@@ -1278,16 +1282,19 @@ function showPage(name){
   const privacyEl = document.getElementById('privacy-page');
   const shopEl = document.getElementById('shop-page');
   const shopSuccessEl = document.getElementById('shop-success-page');
+  const cartEl = document.getElementById('cart-page');
   aboutEl.classList.toggle('active', name==='about');
   contactEl.classList.toggle('active', name==='contact');
   privacyEl.classList.toggle('active', name==='privacy');
   shopEl.classList.toggle('active', name==='shop');
   shopSuccessEl.classList.toggle('active', name==='shop-success');
+  cartEl.classList.toggle('active', name==='cart');
   if (name === 'about') aboutEl.scrollTop = 0;
   if (name === 'contact') contactEl.scrollTop = 0;
   if (name === 'privacy') privacyEl.scrollTop = 0;
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
+  if (name === 'cart') { cartEl.scrollTop = 0; renderCart(); }
   if (name === 'main') {
     document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
     if (!mainFeedBuilt) {
@@ -1324,6 +1331,8 @@ function showPage(name){
   // Keep the URL in sync with whatever page is showing
   if (name === 'shop') {
     history.replaceState(null, '', '/shop');
+  } else if (name === 'cart') {
+    history.replaceState(null, '', '/cart');
   } else if (name === 'shop-success') {
     history.replaceState(null, '', location.pathname + location.search);
   } else if (name === 'main') {
@@ -1700,22 +1709,11 @@ function addSelectedToCart() {
   });
   saveCart();
   closeShopDetail();
-  openCart();
+  showPage('cart');
 }
 
 function closeShopDetail() {
   document.getElementById('shop-detail').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-// ── CART ──────────────────────────────────────────────────────────────────────
-function openCart() {
-  renderCart();
-  document.getElementById('shop-cart').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeCart() {
-  document.getElementById('shop-cart').classList.remove('open');
   document.body.style.overflow = '';
 }
 
@@ -1824,7 +1822,6 @@ async function goToCheckout() {
 }
 
 document.getElementById('shop-detail').addEventListener('click', e => { if (e.target === e.currentTarget) closeShopDetail(); });
-document.getElementById('shop-cart').addEventListener('click', e => { if (e.target === e.currentTarget) closeCart(); });
 
 // ── SHOP SUCCESS PAGE ─────────────────────────────────────────────────────────
 async function checkShopSuccess() {
@@ -1869,7 +1866,7 @@ let mainFeedBuilt = false;
 // This avoids a race where buildFeed() (GSAP/ScrollTrigger setup, hero image load)
 // runs while #main-content is about to be hidden by a shop/shop-success route.
 const initialPath = window.location.pathname;
-const startingOnShop = initialPath.indexOf('/shop') === 0;
+const startingOnShop = initialPath.indexOf('/shop') === 0 || initialPath.indexOf('/cart') === 0;
 
 loadContent().then(() => {
   if (!startingOnShop) { load().then(success => { if (success) mainFeedBuilt = true; }); }
@@ -1877,7 +1874,9 @@ loadContent().then(() => {
 
 if (initialPath.indexOf('/shop/success') === 0) {
   checkShopSuccess();
-} else if (startingOnShop) {
+} else if (initialPath.indexOf('/cart') === 0) {
+  showPage('cart');
+} else if (initialPath.indexOf('/shop') === 0) {
   showPage('shop');
 }
 
