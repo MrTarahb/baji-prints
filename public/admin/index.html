@@ -901,7 +901,7 @@ function buildOrderCard(o){
   card.innerHTML = `
     <div class="order-head">
       <div>
-        <div class="order-id">#${o.id} · ${o.stripe_session_id ? o.stripe_session_id.slice(0,18)+'…' : ''}</div>
+        <div class="order-id">${o.order_ref ? `<strong style="color:var(--ink);font-weight:600">${o.order_ref}</strong>` : '#'+o.id}</div>
         <div class="order-customer">${esc(o.customer_name || 'Unknown')}</div>
         <div class="order-email">${esc(o.customer_email || '')}</div>
       </div>

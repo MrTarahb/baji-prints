@@ -1846,7 +1846,9 @@ async function checkShopSuccess() {
       document.getElementById('success-message').textContent =
         `Thank you${order.customer_name ? ', ' + order.customer_name : ''} — your order has been received. A confirmation has been sent to ${order.customer_email || 'your email'}.`;
       const detailsWrap = document.getElementById('success-order-details');
-      detailsWrap.innerHTML = items.map(i => `
+      detailsWrap.innerHTML = (order.order_ref ? `
+        <div class="success-order-line" style="border-bottom:none;font-family:monospace;color:var(--fg-l)"><span>Order reference</span><span>${esc(order.order_ref)}</span></div>
+      ` : '') + items.map(i => `
         <div class="success-order-line"><span>${esc(i.print_title)} — ${i.size}</span><span>${fmtCHF(i.price_chf)}</span></div>
       `).join('') + `
         <div class="success-order-line"><span>Delivery</span><span>${fmtCHF(order.delivery_price_chf)}</span></div>

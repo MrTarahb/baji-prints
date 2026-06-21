@@ -50,6 +50,16 @@ async function getShippingPrice(deliveryMethod, sizesInCart) {
   return rows[0] ? rows[0].price_chf : 0;
 }
 
+// Generates a short, human-readable order reference like "BHT-7K2X9P" —
+// easy to read aloud, write on a package, or search for in admin. Avoids
+// visually ambiguous characters (0/O, 1/I/L) to reduce transcription errors.
+function generateOrderRef() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return `BHT-${code}`;
+}
+
 // Shared wrapper for all transactional emails — soft background, white card,
 // consistent header/footer, so every email (admin notification, customer
 // confirmation, shipped notice) looks like it belongs to the same site.
@@ -120,18 +130,30 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         console.log('[webhook] shipping_details:', JSON.stringify(fullSession.shipping_details));
         if (fullSession.customer_details) {
           const addressToStore = fullSession.shipping_details || fullSession.customer_details.address || {};
+          const hasAddress = addressToStore && Object.keys(addressToStore).length > 0;
           console.log('[webhook] storing shipping_address as:', JSON.stringify(addressToStore));
+          // Temporary diagnostic: write exactly what Stripe sent into the order's
+          // own notes field, so it's visible right in the admin panel — no need
+          // to check Railway logs to see what's actually coming back from Stripe.
+          const diagnosticNote = hasAddress
+            ? `[diagnostic] address received from Stripe: ${JSON.stringify(addressToStore)}`
+            : `[diagnostic] Stripe sent customer_details but NO address (neither shipping_details nor customer_details.address was present). Raw customer_details: ${JSON.stringify(fullSession.customer_details)}`;
           await pool.query(
-            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE stripe_session_id=$4`,
+            `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3, notes=$4 WHERE stripe_session_id=$5`,
             [
               fullSession.customer_details.name,
               fullSession.customer_details.email,
               JSON.stringify(addressToStore),
+              diagnosticNote,
               session.id,
             ]
           );
         } else {
           console.log('[webhook] no customer_details on session at all');
+          await pool.query(
+            `UPDATE orders SET notes=$1 WHERE stripe_session_id=$2`,
+            ['[diagnostic] Stripe session had no customer_details object at all.', session.id]
+          );
         }
       } catch (e) { console.error('Could not fetch customer details for webhook email:', e.message); }
 
@@ -168,9 +190,10 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           await resend.emails.send({
             from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
             to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
-            subject: `New order — CHF ${(order.total_chf/100).toFixed(2)}`,
+            subject: `New order ${order.order_ref || ''} — CHF ${(order.total_chf/100).toFixed(2)}`,
             html: emailShell(`
-              <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 18px;color:#1A1714">New print order</h2>
+              <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 6px;color:#1A1714">New print order</h2>
+              ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">${order.order_ref}</p>` : ''}
               <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
               <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
               <p style="margin:0 0 18px;font-size:14px;color:#1A1714"><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
@@ -195,14 +218,15 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
               from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
               to: order.customer_email,
               reply_to: REPLY_TO_EMAIL,
-              subject: 'Your order — Bharat Bhatia',
+              subject: `Your order ${order.order_ref || ''} — Bharat Bhatia`,
               html: emailShell(`
                 <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
+                ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Order reference: ${order.order_ref}</p>` : ''}
                 <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way — you'll get another note from me once it ships.</p>
                 <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
                 <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
                 <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Email ${REPLY_TO_EMAIL} and it'll reach me directly.</p>
+                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Email ${REPLY_TO_EMAIL} and it'll reach me directly — mention your order reference above if you can.</p>
               `), customerEmail: true
             });
           } catch (e) { console.error('Customer confirmation email failed:', e); }
@@ -308,6 +332,7 @@ async function initDB() {
     -- Orders
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
+      order_ref TEXT UNIQUE, -- short human-readable reference, e.g. BHT-7K2X9P
       stripe_session_id TEXT UNIQUE,
       stripe_payment_intent TEXT,
       status TEXT DEFAULT 'pending', -- pending, paid, fulfilled, cancelled
@@ -323,6 +348,7 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_ref TEXT;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilment_checklist JSONB DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
 
@@ -578,10 +604,18 @@ app.post('/api/shop/checkout', async (req, res) => {
     });
 
     // Pre-create the order record as pending, fill in once webhook confirms payment
+    // Generate a unique human-readable reference (collisions are extremely
+    // rare with this character set, but retry a couple of times just in case)
+    let orderRef;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = generateOrderRef();
+      const { rows: existing } = await pool.query('SELECT 1 FROM orders WHERE order_ref=$1', [candidate]);
+      if (!existing.length) { orderRef = candidate; break; }
+    }
     const orderRes = await pool.query(
-      `INSERT INTO orders (stripe_session_id, status, delivery_method, delivery_price_chf, subtotal_chf, total_chf)
-       VALUES ($1, 'pending', $2, $3, $4, $5) RETURNING id`,
-      [session.id, delivery_method, shippingPrice, subtotal, total]
+      `INSERT INTO orders (order_ref, stripe_session_id, status, delivery_method, delivery_price_chf, subtotal_chf, total_chf)
+       VALUES ($1, $2, 'pending', $3, $4, $5, $6) RETURNING id`,
+      [orderRef, session.id, delivery_method, shippingPrice, subtotal, total]
     );
     const orderId = orderRes.rows[0].id;
     for (const oi of orderItemsData) {
