@@ -185,7 +185,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         const adminItemsHtml = items.map(i => `
           <tr>
             <td style="padding:8px 0;width:64px"><table cellpadding="0" cellspacing="0" style="width:60px;height:60px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:60px;max-height:60px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)} <span style="color:#8A8680">, ${i.size}</span></td>
+            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)}<span style="color:#8A8680">, ${i.size}</span></td>
           </tr>
         `).join('');
 
@@ -212,7 +212,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           const customerItemsHtml = items.map(i => `
             <tr>
               <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''} <span style="color:#8A8680">, ${i.size}</span></td>
+              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''}<span style="color:#8A8680">, ${i.size}</span></td>
             </tr>
           `).join('');
 
@@ -1078,7 +1078,7 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
     const itemsHtml = items.map(i => `
       <tr>
         <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title} <span style="color:#8A8680">, ${i.size}</span></td>
+        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title}<span style="color:#8A8680">, ${i.size}</span></td>
       </tr>
     `).join('');
 
