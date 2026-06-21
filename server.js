@@ -1021,6 +1021,20 @@ app.put('/api/admin/orders/:id/status', requireAuth, async (req, res) => {
   }
 });
 
+// Permanently wipe every order and its line items. Destructive and irreversible
+// — the frontend gates this behind a typed confirmation challenge before it
+// ever calls this route, but the route itself has no extra protection beyond
+// requireAuth, so treat the admin password as the real safeguard here.
+app.delete('/api/admin/orders/clear-all', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM order_items');
+    await pool.query('DELETE FROM orders');
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Update one item in the fulfilment checklist (e.g. {"printed": true})
 app.put('/api/admin/orders/:id/checklist', requireAuth, async (req, res) => {
   const { key, value } = req.body;

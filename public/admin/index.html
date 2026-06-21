@@ -414,8 +414,13 @@ textarea.field-input{resize:vertical;min-height:70px}
 
       <!-- ORDERS -->
       <div class="panel" id="panel-orders">
-        <h2 class="panel-title">Orders</h2>
-        <p class="panel-sub">Paid orders, newest first. Mark as fulfilled once shipped or delivered.</p>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div>
+            <h2 class="panel-title">Orders</h2>
+            <p class="panel-sub">Paid orders, newest first. Mark as fulfilled once shipped or delivered.</p>
+          </div>
+          <button class="btn-order-action" onclick="openClearOrdersModal()" style="flex-shrink:0;border-color:rgba(200,144,122,.4);color:var(--pink)">Clear order list</button>
+        </div>
         <div id="orders-list"></div>
       </div>
 
@@ -507,6 +512,22 @@ textarea.field-input{resize:vertical;min-height:70px}
       </div>
 
     </main>
+  </div>
+
+  <!-- CLEAR ORDERS CONFIRMATION MODAL -->
+  <div id="clear-orders-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:1.5rem">
+    <div style="background:var(--surface);max-width:420px;width:100%;border-radius:4px;padding:1.75rem;border:1px solid var(--border)">
+      <h3 style="font-family:'Playfair Display',serif;font-size:1.05rem;font-style:italic;color:var(--ink);margin-bottom:.6rem">Clear the entire order list?</h3>
+      <p style="font-size:.82rem;color:var(--text-m);line-height:1.6;margin-bottom:1rem">This permanently deletes every order and its line items from the database. This cannot be undone.</p>
+      <p style="font-size:.78rem;color:var(--text-m);margin-bottom:.5rem">To confirm, type the code below exactly:</p>
+      <p id="clear-orders-challenge-code" style="font-family:'DM Mono',monospace;font-size:1.1rem;letter-spacing:.15em;text-align:center;background:var(--bg);border:1px dashed var(--border);border-radius:3px;padding:.6rem;margin-bottom:.85rem;user-select:all"></p>
+      <input type="text" id="clear-orders-input" class="field-input" placeholder="Type the code here" autocomplete="off" oninput="document.getElementById('btn-confirm-clear-orders').disabled = this.value.trim().toUpperCase() !== window._clearOrdersCode" style="margin-bottom:1rem;text-transform:uppercase">
+      <div style="display:flex;gap:.5rem;justify-content:flex-end">
+        <button class="btn-order-action" onclick="closeClearOrdersModal()">Cancel</button>
+        <button class="btn-order-action" id="btn-confirm-clear-orders" disabled onclick="confirmClearOrders()" style="border-color:rgba(200,144,122,.5);color:white;background:var(--pink)">Permanently delete all orders</button>
+      </div>
+      <p id="clear-orders-msg" style="font-size:.75rem;margin-top:.6rem;min-height:1rem"></p>
+    </div>
   </div>
 </div>
 
@@ -938,7 +959,7 @@ function buildOrderCard(o){
       ${(o.status === 'pending' || (o.status !== 'cancelled' && !addrText)) ? `<button class="btn-order-action" onclick="syncOrder(${o.id},this)">Check with Stripe</button>` : ''}
       ${(o.status === 'paid' || o.status === 'fulfilled') && o.customer_email ? `<button class="btn-order-action" onclick="notifyShipped(${o.id},this)">${checklist.shipping_email_sent ? 'Resend shipped email' : 'Email customer: shipped'}</button>` : ''}
       ${nextStatus ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'${nextStatus}')">Mark fulfilled</button>` : ''}
-      ${o.status !== 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>` : ''}
+      ${o.status === 'cancelled' ? `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'paid')">Un-cancel order</button>` : `<button class="btn-order-action" onclick="updateOrderStatus(${o.id},'cancelled')">Cancel</button>`}
     </div>
   `;
   return card;
@@ -1016,6 +1037,55 @@ async function updateOrderStatus(id, status){
     });
     await loadOrders();
   }catch(e){}
+}
+
+// ── CLEAR ALL ORDERS (typed-confirmation challenge) ────────────────────────────
+function generateClearOrdersCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function openClearOrdersModal(){
+  const code = generateClearOrdersCode();
+  window._clearOrdersCode = code;
+  document.getElementById('clear-orders-challenge-code').textContent = code;
+  document.getElementById('clear-orders-input').value = '';
+  document.getElementById('btn-confirm-clear-orders').disabled = true;
+  document.getElementById('clear-orders-msg').textContent = '';
+  document.getElementById('clear-orders-modal').style.display = 'flex';
+}
+
+function closeClearOrdersModal(){
+  document.getElementById('clear-orders-modal').style.display = 'none';
+}
+
+async function confirmClearOrders(){
+  const btn = document.getElementById('btn-confirm-clear-orders');
+  const msg = document.getElementById('clear-orders-msg');
+  const input = document.getElementById('clear-orders-input');
+  if (input.value.trim().toUpperCase() !== window._clearOrdersCode) {
+    msg.style.color = 'var(--pink)';
+    msg.textContent = "That doesn't match. Try again.";
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try{
+    const res = await fetch('/api/admin/orders/clear-all', {method:'DELETE', credentials:'include'});
+    if (res.ok) {
+      closeClearOrdersModal();
+      await loadOrders();
+    } else {
+      msg.style.color = 'var(--pink)';
+      msg.textContent = 'Something went wrong — try again.';
+      btn.disabled = false; btn.textContent = 'Permanently delete all orders';
+    }
+  }catch(e){
+    msg.style.color = 'var(--pink)';
+    msg.textContent = 'Connection error.';
+    btn.disabled = false; btn.textContent = 'Permanently delete all orders';
+  }
 }
 
 // ── SHIPPING RATES ────────────────────────────────────────────────────────────
