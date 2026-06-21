@@ -589,6 +589,46 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   white-space: nowrap;
   flex-shrink: 0;
 }
+#lightbox-desc-toggle {
+  font-family: var(--fm);
+  font-size: 8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.45);
+  background: none;
+  border: none;
+  cursor: none;
+  padding: 0;
+  display: none;
+  transition: color .2s;
+}
+#lightbox-desc-toggle:hover { color: rgba(250,250,248,.85); }
+#lightbox-desc-toggle.has-desc { display: block; }
+#lightbox-desc {
+  display: none;
+  max-width: min(520px, 80vw);
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height .4s ease, opacity .3s ease, margin .4s ease;
+}
+#lightbox-desc.open {
+  display: block;
+  max-height: 50vh;
+  opacity: 1;
+  margin-top: .25rem;
+  overflow-y: auto;
+}
+#lightbox-desc p {
+  font-family: var(--fi);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.85;
+  color: rgba(250,250,248,.85);
+  text-align: left;
+  white-space: pre-wrap;
+  padding: 0 .25rem;
+}
 
 /* CONTACT PAGE */
 #contact-page {
@@ -1171,6 +1211,8 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   <div id="lightbox-inner">
     <img id="lightbox-img" src="" alt="">
     <span id="lightbox-caption"></span>
+    <button id="lightbox-desc-toggle" onclick="toggleLightboxDesc()">Read the story</button>
+    <div id="lightbox-desc"><p id="lightbox-desc-text"></p></div>
   </div>
 </div>
 
@@ -1582,8 +1624,26 @@ function openLightbox(src, title, printId) {
   const img = document.getElementById('lightbox-img');
   const cap = document.getElementById('lightbox-caption');
   const inner = document.getElementById('lightbox-inner');
+  const descToggle = document.getElementById('lightbox-desc-toggle');
+  const descPanel = document.getElementById('lightbox-desc');
+  const descText = document.getElementById('lightbox-desc-text');
+
   img.src = src;
   cap.textContent = title || '';
+
+  // Look up the print's description (if any) from the already-loaded print list
+  const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
+  const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
+
+  descPanel.classList.remove('open');
+  if (description) {
+    descText.textContent = description;
+    descToggle.classList.add('has-desc');
+    descToggle.textContent = 'Read the story';
+  } else {
+    descToggle.classList.remove('has-desc');
+  }
+
   // Reset animation
   inner.style.transform = 'scale(0.88)';
   inner.style.opacity = '0';
@@ -1595,6 +1655,12 @@ function openLightbox(src, title, printId) {
     inner.style.transform = 'scale(1)';
     inner.style.opacity = '1';
   });
+}
+function toggleLightboxDesc() {
+  const panel = document.getElementById('lightbox-desc');
+  const toggle = document.getElementById('lightbox-desc-toggle');
+  const isOpen = panel.classList.toggle('open');
+  toggle.textContent = isOpen ? 'Hide the story' : 'Read the story';
 }
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
