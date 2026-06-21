@@ -60,6 +60,18 @@ function generateOrderRef() {
   return `BHT-${code}`;
 }
 
+// Basic HTML escaping for any user/customer-supplied text dropped into email
+// templates (e.g. shipping address fields), so stray characters can't break
+// the markup or inject anything unexpected.
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // Shared wrapper for all transactional emails — soft background, white card,
 // consistent header/footer, so every email (admin notification, customer
 // confirmation, shipped notice) looks like it belongs to the same site.
@@ -173,7 +185,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         const adminItemsHtml = items.map(i => `
           <tr>
             <td style="padding:8px 0;width:64px"><table cellpadding="0" cellspacing="0" style="width:60px;height:60px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:60px;max-height:60px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)} <span style="color:#8A8680">— ${i.size}</span></td>
+            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)} <span style="color:#8A8680">, ${i.size}</span></td>
           </tr>
         `).join('');
 
@@ -181,7 +193,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           await resend.emails.send({
             from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
             to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
-            subject: `New order ${order.order_ref || ''} — CHF ${(order.total_chf/100).toFixed(2)}`,
+            subject: `New order ${order.order_ref || ''}: CHF ${(order.total_chf/100).toFixed(2)}`,
             html: emailShell(`
               <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 6px;color:#1A1714">New print order</h2>
               ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">${order.order_ref}</p>` : ''}
@@ -200,24 +212,41 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           const customerItemsHtml = items.map(i => `
             <tr>
               <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''} <span style="color:#8A8680">— ${i.size}</span></td>
+              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''} <span style="color:#8A8680">, ${i.size}</span></td>
             </tr>
           `).join('');
+
+          // Format the shipping address (if one was collected) so the customer
+          // can verify it's correct and flag anything wrong before it ships.
+          let addressHtml = '';
+          if (order.shipping_address) {
+            try {
+              const addr = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
+              const lines = [addr.line1, addr.line2, [addr.postal_code, addr.city].filter(Boolean).join(' '), addr.state, addr.country].filter(Boolean);
+              if (lines.length) {
+                addressHtml = `
+                  <p style="margin:0 0 4px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Shipping to:</strong></p>
+                  <p style="margin:0 0 22px;font-size:13px;color:#8A8680;line-height:1.6">${lines.map(l => esc(l)).join('<br>')}</p>
+                `;
+              }
+            } catch (e) { /* malformed address, just skip showing it */ }
+          }
 
           try {
             await resend.emails.send({
               from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
               to: order.customer_email,
               reply_to: REPLY_TO_EMAIL,
-              subject: `Your order ${order.order_ref || ''} — Bharat Bhatia`,
+              subject: `Your order ${order.order_ref || ''}: Bharat Bhatia`,
               html: emailShell(`
                 <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
                 ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Order reference: ${order.order_ref}</p>` : ''}
-                <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way — you'll get another note from me once it ships.</p>
+                <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way. You'll get another note from me once it ships.</p>
                 <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
                 <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+                ${addressHtml}
                 <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Questions about your order? Email ${REPLY_TO_EMAIL} and it'll reach me directly — mention your order reference above if you can.</p>
+                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Please check the details above, especially the shipping address, and email ${REPLY_TO_EMAIL} right away if anything needs correcting. Mention your order reference if you can.</p>
               `), customerEmail: true
             });
           } catch (e) { console.error('Customer confirmation email failed:', e); }
@@ -1035,7 +1064,7 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
     const itemsHtml = items.map(i => `
       <tr>
         <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title} <span style="color:#8A8680">— ${i.size}</span></td>
+        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title} <span style="color:#8A8680">, ${i.size}</span></td>
       </tr>
     `).join('');
 
@@ -1046,10 +1075,10 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
       subject: 'Your print is on its way',
       html: emailShell(`
         <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">On its way.</h2>
-        <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Hi ${order.customer_name ? order.customer_name.split(' ')[0] : 'there'} — good news, your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
+        <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Hi ${order.customer_name ? order.customer_name.split(' ')[0] : 'there'}, good news, your print${items.length > 1 ? 's are' : ' is'} on the way.</p>
         <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${itemsHtml}</table>
         <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0 0 12px">Thanks for supporting the work — I hope you enjoy living with it.</p>
+        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0 0 12px">Thanks for supporting the work. I hope you enjoy living with it.</p>
         <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Any questions? Email ${REPLY_TO_EMAIL} and it'll reach me directly.</p>
       `),
     });

@@ -618,6 +618,19 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 #privacy-page .inner { max-width: 600px; margin: 0 auto; }
 #privacy-page.active { display: block; }
 
+#terms-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#terms-page .inner { max-width: 600px; margin: 0 auto; }
+#terms-page.active { display: block; }
+
 /* SHOP PAGE */
 #shop-page, #shop-success-page {
   display: none;
@@ -934,6 +947,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
       <li><a onclick="showPage('main')" id="c-nav_work">Work</a></li>
       <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
       <li><a onclick="showPage('shop')" id="c-nav_shop">Shop</a></li>
+      <li><a onclick="showPage('cart')" id="nav-cart-link">Cart<span id="nav-cart-count"></span></a></li>
       <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
     </ul>
     <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -998,6 +1012,7 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
     <div class="footer-contact">
       <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
+      <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
   </footer>
@@ -1066,6 +1081,39 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   </div>
 </div>
 
+<!-- TERMS OF SALE / LEGAL NOTICE -->
+<div id="terms-page">
+  <div class="inner">
+    <h1 class="about-heading">Terms of sale.</h1>
+    <div class="about-body">
+      <p>These terms apply to any print purchased through bharatbhatia.photography. Last updated June 2026.</p>
+
+      <p><strong>Who you're buying from.</strong> Bharat Bhatia, operating as an individual print atelier based in Wiedikon, Zürich, Switzerland. For any question, get in touch via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a> or email directly.</p>
+
+      <p><strong>The contract.</strong> Placing an order and completing payment forms a binding sale, as is standard under Swiss law. You'll receive an order confirmation by email once payment is confirmed, along with a separate formal receipt from Stripe, our payment processor.</p>
+
+      <p><strong>Pricing and payment.</strong> All prices are shown in Swiss francs (CHF) and include everything except the delivery fee, which is calculated and shown separately at checkout based on your chosen delivery method and print size. Payment is handled securely by Stripe; card details are never seen or stored by me.</p>
+
+      <p><strong>Delivery.</strong> Swiss law doesn't set a maximum delivery period, but I aim to print, package, and ship every order within a reasonable time after payment, generally within one to two weeks unless otherwise noted. You'll get a confirmation email once your order ships. A4 prints are sent flat in a protective mailer; A3 and A2 prints are shipped rolled in a postal tube. Personal delivery (Zürich area) is arranged directly with you.</p>
+
+      <p><strong>Returns.</strong> I want you to be genuinely happy with your print. You may return any print within <strong>30 days</strong> of delivery, for any reason, no questions asked. This applies to orders shipped within Switzerland and the EU alike. To start a return, just get in touch with your order reference. You're responsible for the cost of return shipping; once the print arrives back in good condition, I'll refund the full purchase price (excluding the original delivery fee).</p>
+
+      <p>If you're an EU-based customer, this 30-day policy is more generous than the 14-day right of withdrawal required by EU law, so you're fully covered either way.</p>
+
+      <p><strong>Damaged or faulty prints.</strong> If your print arrives damaged or there's a defect, contact me within a reasonable time of receiving it. In these cases, the standard 30-day return applies and I'll also cover the return shipping cost. Swiss law additionally provides a two-year statutory warranty against defects on new goods, which applies regardless of the return window above.</p>
+
+      <p><strong>Limited editions.</strong> Where a print is sold as a limited edition, the edition size and your print's position within it are recorded at the time of sale and will not be exceeded.</p>
+
+      <p><strong>Liability.</strong> I take care in packaging every print to prevent damage in transit. If a parcel is visibly damaged on arrival, please document it (photos help) and contact me promptly so we can sort it out together.</p>
+
+      <p><strong>Governing law.</strong> These terms are governed by Swiss law. Any dispute will be handled under the jurisdiction of the courts of Zürich, Switzerland, without prejudice to any mandatory consumer protections that apply in your own country of residence.</p>
+
+      <div class="about-divider"></div>
+      <p class="about-spec">This page is a good-faith summary, not formal legal advice. Questions about an order can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
+</div>
+
 <!-- SHOP PAGE -->
 <div id="shop-page">
   <div class="inner">
@@ -1098,7 +1146,11 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
     <div class="cart-total-row" id="cart-total-row" style="display:none">
       <span>Total</span><span id="cart-total-amount"></span>
     </div>
-    <button class="btn-add-cart" id="btn-checkout" onclick="goToCheckout()" style="margin-top:1.5rem" disabled>Select a delivery option</button>
+    <label id="terms-accept-row" style="display:none;align-items:flex-start;gap:.55rem;margin-top:1.25rem;cursor:none;font-size:11px;color:var(--fg-m);line-height:1.6">
+      <input type="checkbox" id="accept-terms" onchange="document.getElementById('btn-checkout').disabled = !this.checked || !selectedDelivery" style="margin-top:.2rem;cursor:none">
+      <span>I've read and agree to the <a href="#" onclick="event.preventDefault();showPage('terms')" style="color:var(--pink-d)">terms of sale</a>, including the 30-day return policy.</span>
+    </label>
+    <button class="btn-add-cart" id="btn-checkout" onclick="goToCheckout()" style="margin-top:1rem" disabled>Select a delivery option</button>
     <p class="form-msg" id="checkout-msg" style="margin-top:.65rem"></p>
   </div>
 </div>
@@ -1218,7 +1270,7 @@ function initScrollAnimation() {
       // not just about/contact, otherwise scrolling on shop/privacy/success
       // incorrectly hides the nav since this list was never kept in sync with
       // every page showPage() actually knows about.
-      const onSubPage = ['about-page','contact-page','privacy-page','shop-page','shop-success-page','cart-page']
+      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','shop-page','shop-success-page','cart-page']
         .some(id => document.getElementById(id)?.classList.contains('active'));
       if (!onSubPage) nav.classList.remove('visible');
     }
@@ -1280,18 +1332,21 @@ function showPage(name){
   const aboutEl = document.getElementById('about-page');
   const contactEl = document.getElementById('contact-page');
   const privacyEl = document.getElementById('privacy-page');
+  const termsEl = document.getElementById('terms-page');
   const shopEl = document.getElementById('shop-page');
   const shopSuccessEl = document.getElementById('shop-success-page');
   const cartEl = document.getElementById('cart-page');
   aboutEl.classList.toggle('active', name==='about');
   contactEl.classList.toggle('active', name==='contact');
   privacyEl.classList.toggle('active', name==='privacy');
+  termsEl.classList.toggle('active', name==='terms');
   shopEl.classList.toggle('active', name==='shop');
   shopSuccessEl.classList.toggle('active', name==='shop-success');
   cartEl.classList.toggle('active', name==='cart');
   if (name === 'about') aboutEl.scrollTop = 0;
   if (name === 'contact') contactEl.scrollTop = 0;
   if (name === 'privacy') privacyEl.scrollTop = 0;
+  if (name === 'terms') termsEl.scrollTop = 0;
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
   if (name === 'cart') { cartEl.scrollTop = 0; renderCart(); }
@@ -1580,11 +1635,14 @@ function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); update
 function updateCartBar() {
   const bar = document.getElementById('shop-cart-bar');
   const info = document.getElementById('cart-bar-info');
+  const navCount = document.getElementById('nav-cart-count');
   if (cart.length) {
     bar.classList.add('visible');
     info.textContent = cart.length + (cart.length === 1 ? ' item in cart' : ' items in cart');
+    if (navCount) navCount.textContent = ' (' + cart.length + ')';
   } else {
     bar.classList.remove('visible');
+    if (navCount) navCount.textContent = '';
   }
 }
 
@@ -1722,11 +1780,14 @@ function renderCart() {
   const deliverySection = document.getElementById('cart-delivery-section');
   const totalRow = document.getElementById('cart-total-row');
   const checkoutBtn = document.getElementById('btn-checkout');
+  const termsRow = document.getElementById('terms-accept-row');
+  const termsCheckbox = document.getElementById('accept-terms');
 
   if (!cart.length) {
     itemsWrap.innerHTML = '<div class="cart-empty">Your cart is empty.</div>';
     deliverySection.style.display = 'none';
     totalRow.style.display = 'none';
+    termsRow.style.display = 'none';
     checkoutBtn.disabled = true;
     checkoutBtn.textContent = 'Cart is empty';
     return;
@@ -1766,11 +1827,12 @@ function renderCart() {
   });
 
   const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
+  termsRow.style.display = 'flex';
   if (selectedDelivery && deliveryAvailability[selectedDelivery]) {
     const shipping = getShippingPriceForCart(selectedDelivery);
     totalRow.style.display = 'flex';
     document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + shipping);
-    checkoutBtn.disabled = false;
+    checkoutBtn.disabled = !termsCheckbox.checked;
     checkoutBtn.textContent = 'Checkout';
   } else {
     totalRow.style.display = 'none';
