@@ -1077,12 +1077,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: var(--border); }
   </div>
 </nav>
 
-<!-- CART BAR -->
-<div class="shop-cart-bar" id="shop-cart-bar">
-  <span class="shop-cart-bar-info" id="cart-bar-info">0 items in cart</span>
-  <button class="shop-cart-bar-btn" onclick="showPage('cart')">View cart</button>
-</div>
-
 <!-- MAIN FEED -->
 <div id="main-content">
 
@@ -1840,17 +1834,8 @@ function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
 function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); updateCartBar(); }
 
 function updateCartBar() {
-  const bar = document.getElementById('shop-cart-bar');
-  const info = document.getElementById('cart-bar-info');
   const navCount = document.getElementById('nav-cart-count');
-  if (cart.length) {
-    bar.classList.add('visible');
-    info.textContent = cart.length + (cart.length === 1 ? ' item in cart' : ' items in cart');
-    if (navCount) navCount.textContent = ' (' + cart.length + ')';
-  } else {
-    bar.classList.remove('visible');
-    if (navCount) navCount.textContent = '';
-  }
+  if (navCount) navCount.textContent = cart.length ? ' (' + cart.length + ')' : '';
 }
 
 // Load products into the shop grid
