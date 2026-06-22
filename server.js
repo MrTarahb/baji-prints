@@ -327,6 +327,7 @@ async function initDB() {
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_ch BOOLEAN DEFAULT TRUE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_personal BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_intl BOOLEAN DEFAULT FALSE;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS shop_note TEXT; -- print/paper description shown in shop detail
 
     -- Per-print, per-size pricing & remaining stock for limited editions
     CREATE TABLE IF NOT EXISTS print_sizes (
@@ -511,7 +512,7 @@ app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
       `SELECT id, title, description, image_url, edition_type, edition_size,
-              delivery_ch, delivery_personal, delivery_intl
+              delivery_ch, delivery_personal, delivery_intl, shop_note
        FROM prints WHERE for_sale = TRUE ORDER BY sort_order ASC`
     );
     const { rows: sizes } = await pool.query(
@@ -865,7 +866,7 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   try {
     const { rows: printRows } = await pool.query(
-      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl
+      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note
        FROM prints WHERE id=$1`, [req.params.id]
     );
     if (!printRows[0]) return res.status(404).json({ error: 'Not found' });
@@ -879,14 +880,14 @@ app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Update shop settings for a print (for_sale, edition info, delivery options)
+// Update shop settings for a print (for_sale, edition info, delivery options, shop note)
 app.put('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
-  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl } = req.body;
+  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note } = req.body;
   try {
     await pool.query(
       `UPDATE prints SET for_sale=$1, edition_type=$2, edition_size=$3,
-       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6 WHERE id=$7`,
-      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, req.params.id]
+       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6, shop_note=$7 WHERE id=$8`,
+      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, shop_note || null, req.params.id]
     );
     res.json({ ok: true });
   } catch (e) {

@@ -216,24 +216,26 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
 .nav-dropdown-menu {
   display: none;
   position: absolute;
-  top: calc(100% + .75rem);
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
+  padding-top: .75rem; /* bridge the gap with padding, not margin, so hover doesn't break */
+  z-index: 600;
+}
+.nav-dropdown-menu-inner {
   background: rgba(10,10,9,0.92);
   border: 1px solid rgba(250,250,248,.12);
   border-radius: 3px;
   padding: .5rem 0;
   min-width: 140px;
-  z-index: 600;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-nav.on-light .nav-dropdown-menu {
+nav.on-light .nav-dropdown-menu-inner {
   background: var(--bg);
   border-color: var(--border);
 }
-.nav-dropdown:hover .nav-dropdown-menu,
-.nav-dropdown-menu:hover { display: block; }
+.nav-dropdown.open .nav-dropdown-menu { display: block; }
 .nav-dropdown-menu a {
   display: block;
   padding: .4rem 1rem;
@@ -821,6 +823,17 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: var(--border); }
 .shop-detail-img.landscape { aspect-ratio: 3/2; }
 .shop-detail-title { font-family: var(--fi); font-size: 1.8rem; font-style: italic; color: var(--fg); margin-bottom: .5rem; }
 .shop-detail-desc { font-size: 11px; color: var(--fg-m); line-height: 1.8; margin-bottom: 1.5rem; }
+.shop-detail-note {
+  font-family: var(--fi);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
+  padding: .75rem 1rem;
+  border-left: 2px solid var(--border);
+  white-space: pre-wrap;
+}
 .shop-size-option {
   display: flex; align-items: center; justify-content: space-between;
   padding: .85rem 1rem; border: 1px solid var(--border); margin-bottom: .5rem;
@@ -1037,14 +1050,16 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: var(--border); }
       <li class="nav-dropdown">
         <a onclick="showPage('main');setFilter('all')" id="c-nav_work">Work</a>
         <div class="nav-dropdown-menu" id="work-dropdown">
-          <a onclick="showPage('main');setFilter('all')" data-filter="all">All</a>
-          <a onclick="showPage('main');setFilter('abstract')" data-filter="abstract">Abstract</a>
-          <div class="dropdown-divider"></div>
-          <a onclick="showPage('main');setFilter('travel')" data-filter="travel">Travel</a>
-          <a onclick="showPage('main');setFilter('macro')" data-filter="macro">Macro</a>
-          <a onclick="showPage('main');setFilter('portrait')" data-filter="portrait">Portrait</a>
-          <a onclick="showPage('main');setFilter('street')" data-filter="street">Street</a>
-          <a onclick="showPage('main');setFilter('other')" data-filter="other">Other</a>
+          <div class="nav-dropdown-menu-inner">
+            <a onclick="showPage('main');setFilter('all');closeWorkDropdown()" data-filter="all">All</a>
+            <a onclick="showPage('main');setFilter('abstract');closeWorkDropdown()" data-filter="abstract">Abstract</a>
+            <div class="dropdown-divider"></div>
+            <a onclick="showPage('main');setFilter('travel');closeWorkDropdown()" data-filter="travel">Travel</a>
+            <a onclick="showPage('main');setFilter('macro');closeWorkDropdown()" data-filter="macro">Macro</a>
+            <a onclick="showPage('main');setFilter('portrait');closeWorkDropdown()" data-filter="portrait">Portrait</a>
+            <a onclick="showPage('main');setFilter('street');closeWorkDropdown()" data-filter="street">Street</a>
+            <a onclick="showPage('main');setFilter('other');closeWorkDropdown()" data-filter="other">Other</a>
+          </div>
         </div>
       </li>
       <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
@@ -1505,6 +1520,25 @@ let allOrientations = [];
 let currentFilter = 'abstract';
 
 // FILTER
+// Work dropdown — JS-driven so the gap between trigger and menu doesn't cause it to vanish
+(function() {
+  const li = document.querySelector('.nav-dropdown');
+  if (!li) return;
+  let closeTimer;
+  li.addEventListener('mouseenter', () => {
+    clearTimeout(closeTimer);
+    li.classList.add('open');
+  });
+  li.addEventListener('mouseleave', () => {
+    // Small delay before closing so a brief cursor exit doesn't snap it shut
+    closeTimer = setTimeout(() => li.classList.remove('open'), 120);
+  });
+})();
+function closeWorkDropdown() {
+  const li = document.querySelector('.nav-dropdown');
+  if (li) li.classList.remove('open');
+}
+
 function setFilter(filter) {
   currentFilter = filter;
   // Update active state on dropdown links
@@ -1847,6 +1881,7 @@ function openShopDetail(printId) {
       <p class="shop-detail-title">${esc(p.title)}</p>
       <p class="shop-detail-desc">${esc(p.description || '')}</p>
       ${p.edition_type === 'limited' ? `<p class="shop-card-price" style="margin-bottom:1rem">Limited edition of ${p.edition_size}</p>` : ''}
+      ${p.shop_note ? `<p class="shop-detail-note">${esc(p.shop_note)}</p>` : ''}
       <div id="shop-size-options"></div>
       <button class="btn-add-cart" id="btn-add-to-cart" disabled onclick="addSelectedToCart()">Select a size</button>
     </div>

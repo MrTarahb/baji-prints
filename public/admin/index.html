@@ -796,6 +796,9 @@ function buildShopCard(printMeta, shopPrint, sizes){
           <input type="number" id="edsize-${id}" class="field-input" style="width:80px;display:${editionType==='limited'?'inline-block':'none'}" placeholder="e.g. 25" min="1" value="${editionSize}">
         </div>
 
+        <div class="shop-sizes-title" style="margin-top:.75rem">Print note</div>
+        <textarea id="shopnote-${id}" class="field-input" rows="3" placeholder="Describe the paper, the print process, what makes this special — shown to buyers above the size selector…" style="resize:vertical;font-size:.78rem;line-height:1.5">${esc(shopPrint.shop_note || '')}</textarea>
+
         <div class="shop-sizes-title">Sizes & prices (CHF)</div>
         ${SHOP_SIZES.map(size => `
           <div class="shop-size-row">
@@ -845,13 +848,15 @@ async function saveShopPrint(id, btn){
   const deliveryCh = document.getElementById('delch-'+id).checked;
   const deliveryPersonal = document.getElementById('delpersonal-'+id).checked;
   const deliveryIntl = document.getElementById('delintl-'+id).checked;
+  const shopNote = document.getElementById('shopnote-'+id).value.trim();
 
   try{
     await fetch('/api/admin/shop/print/'+id, {
       method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
       body: JSON.stringify({
         for_sale: forSale, edition_type: editionType, edition_size: editionSize,
-        delivery_ch: deliveryCh, delivery_personal: deliveryPersonal, delivery_intl: deliveryIntl
+        delivery_ch: deliveryCh, delivery_personal: deliveryPersonal, delivery_intl: deliveryIntl,
+        shop_note: shopNote || null
       })
     });
 
