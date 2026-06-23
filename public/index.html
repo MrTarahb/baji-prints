@@ -630,6 +630,24 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: var(--border); }
   transition: color .2s;
 }
 #lightbox-close:hover { color: rgba(250,250,248,.9); }
+#lb-prev, #lb-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(250,250,248,.35);
+  font-size: 1.5rem;
+  padding: 1rem;
+  cursor: none;
+  transition: color .2s;
+  display: none; /* shown by updateLightboxNavButtons once list > 1 */
+  align-items: center;
+  z-index: 2;
+}
+#lb-prev { left: .5rem; }
+#lb-next { right: .5rem; }
+#lb-prev:hover, #lb-next:hover { color: rgba(250,250,248,.9); }
 #lightbox-caption {
   font-family: var(--fm);
   font-size: 8px;
@@ -1271,6 +1289,8 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: var(--border); }
 <!-- LIGHTBOX -->
 <div id="lightbox">
   <button id="lightbox-close" onclick="closeLightbox()">Close ✕</button>
+  <button id="lb-prev" onclick="navigateLightbox(-1)" aria-label="Previous photo">&#8592;</button>
+  <button id="lb-next" onclick="navigateLightbox(1)" aria-label="Next photo">&#8594;</button>
   <div id="lightbox-inner">
     <img id="lightbox-img" src="" alt="">
     <span id="lightbox-caption"></span>
@@ -1751,10 +1771,60 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
 })();
 
 // LIGHTBOX
+let lightboxIndex = -1; // index into the currently filtered print list
+
+function getLightboxList() {
+  // Same filter logic as renderFeed so navigation matches what's on screen
+  if (currentFilter === 'all') return allPrints;
+  return allPrints.filter(p => {
+    const cat = (p.category || 'abstract').toLowerCase();
+    if (currentFilter === 'abstract') return cat.includes('abstract');
+    return cat === currentFilter;
+  });
+}
+
 function openLightbox(src, title, printId) {
   if (printId) {
     fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
   }
+
+  // Track position in the filtered list for keyboard navigation
+  const list = getLightboxList();
+  lightboxIndex = printId ? list.findIndex(p => p.id === printId) : -1;
+
+  _renderLightbox(src, title, printId);
+  updateLightboxNavButtons();
+}
+
+function navigateLightbox(dir) {
+  const list = getLightboxList();
+  if (!list.length) return;
+  lightboxIndex = (lightboxIndex + dir + list.length) % list.length;
+  const p = list[lightboxIndex];
+  const imgUrl = p.image_url || p.url || '';
+
+  // Slide the current image out in the direction of travel, then render the new one
+  const inner = document.getElementById('lightbox-inner');
+  inner.style.transition = 'transform .2s ease, opacity .15s ease';
+  inner.style.transform = `translateX(${dir < 0 ? '4%' : '-4%'})`;
+  inner.style.opacity = '0';
+  setTimeout(() => {
+    _renderLightbox(imgUrl, p.title, p.id);
+    // _renderLightbox resets the animation, so no extra work needed
+  }, 180);
+
+  updateLightboxNavButtons();
+}
+
+function updateLightboxNavButtons() {
+  const list = getLightboxList();
+  const hasPrev = document.getElementById('lb-prev');
+  const hasNext = document.getElementById('lb-next');
+  if (hasPrev) hasPrev.style.display = list.length > 1 ? 'flex' : 'none';
+  if (hasNext) hasNext.style.display = list.length > 1 ? 'flex' : 'none';
+}
+
+function _renderLightbox(src, title, printId) {
   const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   const cap = document.getElementById('lightbox-caption');
@@ -1766,7 +1836,6 @@ function openLightbox(src, title, printId) {
   img.src = src;
   cap.textContent = title || '';
 
-  // Look up the print's description (if any) from the already-loaded print list
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
   const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
 
@@ -1777,16 +1846,16 @@ function openLightbox(src, title, printId) {
     descToggle.textContent = 'Read the story';
   } else {
     descToggle.classList.remove('has-desc');
+    descText.textContent = '';
   }
 
-  // Reset animation
-  inner.style.transform = 'scale(0.88)';
+  inner.style.transform = 'scale(0.94)';
   inner.style.opacity = '0';
   inner.style.transition = 'none';
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
   requestAnimationFrame(() => {
-    inner.style.transition = 'transform .45s cubic-bezier(0.16,1,0.3,1), opacity .35s ease';
+    inner.style.transition = 'transform .35s cubic-bezier(0.16,1,0.3,1), opacity .25s ease';
     inner.style.transform = 'scale(1)';
     inner.style.opacity = '1';
   });
@@ -1810,8 +1879,25 @@ document.getElementById('lightbox').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeLightbox();
 });
 document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('open')) return;
   if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); navigateLightbox(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); navigateLightbox(1); }
 });
+
+// Swipe support for mobile
+(function() {
+  let touchStartX = 0;
+  const lb = document.getElementById('lightbox');
+  lb.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+  lb.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) navigateLightbox(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
 
 // ── SHOP ──────────────────────────────────────────────────────────────────────
 let shopProducts = [];
