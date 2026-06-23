@@ -880,6 +880,19 @@ app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Reset edition sold counter for a specific print/size back to zero
+app.post('/api/admin/shop/print/:id/reset-edition/:size', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE print_sizes SET edition_sold = 0 WHERE print_id=$1 AND size=$2',
+      [req.params.id, req.params.size]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Quick toggle for for_sale only — used by the checkbox in admin which auto-saves
 // on change, since the full save button disappears when the print is unchecked
 app.put('/api/admin/shop/print/:id/forsale', requireAuth, async (req, res) => {
