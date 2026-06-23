@@ -231,10 +231,21 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-nav.on-light .nav-dropdown-menu-inner {
-  background: var(--bg);
-  border-color: var(--border);
-  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+.nav-dropdown-menu-inner {
+  background: rgba(10,10,9,0.94);
+  border: 1px solid rgba(250,250,248,.12);
+  border-radius: 3px;
+  padding: .5rem 0;
+  min-width: 140px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+[data-theme="light"] .nav-dropdown-menu-inner,
+:root:not([data-theme="dark"]) .nav-dropdown-menu-inner {
+  background: #FFFFFF;
+  border-color: rgba(17,17,16,.12);
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
 }
 .nav-dropdown.open .nav-dropdown-menu { display: block; }
 .nav-dropdown-menu a {
@@ -250,16 +261,25 @@ nav.on-light .nav-dropdown-menu-inner {
   transition: color .15s;
   text-shadow: none;
 }
-nav.on-light .nav-dropdown-menu a { color: rgba(17,17,16,.55); }
+[data-theme="light"] .nav-dropdown-menu a,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a { color: rgba(17,17,16,.55); }
 .nav-dropdown-menu a:hover { color: rgba(250,250,248,.95); }
-nav.on-light .nav-dropdown-menu a:hover { color: rgba(17,17,16,.95); }
+[data-theme="light"] .nav-dropdown-menu a:hover,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a:hover { color: rgba(17,17,16,.95); }
 .nav-dropdown-menu a.active-filter { color: rgba(250,250,248,.95); }
-nav.on-light .nav-dropdown-menu a.active-filter { color: rgba(17,17,16,.95); }
+[data-theme="light"] .nav-dropdown-menu a.active-filter,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a.active-filter { color: rgba(17,17,16,.95); }
 .nav-dropdown-menu .dropdown-divider {
   height: 1px;
   background: rgba(250,250,248,.1);
   margin: .35rem 0;
 }
+[data-theme="light"] .nav-dropdown-menu .dropdown-divider,
+:root:not([data-theme="dark"]) .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1); }
+nav.on-light .nav-dropdown-menu-inner { background: #FFFFFF; border-color: rgba(17,17,16,.12); }
+nav.on-light .nav-dropdown-menu a { color: rgba(17,17,16,.55); }
+nav.on-light .nav-dropdown-menu a:hover,
+nav.on-light .nav-dropdown-menu a.active-filter { color: rgba(17,17,16,.95); }
 nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1); }
 
 /* INTRO */
