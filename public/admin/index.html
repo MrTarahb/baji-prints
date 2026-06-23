@@ -730,7 +730,7 @@ async function loadShopPrints(){
     const limitedCards = [];
     prints.forEach((p, idx) => {
       const d = details[idx];
-      if (!d || !d.print || d.print.edition_type !== 'limited' || !d.print.edition_size) return;
+      if (!d || !d.print || !d.print.for_sale || d.print.edition_type !== 'limited' || !d.print.edition_size) return;
       const sizesWithSales = d.sizes.filter(sz => sz.enabled);
       sizesWithSales.forEach(sz => {
         const sold = sz.edition_sold || 0;
@@ -746,6 +746,7 @@ async function loadShopPrints(){
                 <div class="edition-summary-bar"><div class="edition-summary-bar-fill${sold>=total?' soldout':''}" style="width:${pct}%"></div></div>
                 <span class="edition-summary-count">${sold>=total ? 'Sold out' : (total-sold)+' left'}</span>
               </div>
+              <button class="btn-order-action" style="margin-top:.4rem;font-size:.65rem" onclick="resetEditionCount(${p.id},'${sz.size}',this)">Reset counter</button>
             </div>
           </div>
         `);
@@ -837,6 +838,14 @@ function toggleShopOpen(id){
   const sub = document.getElementById('shopsub-'+id);
   const checked = document.getElementById('forsale-'+id).checked;
   sub.classList.toggle('open', checked);
+  // Auto-save immediately — when unchecking, the Save button disappears with
+  // the sub-panel, so the user would have no way to commit the change otherwise
+  fetch('/api/admin/shop/print/'+id+'/forsale', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    credentials: 'include',
+    body: JSON.stringify({ for_sale: checked })
+  }).catch(e => console.error('for_sale save failed:', e));
 }
 
 function toggleEditionSize(id){
@@ -975,6 +984,19 @@ function buildOrderCard(o){
     </div>
   `;
   return card;
+}
+
+async function resetEditionCount(printId, size, btn) {
+  if (!confirm(`Reset the sold counter for this edition back to 0? This cannot be undone.`)) return;
+  btn.disabled = true; btn.textContent = 'Resetting…';
+  try {
+    await fetch(`/api/admin/shop/print/${printId}/reset-edition/${size}`, {
+      method: 'POST', credentials: 'include'
+    });
+    await loadShopPrints();
+  } catch(e) {
+    btn.textContent = 'Error'; btn.disabled = false;
+  }
 }
 
 async function saveOrderNotes(id, btn){
