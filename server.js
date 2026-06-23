@@ -880,6 +880,18 @@ app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Quick toggle for for_sale only — used by the checkbox in admin which auto-saves
+// on change, since the full save button disappears when the print is unchecked
+app.put('/api/admin/shop/print/:id/forsale', requireAuth, async (req, res) => {
+  const { for_sale } = req.body;
+  try {
+    await pool.query('UPDATE prints SET for_sale=$1 WHERE id=$2', [!!for_sale, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Update shop settings for a print (for_sale, edition info, delivery options, shop note)
 app.put('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note } = req.body;

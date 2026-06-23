@@ -837,6 +837,14 @@ function toggleShopOpen(id){
   const sub = document.getElementById('shopsub-'+id);
   const checked = document.getElementById('forsale-'+id).checked;
   sub.classList.toggle('open', checked);
+  // Auto-save immediately — when unchecking, the Save button disappears with
+  // the sub-panel, so the user would have no way to commit the change otherwise
+  fetch('/api/admin/shop/print/'+id+'/forsale', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    credentials: 'include',
+    body: JSON.stringify({ for_sale: checked })
+  }).catch(e => console.error('for_sale save failed:', e));
 }
 
 function toggleEditionSize(id){
