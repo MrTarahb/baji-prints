@@ -964,6 +964,64 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   .shop-detail-inner { grid-template-columns: 1fr; gap: 1.5rem; }
 }
 
+/* Mobile nav — collapses to hamburger below 640px */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: .4rem;
+  cursor: none;
+}
+.nav-hamburger span {
+  display: block;
+  width: 20px;
+  height: 1.5px;
+  background: rgba(250,250,248,.8);
+  transition: background .2s;
+}
+nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
+[data-theme="light"] .nav-hamburger span,
+:root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.7); }
+
+#nav-mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 490;
+  background: var(--bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+}
+#nav-mobile-menu.open { display: flex; }
+#nav-mobile-menu a {
+  font-family: var(--fi);
+  font-style: italic;
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  color: var(--fg);
+  text-decoration: none;
+  letter-spacing: -.01em;
+  cursor: none;
+}
+#nav-mobile-close {
+  position: absolute;
+  top: 1.5rem; right: 1.5rem;
+  background: none; border: none;
+  font-family: var(--fm); font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--fg-m); cursor: none;
+}
+
+@media(max-width: 640px) {
+  nav { padding: 1.1rem 1.25rem; }
+  .nav-hamburger { display: flex; }
+  .nav-links, #nav-cart-link, nav > div > #theme-toggle { display: none; }
+  nav > div { gap: .75rem; }
+}
+
 .contact-heading {
   font-family: var(--fi);
   font-size: clamp(2.5rem,5vw,4.5rem);
@@ -1113,8 +1171,21 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
         </g>
       </svg>
     </button>
+    <button class="nav-hamburger" id="nav-hamburger" onclick="openMobileNav()" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
+
+<!-- MOBILE NAV MENU -->
+<div id="nav-mobile-menu">
+  <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
+  <a onclick="showPage('main');closeMobileNav()">Work</a>
+  <a onclick="showPage('about');closeMobileNav()">About</a>
+  <a onclick="showPage('shop');closeMobileNav()">Shop</a>
+  <a onclick="showPage('cart');closeMobileNav()">Cart<span id="nav-mobile-cart-count"></span></a>
+  <a onclick="showPage('contact');closeMobileNav()">Contact</a>
+</div>
 
 <!-- MAIN FEED -->
 <div id="main-content">
@@ -1474,6 +1545,9 @@ async function loadContent() {
 
 // PAGE ROUTING
 function showPage(name){
+  // Close mobile nav if open
+  const mobileMenu = document.getElementById('nav-mobile-menu');
+  if (mobileMenu && mobileMenu.classList.contains('open')) closeMobileNav();
   document.getElementById('main-content').classList.toggle('hidden', name!=='main');
   const aboutEl = document.getElementById('about-page');
   const contactEl = document.getElementById('contact-page');
@@ -1940,9 +2014,21 @@ function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
 
 function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); updateCartBar(); }
 
+function openMobileNav() {
+  document.getElementById('nav-mobile-menu').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileNav() {
+  document.getElementById('nav-mobile-menu').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 function updateCartBar() {
   const navCount = document.getElementById('nav-cart-count');
-  if (navCount) navCount.textContent = cart.length ? ' (' + cart.length + ')' : '';
+  const mobileCount = document.getElementById('nav-mobile-cart-count');
+  const label = cart.length ? ' (' + cart.length + ')' : '';
+  if (navCount) navCount.textContent = label;
+  if (mobileCount) mobileCount.textContent = label;
 }
 
 // Load products into the shop grid
