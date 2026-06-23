@@ -1012,13 +1012,39 @@ nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
   background: none; border: none;
   font-family: var(--fm); font-size: 9px;
   letter-spacing: .14em; text-transform: uppercase;
-  color: var(--fg-m); cursor: none;
+  color: var(--fg-m); cursor: none; padding: .5rem;
+  pointer-events: all; z-index: 2;
+}
+#nav-mobile-theme {
+  position: absolute;
+  top: 1.2rem; left: 1.25rem;
+  background: none; border: none;
+  color: var(--fg-m); padding: .3rem;
+  pointer-events: all; z-index: 2;
+  display: flex; align-items: center;
+}
+#nav-mobile-work-sub {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: .85rem;
+  margin-top: -.5rem;
+}
+#nav-mobile-work-sub.open { display: flex; }
+#nav-mobile-work-sub a {
+  font-size: 1rem;
+  color: var(--fg-m);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-family: var(--fm);
+  font-style: normal;
 }
 
 @media(max-width: 640px) {
   nav { padding: 1.1rem 1.25rem; }
   .nav-hamburger { display: flex; }
-  .nav-links, #nav-cart-link, nav > div > #theme-toggle { display: none; }
+  .nav-links { display: none; }
+  nav > div > #theme-toggle { display: none; }
   nav > div { gap: .75rem; }
 }
 
@@ -1180,7 +1206,19 @@ nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
 <!-- MOBILE NAV MENU -->
 <div id="nav-mobile-menu">
   <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
-  <a onclick="showPage('main');closeMobileNav()">Work</a>
+  <button id="nav-mobile-theme" onclick="toggleTheme()" aria-label="Toggle dark mode">
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="currentColor"><defs><clipPath id="mc"><path d="M0 0h32v29h-32z"/></clipPath></defs><path d="M30.7 29.9H1.3c-.7 0-1.3.5-1.3 1.1 0 .6.6 1 1.3 1h29.3c.7 0 1.3-.5 1.3-1.1.1-.5-.5-1-1.2-1z"/><g clip-path="url(#mc)"><path d="M16 8.8c-3.4 0-6.1 2.8-6.1 6.1s2.7 6.3 6.1 6.3 6.1-2.8 6.1-6.1-2.7-6.3-6.1-6.3zm13.3 11L26 15l3.3-4.8c.3-.5.1-1.1-.5-1.2l-5.7-1-1-5.7c-.1-.6-.8-.8-1.2-.5L16 5.1l-4.8-3.3c-.5-.4-1.2-.1-1.3.4L8.9 8 3.2 9c-.6.1-.8.8-.5 1.2L6 15l-3.3 4.8c-.3.5-.1 1.1.5 1.2l5.7 1 1 5.7c.1.6.8.8 1.2.5L16 25l4.8 3.3c.5.3 1.1.1 1.2-.5l1-5.7 5.7-1c.7-.1.9-.8.6-1.3zM16 22.5A7.6 7.6 0 0 1 8.3 15c0-4.2 3.5-7.5 7.7-7.5s7.7 3.4 7.7 7.5c0 4.2-3.4 7.5-7.7 7.5z"/></g></svg>
+  </button>
+  <a onclick="toggleMobileWork()">Work</a>
+  <div id="nav-mobile-work-sub">
+    <a onclick="showPage('main');setFilter('all');closeMobileNav()">All</a>
+    <a onclick="showPage('main');setFilter('abstract');closeMobileNav()">Abstract</a>
+    <a onclick="showPage('main');setFilter('macro');closeMobileNav()">Macro</a>
+    <a onclick="showPage('main');setFilter('travel');closeMobileNav()">Travel</a>
+    <a onclick="showPage('main');setFilter('portrait');closeMobileNav()">Portrait</a>
+    <a onclick="showPage('main');setFilter('street');closeMobileNav()">Street</a>
+    <a onclick="showPage('main');setFilter('other');closeMobileNav()">Other</a>
+  </div>
   <a onclick="showPage('about');closeMobileNav()">About</a>
   <a onclick="showPage('shop');closeMobileNav()">Shop</a>
   <a onclick="showPage('cart');closeMobileNav()">Cart<span id="nav-mobile-cart-count"></span></a>
@@ -2020,7 +2058,11 @@ function openMobileNav() {
 }
 function closeMobileNav() {
   document.getElementById('nav-mobile-menu').classList.remove('open');
+  document.getElementById('nav-mobile-work-sub').classList.remove('open');
   document.body.style.overflow = '';
+}
+function toggleMobileWork() {
+  document.getElementById('nav-mobile-work-sub').classList.toggle('open');
 }
 
 function updateCartBar() {
