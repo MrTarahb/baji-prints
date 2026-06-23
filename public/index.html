@@ -965,9 +965,9 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   background: rgba(250,250,248,.8);
   transition: background .2s;
 }
-nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
+nav.on-light .nav-hamburger span,
 [data-theme="light"] .nav-hamburger span,
-:root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.7); }
+:root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.75); }
 
 #nav-mobile-menu {
   display: none;
@@ -1606,12 +1606,17 @@ function showPage(name){
   // the top right after a page switch (e.g. returning from the shop), then
   // hand off to the normal scroll-driven behaviour.
   const nav = document.getElementById('nav');
+  const hamburgerSpans = nav.querySelectorAll('.nav-hamburger span');
   if (name !== 'main') {
     nav.classList.add('visible', 'on-light');
     nav.classList.remove('scrolled');
+    // Force hamburger bars dark — sub-pages have white backgrounds
+    hamburgerSpans.forEach(s => s.style.background = 'rgba(17,17,16,.75)');
   } else {
     nav.classList.remove('on-light');
     nav.classList.add('visible');
+    // Reset hamburger bars to white for the dark main portfolio page
+    hamburgerSpans.forEach(s => s.style.background = '');
     setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); }, 50);
   }
   // Keep the URL in sync with whatever page is showing
