@@ -1984,8 +1984,9 @@ function updateLightboxNavButtons() {
   const list = getLightboxList();
   const hasPrev = document.getElementById('lb-prev');
   const hasNext = document.getElementById('lb-next');
-  if (hasPrev) hasPrev.style.display = list.length > 1 ? 'flex' : 'none';
-  if (hasNext) hasNext.style.display = list.length > 1 ? 'flex' : 'none';
+  const isMobile = window.innerWidth <= 640;
+  if (hasPrev) hasPrev.style.display = (!isMobile && list.length > 1) ? 'flex' : 'none';
+  if (hasNext) hasNext.style.display = (!isMobile && list.length > 1) ? 'flex' : 'none';
 }
 
 function _renderLightbox(src, title, printId) {
