@@ -1236,13 +1236,7 @@ nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
   <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
   <a onclick="toggleMobileWork()">Work</a>
   <div id="nav-mobile-work-sub">
-    <a onclick="showPage('main');setFilter('all');closeMobileNav()">All</a>
-    <a onclick="showPage('main');setFilter('abstract');closeMobileNav()">Abstract</a>
-    <a onclick="showPage('main');setFilter('macro');closeMobileNav()">Macro</a>
-    <a onclick="showPage('main');setFilter('travel');closeMobileNav()">Travel</a>
-    <a onclick="showPage('main');setFilter('portrait');closeMobileNav()">Portrait</a>
-    <a onclick="showPage('main');setFilter('street');closeMobileNav()">Street</a>
-    <a onclick="showPage('main');setFilter('other');closeMobileNav()">Other</a>
+    <!-- populated dynamically from allPrints, same as desktop dropdown -->
   </div>
   <a onclick="showPage('about');closeMobileNav()">About</a>
   <a onclick="showPage('shop');closeMobileNav()">Shop</a>
@@ -1722,7 +1716,7 @@ const CATEGORY_ORDER = [
 
 function buildDropdown() {
   const inner = document.getElementById('work-dropdown-inner');
-  if (!inner) return;
+  const mobileInner = document.getElementById('nav-mobile-work-sub');
 
   // Collect categories present in allPrints
   const presentFilters = new Set();
@@ -1732,26 +1726,38 @@ function buildDropdown() {
     else presentFilters.add(cat);
   });
 
-  const makeLink = (filter, label) => {
+  const makeLink = (filter, label, mobile) => {
     const a = document.createElement('a');
     a.dataset.filter = filter;
     a.textContent = label;
-    a.onclick = () => { showPage('main'); setFilter(filter); closeWorkDropdown(); };
-    if (filter === currentFilter) a.classList.add('active-filter');
+    if (mobile) {
+      a.onclick = () => { showPage('main'); setFilter(filter); closeMobileNav(); };
+    } else {
+      a.onclick = () => { showPage('main'); setFilter(filter); closeWorkDropdown(); };
+      if (filter === currentFilter) a.classList.add('active-filter');
+    }
     return a;
   };
 
-  inner.innerHTML = '';
-  // Always show "All" first
-  inner.appendChild(makeLink('all', 'All'));
-
-  // Then each present category in the defined order
   const presentOrdered = CATEGORY_ORDER.filter(c => presentFilters.has(c.filter));
-  if (presentOrdered.length) {
-    const divider = document.createElement('div');
-    divider.className = 'dropdown-divider';
-    inner.appendChild(divider);
-    presentOrdered.forEach(c => inner.appendChild(makeLink(c.filter, c.label)));
+
+  // Desktop dropdown
+  if (inner) {
+    inner.innerHTML = '';
+    inner.appendChild(makeLink('all', 'All', false));
+    if (presentOrdered.length) {
+      const divider = document.createElement('div');
+      divider.className = 'dropdown-divider';
+      inner.appendChild(divider);
+      presentOrdered.forEach(c => inner.appendChild(makeLink(c.filter, c.label, false)));
+    }
+  }
+
+  // Mobile submenu — same categories, no divider needed
+  if (mobileInner) {
+    mobileInner.innerHTML = '';
+    mobileInner.appendChild(makeLink('all', 'All', true));
+    presentOrdered.forEach(c => mobileInner.appendChild(makeLink(c.filter, c.label, true)));
   }
 }
 
