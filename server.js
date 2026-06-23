@@ -444,6 +444,8 @@ async function initDB() {
     ['nav_shop', 'Shop'],
     ['shop_heading', 'Shop.'],
     ['shop_intro', 'Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.'],
+    ['shop_p2', ''],
+    ['shop_p3', ''],
     ['shop_cart_heading', 'Your cart.'],
     ['shop_success_heading', 'Thank you.'],
     ['shop_continue_btn', 'Continue browsing'],

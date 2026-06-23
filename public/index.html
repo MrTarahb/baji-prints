@@ -1340,6 +1340,8 @@ nav.on-light .nav-hamburger span,
     <div id="shop-test-banner">This shop is in test mode while it's being set up — no orders placed here are final yet. The real shop opens soon.</div>
     <h1 class="shop-heading" id="c-shop_heading">Shop.</h1>
     <p class="shop-sub" id="c-shop_intro">Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.</p>
+    <p class="shop-sub" id="c-shop_p2" style="display:none"></p>
+    <p class="shop-sub" id="c-shop_p3" style="display:none"></p>
     <div class="shop-grid" id="shop-grid">
       <div class="shop-empty">Loading…</div>
     </div>
@@ -1531,7 +1533,10 @@ async function loadContent() {
     const d = await fetch('/api/content').then(r=>r.json());
     Object.entries(d).forEach(([k,v]) => {
       document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
-        if (v) el.textContent = v;
+        if (v) {
+          el.textContent = v;
+          el.style.display = ''; // reveal optional paragraphs if they have content
+        }
       });
     });
     // SEO meta tags
