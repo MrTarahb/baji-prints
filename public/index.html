@@ -593,6 +593,20 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   cursor: none;
 }
 
+@media(max-width: 640px) {
+  .site-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
+    padding: 3rem 1.5rem 2.5rem;
+  }
+  .footer-contact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .85rem;
+  }
+}
+
 /* KEYFRAMES */
 @keyframes up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
