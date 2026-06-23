@@ -926,7 +926,10 @@ function buildOrderCard(o){
   const itemsHtml = (o.items || []).map(i => `
     <div class="order-item-row" style="display:flex;align-items:center;gap:.6rem">
       ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:2px;flex-shrink:0">` : ''}
-      <span style="flex:1">${esc(i.print_title || i.title || ('Print #' + i.print_id))} — ${i.size}</span>
+      <div style="flex:1">
+        <div>${esc(i.print_title || i.title || ('Print #' + i.print_id))} — ${i.size}</div>
+        ${i.customer_note ? `<div style="font-size:.72rem;color:var(--text-l);font-style:italic;margin-top:.15rem">Note: ${esc(i.customer_note)}</div>` : ''}
+      </div>
       <span>CHF ${(i.price_chf/100).toFixed(2)}</span>
     </div>
   `).join('');

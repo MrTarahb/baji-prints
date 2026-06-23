@@ -787,10 +787,11 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .shop-sub {
   font-size: 11px;
   color: var(--fg-m);
-  line-height: 1.8;
-  margin-bottom: 2.5rem;
-  max-width: 50ch;
+  line-height: 1.9;
+  margin-bottom: 1.25rem;
+  max-width: 72ch;
 }
+.shop-sub:last-of-type { margin-bottom: 2.5rem; }
 
 .shop-grid {
   display: grid;
@@ -923,6 +924,10 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
 .cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
 .cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
+.cart-item-note { font-size: 9px; color: var(--fg-l); font-style: italic; margin-top: .2rem; line-height: 1.5; }
+.shop-customer-note-wrap { margin-bottom: 1rem; }
+.shop-customer-note-label { display: block; font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin-bottom: .4rem; }
+.shop-customer-note { width: 100%; font-family: var(--fm); font-size: 11px; color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; padding: .6rem .75rem; resize: vertical; line-height: 1.6; }
 .cart-delivery-title { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin: 2rem 0 .85rem; }
 .cart-delivery-option {
   display: flex; align-items: center; justify-content: space-between;
@@ -2137,6 +2142,10 @@ function openShopDetail(printId) {
       ${p.edition_type === 'limited' ? `<p class="shop-card-price" style="margin-bottom:1rem">Limited edition of ${p.edition_size}</p>` : ''}
       ${p.shop_note ? `<p class="shop-detail-note">${esc(p.shop_note)}</p>` : ''}
       <div id="shop-size-options"></div>
+      <div class="shop-customer-note-wrap" id="shop-customer-note-wrap" style="display:none">
+        <label class="shop-customer-note-label" for="customer-note">Notes for this print <span style="opacity:.5">(optional)</span></label>
+        <textarea id="customer-note" class="shop-customer-note" rows="2" placeholder="e.g. different margin style, dedication, anything specific…"></textarea>
+      </div>
       <button class="btn-add-cart" id="btn-add-to-cart" disabled onclick="addSelectedToCart()">Select a size</button>
     </div>
   `;
@@ -2177,16 +2186,21 @@ function selectDetailSize(size, priceChf) {
   const btn = document.getElementById('btn-add-to-cart');
   btn.disabled = false;
   btn.textContent = `Add to cart — ${fmtCHF(priceChf)}`;
+  // Reveal the customer note field once a size is chosen
+  const noteWrap = document.getElementById('shop-customer-note-wrap');
+  if (noteWrap) noteWrap.style.display = 'block';
 }
 
 function addSelectedToCart() {
   if (!selectedDetailProduct || !selectedDetailSize) return;
+  const noteEl = document.getElementById('customer-note');
   cart.push({
     print_id: selectedDetailProduct.id,
     title: selectedDetailProduct.title,
     image_url: selectedDetailProduct.image_url,
     size: selectedDetailSize.size,
     price_chf: selectedDetailSize.price_chf,
+    note: noteEl ? noteEl.value.trim() : '',
   });
   saveCart();
   closeShopDetail();
@@ -2222,6 +2236,7 @@ function renderCart() {
       <div>
         <div class="cart-item-title">${esc(item.title)}</div>
         <div class="cart-item-size">${item.size}</div>
+        ${item.note ? `<div class="cart-item-note">${esc(item.note)}</div>` : ''}
         <button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button>
       </div>
       <div class="cart-item-price">${fmtCHF(item.price_chf)}</div>
@@ -2288,7 +2303,7 @@ async function goToCheckout() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size, note: i.note || '' })),
         delivery_method: selectedDelivery,
       }),
     });

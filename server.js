@@ -381,8 +381,10 @@ async function initDB() {
       print_title TEXT,
       size TEXT,
       price_chf INTEGER,
+      customer_note TEXT, -- optional note from the customer for this specific print
       edition_number INTEGER -- assigned at fulfilment time for limited editions
     );
+    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS customer_note TEXT;
     CREATE TABLE IF NOT EXISTS pageviews (
       id SERIAL PRIMARY KEY,
       visited_at TIMESTAMPTZ DEFAULT NOW(),
@@ -588,7 +590,7 @@ app.post('/api/shop/checkout', async (req, res) => {
         },
         quantity: 1,
       });
-      orderItemsData.push({ print_id: row.id, print_title: row.title, size: row.size, price_chf: row.price_chf });
+      orderItemsData.push({ print_id: row.id, print_title: row.title, size: row.size, price_chf: row.price_chf, note: item.note || null });
       sizesInCart.push(row.size);
       subtotal += row.price_chf;
     }
@@ -643,9 +645,8 @@ app.post('/api/shop/checkout', async (req, res) => {
     const orderId = orderRes.rows[0].id;
     for (const oi of orderItemsData) {
       await pool.query(
-
-        `INSERT INTO order_items (order_id, print_id, print_title, size, price_chf) VALUES ($1,$2,$3,$4,$5)`,
-        [orderId, oi.print_id, oi.print_title, oi.size, oi.price_chf]
+        `INSERT INTO order_items (order_id, print_id, print_title, size, price_chf, customer_note) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [orderId, oi.print_id, oi.print_title, oi.size, oi.price_chf, oi.note || null]
       );
     }
 
