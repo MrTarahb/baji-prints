@@ -737,18 +737,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   max-width: 560px;
   margin: 0 auto;
 }
-#lightbox-desc-close {
-  position: absolute;
-  top: .75rem; right: 1rem;
-  background: none; border: none;
-  font-family: var(--fm); font-size: 8px;
-  letter-spacing: .12em; text-transform: uppercase;
-  color: rgba(250,250,248,.4); cursor: none;
-  padding: .25rem;
-  transition: color .2s;
-}
-#lightbox-desc-close:hover { color: rgba(250,250,248,.85); }
-
 /* CONTACT PAGE */
 #contact-page {
   display: none;
@@ -1448,7 +1436,6 @@ nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
     <span id="lightbox-caption"></span>
     <button id="lightbox-desc-toggle" onclick="toggleLightboxDesc()">Read the story</button>
     <div id="lightbox-desc">
-      <button id="lightbox-desc-close" onclick="toggleLightboxDesc()">Close ✕</button>
       <p id="lightbox-desc-text"></p>
     </div>
   </div>
