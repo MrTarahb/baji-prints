@@ -423,39 +423,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 
 /* FILTER BAR */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 1.5rem 5vw .75rem;
-  border-bottom: 1px solid var(--border);
-}
-.filter-btn {
-  font-family: var(--fm);
-  font-size: 10px;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--fg-l);
-  background: none;
-  border: none;
-  padding: .3rem .9rem .3rem 0;
-  cursor: none;
-  transition: color .2s;
-  position: relative;
-}
-.filter-btn::after {
-  content: '·';
-  position: absolute;
-  right: .3rem;
-  color: var(--border);
-}
-.filter-btn:last-child::after { display: none; }
-.filter-btn:hover { color: var(--fg); }
-.filter-btn.active {
-  color: var(--fg);
-  font-weight: 500;
-}
-
 /* FEED — two column */
 .feed { padding: 0; }
 
@@ -1256,12 +1223,6 @@ nav.on-light .nav-hamburger span { background: rgba(17,17,16,.7); }
 
   </div><!-- /.intro -->
 
-  <!-- FILTER BAR -->
-  <div class="filter-bar" id="filter-bar" style="display:none">
-    <button class="filter-btn" data-filter="abstract" onclick="setFilter('abstract',this)">Abstract</button>
-    <button class="filter-btn" data-filter="all" onclick="setFilter('all',this)">All</button>
-  </div>
-
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
 
@@ -1865,14 +1826,6 @@ async function buildFeed(prints) {
   introImg.onload = applyHeroOrientation;
   introImg.src = heroUrl;
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
-
-  // Show filter bar only if there are non-abstract photos
-  const hasOther = feedPrints.some(p => !(p.category || 'abstract').toLowerCase().includes('abstract'));
-  const filterBar = document.getElementById('filter-bar');
-  if (hasOther) {
-    filterBar.style.display = 'flex';
-    document.querySelector('.filter-btn[data-filter="abstract"]').classList.add('active');
-  }
 
   // Render feed — default to abstract
   renderFeed();
