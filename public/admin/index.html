@@ -662,19 +662,25 @@ async function loadPrints(){
     prints.forEach((p,i)=>{
       const card=document.createElement('div');card.className='print-card';card.dataset.id=p.id;
       const excluded = p.exclude_from_hero ? 'checked' : '';
-      const cat = p.category || 'abstract';
-      const normalisedCat = cat === 'abstract-colour' ? 'abstract-bnw' : cat;
-      const catOpts = [
+      // Support both legacy single category and new multi-category array
+      const activeCats = Array.isArray(p.categories) && p.categories.length
+        ? p.categories
+        : [((p.category || 'abstract-bnw') === 'abstract-colour' ? 'abstract-bnw' : (p.category || 'abstract-bnw'))];
+      const ALL_CATS = [
         ['abstract-bnw', 'Abstract'],
         ['macro',        'Macro'],
         ['travel',       'Travel'],
         ['portrait',     'Portrait'],
         ['street',       'Street'],
         ['other',        'Other'],
-      ].map(([v,label]) =>
-        `<option value="${v}" ${normalisedCat===v?'selected':''}>${label}</option>`
+      ];
+      const catChecks = ALL_CATS.map(([v,label]) =>
+        `<label style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--text-m);cursor:pointer;margin-right:.6rem">
+          <input type="checkbox" class="pc-${p.id}" value="${v}" ${activeCats.includes(v)?'checked':''} style="cursor:pointer">
+          ${label}
+        </label>`
       ).join('');
-      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Category</label><select class="field-input" id="pc-${p.id}" style="cursor:pointer">${catOpts}</select></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description</label><input class="field-input" id="pd-${p.id}" value="${esc(p.description||'')}"></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
 
@@ -715,9 +721,11 @@ async function savePrint(id,btn){
   if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
   btn.textContent='Saving...';btn.disabled=true;
   const exclude = document.getElementById('ph-'+id)?.checked || false;
-  const category = document.getElementById('pc-'+id)?.value || 'abstract';
+  // Collect all checked category checkboxes
+  const categories = Array.from(document.querySelectorAll(`.pc-${id}:checked`)).map(cb => cb.value);
+  if (!categories.length) categories.push('abstract-bnw'); // always have at least one
   try{
-    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,exclude_from_hero:exclude,category})});
+    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,exclude_from_hero:exclude,categories})});
     if(res.ok){btn.textContent='Saved ✓';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
     else{msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
   }catch(e){msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}

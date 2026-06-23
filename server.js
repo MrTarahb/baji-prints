@@ -319,6 +319,7 @@ async function initDB() {
     -- Add column if upgrading existing DB
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS exclude_from_hero BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'abstract';
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS categories JSONB DEFAULT '["abstract-bnw"]'::jsonb;
 
     -- ── SHOP: per-print sale settings ──────────────────────────────
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS for_sale BOOLEAN DEFAULT FALSE;
@@ -503,7 +504,7 @@ app.get('/api/content', async (req, res) => {
 
 app.get('/api/prints', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, category, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, category, categories, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -856,15 +857,18 @@ app.put('/api/admin/prints/reorder', requireAuth, async (req, res) => {
 });
 
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
-  const { title, description, sort_order, exclude_from_hero, category } = req.body;
+  const { title, description, sort_order, exclude_from_hero, category, categories } = req.body;
+  // categories is the new multi-value array; category is the legacy single string kept for compatibility
+  const cats = Array.isArray(categories) && categories.length ? categories : [category || 'abstract-bnw'];
+  const primaryCat = cats[0]; // keep legacy category column in sync with first selection
   try {
     let query, params;
     if (sort_order !== undefined) {
-      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, category=$5 WHERE id=$6 RETURNING *';
-      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, category || 'abstract', req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, category=$5, categories=$6 WHERE id=$7 RETURNING *';
+      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, primaryCat, JSON.stringify(cats), req.params.id];
     } else {
-      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, category=$4 WHERE id=$5 RETURNING *';
-      params = [title, description, !!exclude_from_hero, category || 'abstract', req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, category=$4, categories=$5 WHERE id=$6 RETURNING *';
+      params = [title, description, !!exclude_from_hero, primaryCat, JSON.stringify(cats), req.params.id];
     }
     const { rows } = await pool.query(query, params);
     res.json(rows[0]);

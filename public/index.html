@@ -1693,12 +1693,17 @@ function buildDropdown() {
   const inner = document.getElementById('work-dropdown-inner');
   const mobileInner = document.getElementById('nav-mobile-work-sub');
 
-  // Collect categories present in allPrints
+  // Collect categories present in allPrints — check both new array and legacy string
   const presentFilters = new Set();
   allPrints.forEach(p => {
-    const cat = (p.category || 'abstract').toLowerCase();
-    if (cat.includes('abstract')) presentFilters.add('abstract');
-    else presentFilters.add(cat);
+    const cats = Array.isArray(p.categories) && p.categories.length
+      ? p.categories
+      : [(p.category || 'abstract-bnw')];
+    cats.forEach(cat => {
+      const c = cat.toLowerCase();
+      if (c.includes('abstract')) presentFilters.add('abstract');
+      else presentFilters.add(c);
+    });
   });
 
   const makeLink = (filter, label, mobile) => {
@@ -1749,9 +1754,11 @@ function renderFeed() {
   const filtered = currentFilter === 'all'
     ? allPrints
     : allPrints.filter(p => {
-        const cat = (p.category || 'abstract').toLowerCase();
-        if (currentFilter === 'abstract') return cat.includes('abstract');
-        return cat === currentFilter;
+        const cats = Array.isArray(p.categories) && p.categories.length
+          ? p.categories
+          : [(p.category || 'abstract-bnw')];
+        if (currentFilter === 'abstract') return cats.some(c => c.toLowerCase().includes('abstract'));
+        return cats.some(c => c.toLowerCase() === currentFilter);
       });
 
   // Rebuild columns
@@ -1914,9 +1921,11 @@ function getLightboxList() {
   // Same filter logic as renderFeed so navigation matches what's on screen
   if (currentFilter === 'all') return allPrints;
   return allPrints.filter(p => {
-    const cat = (p.category || 'abstract').toLowerCase();
-    if (currentFilter === 'abstract') return cat.includes('abstract');
-    return cat === currentFilter;
+    const cats = Array.isArray(p.categories) && p.categories.length
+      ? p.categories
+      : [(p.category || 'abstract-bnw')];
+    if (currentFilter === 'abstract') return cats.some(c => c.toLowerCase().includes('abstract'));
+    return cats.some(c => c.toLowerCase() === currentFilter);
   });
 }
 
