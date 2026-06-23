@@ -634,6 +634,9 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   transition: color .2s;
 }
 #lightbox-close:hover { color: rgba(250,250,248,.9); }
+@media(max-width: 640px) {
+  #lightbox-close { display: none; }
+}
 #lb-prev, #lb-next {
   position: absolute;
   top: 50%;
@@ -873,12 +876,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   cursor: none; transition: opacity .2s;
 }
 .btn-add-cart:disabled { opacity: .4; cursor: default; }
-.shop-detail-close {
-  position: absolute; top: 1.5rem; right: 2rem;
-  font-family: var(--fm); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--fg-l); background: none; border: none; cursor: none; padding: .5rem;
-}
-.shop-detail-close:hover { color: var(--fg); }
+.shop-detail-close { display: none; }
 .cart-continue-link {
   display: block;
   font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
