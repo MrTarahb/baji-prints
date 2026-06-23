@@ -730,7 +730,7 @@ async function loadShopPrints(){
     const limitedCards = [];
     prints.forEach((p, idx) => {
       const d = details[idx];
-      if (!d || !d.print || d.print.edition_type !== 'limited' || !d.print.edition_size) return;
+      if (!d || !d.print || !d.print.for_sale || d.print.edition_type !== 'limited' || !d.print.edition_size) return;
       const sizesWithSales = d.sizes.filter(sz => sz.enabled);
       sizesWithSales.forEach(sz => {
         const sold = sz.edition_sold || 0;
