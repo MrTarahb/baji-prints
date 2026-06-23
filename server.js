@@ -794,6 +794,26 @@ app.post('/api/admin/upload/hero', requireAuth, (req, res, next) => {
   }
 });
 
+// ── ADMIN ABOUT PHOTO UPLOAD ──────────────────────────────────────────────────
+app.post('/api/admin/upload/about-photo', requireAuth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file received' });
+    const url = req.file.path;
+    await pool.query(
+      "INSERT INTO content (key, value) VALUES ('about_photo_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [url]
+    );
+    res.json({ ok: true, url });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ADMIN PRINTS ──────────────────────────────────────────────────────────────
 app.post('/api/admin/prints', requireAuth, (req, res, next) => {
   upload.single('image')(req, res, (err) => {

@@ -481,6 +481,17 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">About page</h2>
         <p class="panel-sub">Text on the About page.</p>
         <div id="about-fields"></div>
+        <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+          <p class="field-label" style="margin-bottom:.6rem">Photo of you <span style="opacity:.5;font-weight:400">(optional — only shows on the site if uploaded)</span></p>
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <img id="about-photo-preview" src="" alt="" style="display:none;width:80px;height:80px;object-fit:cover;border-radius:50%;border:1px solid var(--border)">
+            <label class="btn-order-action" style="cursor:pointer">
+              Choose photo
+              <input type="file" accept="image/*" style="display:none" onchange="uploadAboutPhoto(this)">
+            </label>
+            <span id="about-photo-msg" style="font-size:.75rem;color:var(--text-l)"></span>
+          </div>
+        </div>
       </div>
 
       <!-- CONTACT -->
@@ -602,6 +613,30 @@ function makeField(key,label,value,multi){
   d.innerHTML=`<label class="field-label">${esc(label)}</label>${multi?`<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`:`<input class="field-input" id="f-${key}" value="${esc(value)}">`}<div class="field-footer"><button class="btn-save" onclick="saveField('${key}',this)">Save</button><span class="save-msg" id="sm-${key}"></span></div>`;
   return d;
 }
+async function uploadAboutPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('about-photo-msg');
+  const preview = document.getElementById('about-photo-preview');
+  msg.textContent = 'Uploading…';
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch('/api/admin/upload/about-photo', { method:'POST', credentials:'include', body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      preview.src = data.url;
+      preview.style.display = 'block';
+      msg.textContent = 'Saved ✓';
+      setTimeout(() => { msg.textContent = ''; }, 2000);
+    } else {
+      msg.textContent = 'Upload failed';
+    }
+  } catch(e) {
+    msg.textContent = 'Error uploading';
+  }
+}
+
 async function saveField(key,btn){
   const el=document.getElementById('f-'+key),sm=document.getElementById('sm-'+key);
   try{
@@ -1193,6 +1228,12 @@ async function saveShippingRate(method, size, btn){
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
+
+  // Load existing about photo if one has been uploaded
+  if (allContent.about_photo_url) {
+    const img = document.getElementById('about-photo-preview');
+    if (img) { img.src = allContent.about_photo_url; img.style.display = 'block'; }
+  }
 
   buildFields('nav-fields',[
     ['nav_name',  'Site name (top left)',       false],
