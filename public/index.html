@@ -638,7 +638,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   #lightbox-close { display: none; }
 }
 #lb-prev, #lb-next {
-  position: absolute;
+  position: fixed;
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -648,10 +648,12 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   padding: 1rem;
   cursor: none;
   transition: color .2s;
-  display: none; /* shown by updateLightboxNavButtons once list > 1 */
+  display: none;
   align-items: center;
-  z-index: 2;
+  z-index: 1001;
 }
+#lb-prev { left: .5rem; }
+#lb-next { right: .5rem; }
 @media(max-width: 640px) {
   #lb-prev, #lb-next { display: none !important; }
 }
