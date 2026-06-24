@@ -2046,7 +2046,12 @@ function closeLightbox() {
   const lb = document.getElementById('lightbox');
   lb.classList.remove('open');
   document.body.style.overflow = '';
-  // Clear src after transition
+  // Hide nav arrows — their inline style.display set by updateLightboxNavButtons
+  // persists after close and makes them visible over the feed
+  const prev = document.getElementById('lb-prev');
+  const next = document.getElementById('lb-next');
+  if (prev) prev.style.display = 'none';
+  if (next) next.style.display = 'none';
   setTimeout(() => {
     document.getElementById('lightbox-img').src = '';
   }, 400);
