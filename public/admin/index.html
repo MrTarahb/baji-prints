@@ -449,6 +449,7 @@ textarea.field-input{resize:vertical;min-height:70px}
           <p class="field-label" style="margin-bottom:.6rem">Add new paper</p>
           <input class="field-input" id="new-paper-name" placeholder="e.g. Hahnemühle Photo Rag Satin" style="margin-bottom:.5rem">
           <textarea class="field-input" id="new-paper-desc" rows="3" placeholder="Description shown to customers in the shop…" style="resize:vertical;margin-bottom:.5rem"></textarea>
+          <input class="field-input" id="new-paper-weight" type="number" placeholder="Weight in g/m² (e.g. 310) — internal, not shown to customers" style="margin-bottom:.5rem">
           <button class="btn-order-action" onclick="addPaper()">Add paper</button>
           <span id="new-paper-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
         </div>
@@ -784,7 +785,8 @@ async function loadPapers() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
           <div style="flex:1">
             <input class="field-input" id="pname-${p.id}" value="${esc(p.name)}" style="margin-bottom:.4rem">
-            <textarea class="field-input" id="pdesc-${p.id}" rows="2" style="resize:vertical;font-size:.78rem">${esc(p.description)}</textarea>
+            <textarea class="field-input" id="pdesc-${p.id}" rows="2" style="resize:vertical;font-size:.78rem;margin-bottom:.4rem">${esc(p.description)}</textarea>
+            <input class="field-input" id="pweight-${p.id}" type="number" value="${p.weight_gsm || ''}" placeholder="Weight g/m² (internal)" style="font-size:.78rem">
           </div>
           <div style="display:flex;flex-direction:column;gap:.4rem;flex-shrink:0">
             <button class="btn-order-action" onclick="savePaper(${p.id},this)">Save</button>
@@ -801,7 +803,11 @@ async function savePaper(id, btn) {
   try {
     await fetch(`/api/admin/papers/${id}`, {
       method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ name: document.getElementById('pname-'+id).value, description: document.getElementById('pdesc-'+id).value })
+      body: JSON.stringify({
+        name: document.getElementById('pname-'+id).value,
+        description: document.getElementById('pdesc-'+id).value,
+        weight_gsm: document.getElementById('pweight-'+id).value || null
+      })
     });
     await loadPapers();
     btn.textContent = 'Saved ✓';
@@ -821,16 +827,18 @@ async function deletePaper(id, btn) {
 async function addPaper() {
   const name = document.getElementById('new-paper-name').value.trim();
   const desc = document.getElementById('new-paper-desc').value.trim();
+  const weight = document.getElementById('new-paper-weight').value.trim();
   const msg = document.getElementById('new-paper-msg');
   if (!name || !desc) { msg.textContent = 'Name and description required.'; return; }
   msg.textContent = 'Adding…';
   try {
     await fetch('/api/admin/papers', {
       method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ name, description: desc })
+      body: JSON.stringify({ name, description: desc, weight_gsm: weight || null })
     });
     document.getElementById('new-paper-name').value = '';
     document.getElementById('new-paper-desc').value = '';
+    document.getElementById('new-paper-weight').value = '';
     msg.textContent = 'Added ✓';
     setTimeout(() => { msg.textContent = ''; }, 2000);
     await loadPapers();

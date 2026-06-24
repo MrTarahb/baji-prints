@@ -337,6 +337,7 @@ async function initDB() {
       description TEXT NOT NULL, -- shown to customer in shop detail
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE papers ADD COLUMN IF NOT EXISTS weight_gsm INTEGER; -- paper weight in g/m², used for shipping calculation
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS paper_id INTEGER REFERENCES papers(id) ON DELETE SET NULL;
 
     -- Per-print, per-size pricing & remaining stock for limited editions
@@ -911,23 +912,23 @@ app.get('/api/admin/papers', requireAuth, async (req, res) => {
 });
 
 app.post('/api/admin/papers', requireAuth, async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, weight_gsm } = req.body;
   if (!name || !description) return res.status(400).json({ error: 'Name and description required' });
   try {
     const { rows } = await pool.query(
-      'INSERT INTO papers (name, description) VALUES ($1, $2) RETURNING *',
-      [name, description]
+      'INSERT INTO papers (name, description, weight_gsm) VALUES ($1, $2, $3) RETURNING *',
+      [name, description, weight_gsm ? parseInt(weight_gsm) : null]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/admin/papers/:id', requireAuth, async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, weight_gsm } = req.body;
   try {
     const { rows } = await pool.query(
-      'UPDATE papers SET name=$1, description=$2 WHERE id=$3 RETURNING *',
-      [name, description, req.params.id]
+      'UPDATE papers SET name=$1, description=$2, weight_gsm=$3 WHERE id=$4 RETURNING *',
+      [name, description, weight_gsm ? parseInt(weight_gsm) : null, req.params.id]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }

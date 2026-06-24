@@ -2188,7 +2188,7 @@ function openShopDetail(printId) {
       <p class="shop-detail-title">${esc(p.title)}</p>
       <p class="shop-detail-desc">${esc(p.description || '')}</p>
       ${p.edition_type === 'limited' ? `<p class="shop-card-price" style="margin-bottom:1rem">Limited edition of ${p.edition_size}</p>` : ''}
-      ${p.paper_description ? `<p class="shop-detail-note"><strong style="font-style:normal;font-family:var(--fm);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-l)">${esc(p.paper_name)}</strong><br>${esc(p.paper_description)}</p>` : (p.shop_note ? `<p class="shop-detail-note">${esc(p.shop_note)}</p>` : '')}
+      ${p.paper_description ? `<p class="shop-detail-note">This image is printed on <strong style="font-style:normal">${esc(p.paper_name)}</strong>. ${esc(p.paper_description)}</p>` : (p.shop_note ? `<p class="shop-detail-note">${esc(p.shop_note)}</p>` : '')}
       <div id="shop-size-options"></div>
       <div class="shop-customer-note-wrap" id="shop-customer-note-wrap" style="display:none">
         <label class="shop-customer-note-label" for="customer-note">Notes for this print <span style="opacity:.5">(optional)</span></label>
