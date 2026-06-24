@@ -1415,6 +1415,11 @@ function initScrollAnimation() {
 
   gsap.registerPlugin(ScrollTrigger);
 
+  // Kill any existing ScrollTriggers before creating new ones —
+  // stale scroll state from a previous page causes the hero to appear
+  // already-faded even when the page is at the top.
+  ScrollTrigger.getAll().forEach(st => st.kill());
+
   // Hero fades as you scroll past it
   gsap.to(intro, {
     scale: 0.96,
@@ -1805,7 +1810,8 @@ function renderFeed() {
   // re-measures correctly — especially important when returning from the shop
   // where main-content was obscured by a fixed overlay during the last render.
   requestAnimationFrame(() => {
-    if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+    // Reset scroll to top first so ScrollTrigger measures from a clean state
+    window.scrollTo(0, 0);
     const introImg = document.getElementById('intro-img');
     const introEl = document.getElementById('intro');
     if (introImg && introEl && introImg.complete && introImg.naturalWidth > 0) {
@@ -1814,7 +1820,10 @@ function renderFeed() {
       introEl.classList.add(isPortrait ? 'portrait' : 'landscape');
       introImg.classList.add('loaded');
       introEl.style.display = '';
+      // Reset hero opacity/scale that may have been set by a stale GSAP scrub
+      gsap.set(introEl, { scale: 1, opacity: 1 });
     }
+    initScrollAnimation();
   });
 
   // Re-init GSAP animations
