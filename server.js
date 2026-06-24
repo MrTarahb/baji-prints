@@ -45,10 +45,23 @@ const EU_COUNTRIES = new Set([
 
 // Load all shipping settings into a key-value map
 async function getShippingSettings() {
-  const { rows } = await pool.query('SELECT key, value FROM shipping_settings');
-  const s = {};
-  rows.forEach(r => { s[r.key] = parseInt(r.value) || 0; });
-  return s;
+  try {
+    const { rows } = await pool.query('SELECT key, value FROM shipping_settings');
+    const s = {
+      // Hardcoded fallbacks in case table is empty or not yet seeded
+      tube_weight_a3_g: 100,
+      tube_weight_a2_g: 200,
+      envelope_weight_a4_g: 50,
+      prints_per_tube: 3,
+      ch_letter_price: 200,
+      ch_packet_price: 900,
+    };
+    rows.forEach(r => { const v = parseInt(r.value); if (!isNaN(v)) s[r.key] = v; });
+    return s;
+  } catch (e) {
+    // Table may not exist yet on first boot
+    return { tube_weight_a3_g: 100, tube_weight_a2_g: 200, envelope_weight_a4_g: 50, prints_per_tube: 3, ch_letter_price: 200, ch_packet_price: 900 };
+  }
 }
 
 // Calculate total shipment weight in grams given cart items and their paper weights
@@ -168,6 +181,7 @@ app.post('/api/shipping/calculate', async (req, res) => {
 
     const result = await calculateShipping(enrichedItems, delivery_method, country_code);
     const { weight_g, format } = await calcShipmentWeight(enrichedItems);
+    console.log(`[shipping] method=${delivery_method} country=${country_code} weight=${weight_g}g format=${format} price=${result.price_chf_cents} quote=${result.requires_quote}`);
     res.json({ ...result, weight_g, format });
   } catch (e) {
     res.status(500).json({ error: e.message });
