@@ -1801,6 +1801,22 @@ function renderFeed() {
     (isLeft ? colLeft : colRight).appendChild(item);
   });
 
+  // After rebuilding the feed, refresh ScrollTrigger so the hero animation
+  // re-measures correctly — especially important when returning from the shop
+  // where main-content was obscured by a fixed overlay during the last render.
+  requestAnimationFrame(() => {
+    if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+    const introImg = document.getElementById('intro-img');
+    const introEl = document.getElementById('intro');
+    if (introImg && introEl && introImg.complete && introImg.naturalWidth > 0) {
+      const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+      introEl.classList.remove('landscape', 'portrait');
+      introEl.classList.add(isPortrait ? 'portrait' : 'landscape');
+      introImg.classList.add('loaded');
+      introEl.style.display = '';
+    }
+  });
+
   // Re-init GSAP animations
   setTimeout(initScrollAnimation, 80);
 }
