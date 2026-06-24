@@ -354,6 +354,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('orders',this)">Orders <span class="badge" id="orders-badge" style="display:none">0</span></button>
       <button class="sidebar-btn" onclick="showPanel('shop',this)">Prints for sale</button>
       <button class="sidebar-btn" onclick="showPanel('shipping',this)">Shipping rates</button>
+      <button class="sidebar-btn" onclick="showPanel('papers',this)">Papers</button>
       <span class="sidebar-label">Text content</span>
       <button class="sidebar-btn" onclick="showPanel('nav',this)">Navigation</button>
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
@@ -437,6 +438,20 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Shipping rates</h2>
         <p class="panel-sub">One price per delivery method and size. When an order has multiple items, the largest size in the cart sets the price (an A2 needs a bigger tube than an A4).</p>
         <div id="shipping-rates-list"></div>
+      </div>
+
+      <!-- PAPERS -->
+      <div class="panel" id="panel-papers">
+        <h2 class="panel-title">Papers</h2>
+        <p class="panel-sub">Define your paper options once here, then assign a paper to each print in the shop — the description shows automatically to customers.</p>
+        <div id="papers-list"></div>
+        <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+          <p class="field-label" style="margin-bottom:.6rem">Add new paper</p>
+          <input class="field-input" id="new-paper-name" placeholder="e.g. Hahnemühle Photo Rag Satin" style="margin-bottom:.5rem">
+          <textarea class="field-input" id="new-paper-desc" rows="3" placeholder="Description shown to customers in the shop…" style="resize:vertical;margin-bottom:.5rem"></textarea>
+          <button class="btn-order-action" onclick="addPaper()">Add paper</button>
+          <span id="new-paper-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
+        </div>
       </div>
 
       <!-- PRINTS -->
@@ -757,6 +772,71 @@ async function deletePrint(id,btn){
 // ── SHOP: MANAGE PRINTS FOR SALE ────────────────────────────────────────────
 const SHOP_SIZES = ['A4','A3','A2'];
 
+// ── PAPERS ────────────────────────────────────────────────────────────────────
+async function loadPapers() {
+  try {
+    const papers = await fetch('/api/admin/papers', {credentials:'include'}).then(r=>r.json());
+    window._papers = papers;
+    const list = document.getElementById('papers-list');
+    if (!list) return;
+    list.innerHTML = papers.length ? papers.map(p => `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:.85rem 1rem;margin-bottom:.5rem">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
+          <div style="flex:1">
+            <input class="field-input" id="pname-${p.id}" value="${esc(p.name)}" style="margin-bottom:.4rem">
+            <textarea class="field-input" id="pdesc-${p.id}" rows="2" style="resize:vertical;font-size:.78rem">${esc(p.description)}</textarea>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.4rem;flex-shrink:0">
+            <button class="btn-order-action" onclick="savePaper(${p.id},this)">Save</button>
+            <button class="btn-order-action" onclick="deletePaper(${p.id},this)">Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join('') : '<p style="font-size:.8rem;color:var(--text-l)">No papers yet — add one below.</p>';
+  } catch(e) { console.error('loadPapers failed:', e); }
+}
+
+async function savePaper(id, btn) {
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await fetch(`/api/admin/papers/${id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ name: document.getElementById('pname-'+id).value, description: document.getElementById('pdesc-'+id).value })
+    });
+    await loadPapers();
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 1500);
+  } catch(e) { btn.textContent = 'Error'; btn.disabled = false; }
+}
+
+async function deletePaper(id, btn) {
+  if (!confirm('Delete this paper? Any prints using it will lose their paper assignment.')) return;
+  btn.disabled = true;
+  try {
+    await fetch(`/api/admin/papers/${id}`, { method:'DELETE', credentials:'include' });
+    await loadPapers();
+  } catch(e) { btn.disabled = false; }
+}
+
+async function addPaper() {
+  const name = document.getElementById('new-paper-name').value.trim();
+  const desc = document.getElementById('new-paper-desc').value.trim();
+  const msg = document.getElementById('new-paper-msg');
+  if (!name || !desc) { msg.textContent = 'Name and description required.'; return; }
+  msg.textContent = 'Adding…';
+  try {
+    await fetch('/api/admin/papers', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ name, description: desc })
+    });
+    document.getElementById('new-paper-name').value = '';
+    document.getElementById('new-paper-desc').value = '';
+    msg.textContent = 'Added ✓';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+    await loadPapers();
+  } catch(e) { msg.textContent = 'Error.'; }
+}
+
 async function loadShopPrints(){
   const list = document.getElementById('shop-prints-list');
   const summaryWrap = document.getElementById('limited-editions-summary');
@@ -848,8 +928,11 @@ function buildShopCard(printMeta, shopPrint, sizes){
           <input type="number" id="edsize-${id}" class="field-input" style="width:80px;display:${editionType==='limited'?'inline-block':'none'}" placeholder="e.g. 25" min="1" value="${editionSize}">
         </div>
 
-        <div class="shop-sizes-title" style="margin-top:.75rem">Print note</div>
-        <textarea id="shopnote-${id}" class="field-input" rows="3" placeholder="Describe the paper, the print process, what makes this special — shown to buyers above the size selector…" style="resize:vertical;font-size:.78rem;line-height:1.5">${esc(shopPrint.shop_note || '')}</textarea>
+        <div class="shop-sizes-title" style="margin-top:.75rem">Paper</div>
+        <select id="paper-${id}" class="field-input" style="margin-bottom:.35rem">
+          <option value="">— No paper selected —</option>
+          ${(window._papers||[]).map(p => `<option value="${p.id}" ${shopPrint.paper_id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+        </select>
 
         <div class="shop-sizes-title">Sizes & prices (CHF)</div>
         ${SHOP_SIZES.map(size => `
@@ -908,7 +991,8 @@ async function saveShopPrint(id, btn){
   const deliveryCh = document.getElementById('delch-'+id).checked;
   const deliveryPersonal = document.getElementById('delpersonal-'+id).checked;
   const deliveryIntl = document.getElementById('delintl-'+id).checked;
-  const shopNote = document.getElementById('shopnote-'+id).value.trim();
+  const paperSelect = document.getElementById('paper-'+id);
+  const paperId = paperSelect ? (paperSelect.value || null) : null;
 
   try{
     await fetch('/api/admin/shop/print/'+id, {
@@ -916,7 +1000,7 @@ async function saveShopPrint(id, btn){
       body: JSON.stringify({
         for_sale: forSale, edition_type: editionType, edition_size: editionSize,
         delivery_ch: deliveryCh, delivery_personal: deliveryPersonal, delivery_intl: deliveryIntl,
-        shop_note: shopNote || null
+        paper_id: paperId ? parseInt(paperId) : null
       })
     });
 
@@ -1295,6 +1379,7 @@ async function loadAll(){
   await loadStats();
   await loadMessages();
   await loadPrints();
+  await loadPapers();
   await loadShopPrints();
   await loadOrders();
   await loadShippingRates();

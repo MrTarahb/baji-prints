@@ -328,7 +328,16 @@ async function initDB() {
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_ch BOOLEAN DEFAULT TRUE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_personal BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_intl BOOLEAN DEFAULT FALSE;
-    ALTER TABLE prints ADD COLUMN IF NOT EXISTS shop_note TEXT; -- print/paper description shown in shop detail
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS shop_note TEXT; -- print/paper description shown in shop detail (legacy, replaced by paper_id)
+
+    -- ── PAPERS: reusable paper descriptions ────────────────────────────
+    CREATE TABLE IF NOT EXISTS papers (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,        -- e.g. "Hahnemühle Photo Rag Satin"
+      description TEXT NOT NULL, -- shown to customer in shop detail
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS paper_id INTEGER REFERENCES papers(id) ON DELETE SET NULL;
 
     -- Per-print, per-size pricing & remaining stock for limited editions
     CREATE TABLE IF NOT EXISTS print_sizes (
@@ -516,9 +525,12 @@ app.get('/api/prints', async (req, res) => {
 app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
-      `SELECT id, title, description, image_url, edition_type, edition_size,
-              delivery_ch, delivery_personal, delivery_intl, shop_note
-       FROM prints WHERE for_sale = TRUE ORDER BY sort_order ASC`
+      `SELECT p.id, p.title, p.description, p.image_url, p.edition_type, p.edition_size,
+              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note,
+              pa.name AS paper_name, pa.description AS paper_description
+       FROM prints p
+       LEFT JOIN papers pa ON pa.id = p.paper_id
+       WHERE p.for_sale = TRUE ORDER BY p.sort_order ASC`
     );
     const { rows: sizes } = await pool.query(
       `SELECT print_id, size, price_chf, enabled, edition_sold FROM print_sizes WHERE enabled = TRUE`
@@ -890,10 +902,48 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 
 // ── ADMIN SHOP ────────────────────────────────────────────────────────────────
 // Get full shop settings for one print (sale status, edition, sizes, delivery)
+// ── PAPERS ────────────────────────────────────────────────────────────────────
+app.get('/api/admin/papers', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM papers ORDER BY name ASC');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/papers', requireAuth, async (req, res) => {
+  const { name, description } = req.body;
+  if (!name || !description) return res.status(400).json({ error: 'Name and description required' });
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO papers (name, description) VALUES ($1, $2) RETURNING *',
+      [name, description]
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/papers/:id', requireAuth, async (req, res) => {
+  const { name, description } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'UPDATE papers SET name=$1, description=$2 WHERE id=$3 RETURNING *',
+      [name, description, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/papers/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM papers WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   try {
     const { rows: printRows } = await pool.query(
-      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note
+      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id
        FROM prints WHERE id=$1`, [req.params.id]
     );
     if (!printRows[0]) return res.status(404).json({ error: 'Not found' });
@@ -932,14 +982,14 @@ app.put('/api/admin/shop/print/:id/forsale', requireAuth, async (req, res) => {
   }
 });
 
-// Update shop settings for a print (for_sale, edition info, delivery options, shop note)
+// Update shop settings for a print (for_sale, edition info, delivery options, paper)
 app.put('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
-  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note } = req.body;
+  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id } = req.body;
   try {
     await pool.query(
       `UPDATE prints SET for_sale=$1, edition_type=$2, edition_size=$3,
-       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6, shop_note=$7 WHERE id=$8`,
-      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, shop_note || null, req.params.id]
+       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6, shop_note=$7, paper_id=$8 WHERE id=$9`,
+      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, shop_note || null, paper_id || null, req.params.id]
     );
     res.json({ ok: true });
   } catch (e) {
