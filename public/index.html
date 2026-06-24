@@ -1764,11 +1764,14 @@ function renderFeed() {
 
   // Rebuild columns
   const feed = document.getElementById('feed');
+  const intro = document.getElementById('intro');
   feed.innerHTML = '';
   if (!filtered.length) {
+    if (intro) intro.style.display = 'none';
     feed.innerHTML = '<div style="padding:10vw 5vw;font-family:var(--fm);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-l)">No photos in this category yet.</div>';
     return;
   }
+  if (intro) intro.style.display = '';
 
   const colsWrap = document.createElement('div');
   colsWrap.className = 'feed-cols';
