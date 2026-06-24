@@ -809,7 +809,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .shop-card.visible { opacity: 1; transform: translateY(0); }
 .shop-card-img-wrap {
   width: 100%;
-  aspect-ratio: 4/5;
+  aspect-ratio: 1 / 1.414;
   overflow: hidden;
   background: var(--bg-2);
   margin-bottom: .65rem;
@@ -820,10 +820,8 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   transition: transform .5s ease;
 }
 .shop-card:hover .shop-card-img-wrap img { transform: scale(1.04); }
-/* Landscape prints: drop the cropped 4:5 frame, show the full image at its
-   own ratio instead — matches how the portfolio treats orientation. */
-.shop-card-img-wrap.landscape { aspect-ratio: auto; }
-.shop-card-img-wrap.landscape img { height: auto; aspect-ratio: 3/2; object-fit: cover; }
+.shop-card-img-wrap.landscape { aspect-ratio: 1.414 / 1; }
+.shop-card-img-wrap.landscape img { height: auto; aspect-ratio: 1.414 / 1; object-fit: cover; }
 .shop-card-title { font-size: 11px; color: var(--fg); margin-bottom: .15rem; }
 .shop-card-price { font-family: var(--fm); font-size: 9px; color: var(--fg-l); letter-spacing: .04em; }
 .shop-card-soldout {
@@ -846,8 +844,8 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   max-width: 900px; margin: 0 auto;
   display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
 }
-.shop-detail-img { width: 100%; aspect-ratio: 4/5; object-fit: cover; background: var(--bg-2); }
-.shop-detail-img.landscape { aspect-ratio: 3/2; }
+.shop-detail-img { width: 100%; aspect-ratio: 1 / 1.414; object-fit: cover; background: var(--bg-2); }
+.shop-detail-img.landscape { aspect-ratio: 1.414 / 1; }
 .shop-detail-title { font-family: var(--fi); font-size: 1.8rem; font-style: italic; color: var(--fg); margin-bottom: .5rem; }
 .shop-detail-desc { font-size: 11px; color: var(--fg-m); line-height: 1.8; margin-bottom: 1.5rem; }
 .shop-detail-note {
