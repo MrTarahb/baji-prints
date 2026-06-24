@@ -36,19 +36,146 @@ const DELIVERY_LABELS = {
 // receive mail, so we set this as the reply-to header instead.
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || 'bhartu.bhatia@gmail.com';
 
+// EU country codes (CH and LI handled separately as domestic)
+const EU_COUNTRIES = new Set([
+  'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU',
+  'IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
+  'SE','GB','IS','LI','NO' // LI = Liechtenstein treated as CH but listed for completeness
+]);
+
+// Load all shipping settings into a key-value map
+async function getShippingSettings() {
+  const { rows } = await pool.query('SELECT key, value FROM shipping_settings');
+  const s = {};
+  rows.forEach(r => { s[r.key] = parseInt(r.value) || 0; });
+  return s;
+}
+
+// Calculate total shipment weight in grams given cart items and their paper weights
+async function calcShipmentWeight(items) {
+  // items: [{size, paper_weight_gsm, print_id}]
+  // Returns { weight_g, format: 'letter'|'packet', tubes_needed }
+  const s = await getShippingSettings();
+
+  // Separate A4 (letter) from A3/A2 (packet/tube)
+  const a4Items = items.filter(i => i.size === 'A4');
+  const tubeItems = items.filter(i => i.size === 'A3' || i.size === 'A2');
+
+  let totalWeight = 0;
+  let format = 'letter';
+
+  // A4: flat envelope + paper weight per sheet
+  // Paper weight per sheet: gsm × A4 area (0.0625 m²) = gsm * 0.0625g
+  for (const item of a4Items) {
+    const paperWeightG = (item.paper_weight_gsm || 200) * 0.0625;
+    totalWeight += paperWeightG;
+  }
+  if (a4Items.length) totalWeight += s.envelope_weight_a4_g || 50;
+
+  // A3/A2 tube items
+  if (tubeItems.length) {
+    format = 'packet';
+    const tubesNeeded = Math.ceil(tubeItems.length / (s.prints_per_tube || 3));
+
+    for (const item of tubeItems) {
+      // Paper area: A3 = 0.125m², A2 = 0.25m²
+      const area = item.size === 'A2' ? 0.25 : 0.125;
+      const paperWeightG = (item.paper_weight_gsm || 200) * area;
+      totalWeight += paperWeightG;
+    }
+
+    // Add tube weights — use heaviest tube type if mixed A3/A2
+    const hasA2 = tubeItems.some(i => i.size === 'A2');
+    const tubeWeight = hasA2 ? (s.tube_weight_a2_g || 200) : (s.tube_weight_a3_g || 100);
+    totalWeight += tubeWeight * tubesNeeded;
+  }
+
+  // If cart has both A4 and tube items, format is packet
+  if (a4Items.length && tubeItems.length) format = 'packet';
+
+  return { weight_g: Math.ceil(totalWeight), format, tubes_needed: tubeItems.length ? Math.ceil(tubeItems.length / (s.prints_per_tube || 3)) : 0 };
+}
+
+// Calculate shipping price for a given delivery method and country
+// Returns { price_chf_cents, label, requires_quote }
+async function calculateShipping(items, delivery_method, country_code) {
+  const s = await getShippingSettings();
+  const { weight_g, format } = await calcShipmentWeight(items);
+  const isChLi = !country_code || country_code === 'CH' || country_code === 'LI';
+  const isEu = EU_COUNTRIES.has(country_code);
+
+  if (delivery_method === 'personal') {
+    // Personal delivery only available in CH/LI for now
+    if (!isChLi) return { price_chf_cents: 0, requires_quote: true, label: 'Contact for quote' };
+    // Default to canton_zurich rate — zone selection happens post-order
+    const { rows } = await pool.query(
+      `SELECT price_chf_cents, label FROM personal_delivery_rates ORDER BY price_chf_cents ASC LIMIT 1`
+    );
+    const basePrice = rows[0] ? rows[0].price_chf_cents : 4000;
+    return { price_chf_cents: basePrice, requires_quote: false, label: 'Personal delivery — final price confirmed after order' };
+  }
+
+  if (delivery_method === 'ch') {
+    // Switzerland/Liechtenstein flat rates
+    const price = format === 'packet' ? (s.ch_packet_price || 900) : (s.ch_letter_price || 200);
+    return { price_chf_cents: price, requires_quote: false };
+  }
+
+  if (delivery_method === 'intl') {
+    if (isChLi) {
+      // Shouldn't happen but handle gracefully
+      const price = format === 'packet' ? (s.ch_packet_price || 900) : (s.ch_letter_price || 200);
+      return { price_chf_cents: price, requires_quote: false };
+    }
+    if (isEu) {
+      // Look up EU bracket by format and weight
+      const { rows } = await pool.query(
+        `SELECT price_chf_cents FROM eu_shipping_rates
+         WHERE format = $1 AND max_weight_g >= $2
+         ORDER BY max_weight_g ASC LIMIT 1`,
+        [format, weight_g]
+      );
+      if (rows[0]) return { price_chf_cents: rows[0].price_chf_cents, requires_quote: false };
+      // Over max weight → quote
+      return { price_chf_cents: 0, requires_quote: true, label: 'Shipment too heavy — contact for quote' };
+    }
+    // Rest of world → quote
+    return { price_chf_cents: 0, requires_quote: true, label: 'Contact for shipping quote' };
+  }
+
+  return { price_chf_cents: 0, requires_quote: false };
+}
+
+// Public endpoint to calculate shipping before checkout
+// POST /api/shipping/calculate  {items:[{print_id, size}], delivery_method, country_code}
+app.post('/api/shipping/calculate', async (req, res) => {
+  try {
+    const { items, delivery_method, country_code } = req.body;
+    if (!items || !items.length) return res.status(400).json({ error: 'No items' });
+
+    // Fetch paper weights for each item
+    const enrichedItems = await Promise.all(items.map(async item => {
+      const { rows } = await pool.query(
+        `SELECT ps.size, pa.weight_gsm as paper_weight_gsm
+         FROM print_sizes ps
+         JOIN prints p ON p.id = ps.print_id
+         LEFT JOIN papers pa ON pa.id = p.paper_id
+         WHERE ps.print_id = $1 AND ps.size = $2`,
+        [item.print_id, item.size]
+      );
+      return { ...item, paper_weight_gsm: rows[0]?.paper_weight_gsm || 200, size: item.size };
+    }));
+
+    const result = await calculateShipping(enrichedItems, delivery_method, country_code);
+    const { weight_g, format } = await calcShipmentWeight(enrichedItems);
+    res.json({ ...result, weight_g, format });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Size rank — used to pick the "largest" size in a cart for shipping calculation
 const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
-
-// Look up the shipping price for a delivery method given the largest size in the cart
-async function getShippingPrice(deliveryMethod, sizesInCart) {
-  const largestSize = sizesInCart.reduce((biggest, s) =>
-    (SIZE_RANK[s] || 0) > (SIZE_RANK[biggest] || 0) ? s : biggest, sizesInCart[0]);
-  const { rows } = await pool.query(
-    'SELECT price_chf FROM shipping_rates WHERE delivery_method=$1 AND size=$2',
-    [deliveryMethod, largestSize]
-  );
-  return rows[0] ? rows[0].price_chf : 0;
-}
 
 // Generates a short, human-readable order reference like "BHT-7K2X9P" —
 // easy to read aloud, write on a package, or search for in admin. Avoids
@@ -340,6 +467,29 @@ async function initDB() {
     ALTER TABLE papers ADD COLUMN IF NOT EXISTS weight_gsm INTEGER; -- paper weight in g/m², used for shipping calculation
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS paper_id INTEGER REFERENCES papers(id) ON DELETE SET NULL;
 
+    -- Shipping settings: editable weights and packaging parameters
+    CREATE TABLE IF NOT EXISTS shipping_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    -- EU shipping rate brackets: (format, max_weight_g, price_chf_cents)
+    CREATE TABLE IF NOT EXISTS eu_shipping_rates (
+      id SERIAL PRIMARY KEY,
+      format TEXT NOT NULL,       -- 'letter' or 'packet'
+      max_weight_g INTEGER NOT NULL,
+      price_chf_cents INTEGER NOT NULL,
+      UNIQUE(format, max_weight_g)
+    );
+
+    -- Personal delivery zones (CH only)
+    CREATE TABLE IF NOT EXISTS personal_delivery_rates (
+      id SERIAL PRIMARY KEY,
+      zone TEXT NOT NULL UNIQUE,  -- e.g. 'canton_zurich', 'rest_of_switzerland'
+      label TEXT NOT NULL,
+      price_chf_cents INTEGER NOT NULL
+    );
+
     -- Per-print, per-size pricing & remaining stock for limited editions
     CREATE TABLE IF NOT EXISTS print_sizes (
       id SERIAL PRIMARY KEY,
@@ -491,6 +641,59 @@ async function initDB() {
     );
   }
 
+  // Seed shipping settings (editable from admin)
+  const shippingSettingsDefaults = [
+    ['tube_weight_a3_g',    '100'],   // empty A3 tube weight in grams
+    ['tube_weight_a2_g',    '200'],   // empty A2 tube weight in grams
+    ['envelope_weight_a4_g','50'],    // flat envelope weight in grams
+    ['prints_per_tube',     '3'],     // max prints per tube
+    ['ch_letter_price',     '200'],   // CHF 2.00 in cents
+    ['ch_packet_price',     '900'],   // CHF 9.00 in cents
+  ];
+  for (const [key, value] of shippingSettingsDefaults) {
+    await pool.query(
+      `INSERT INTO shipping_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`,
+      [key, value]
+    );
+  }
+
+  // Seed EU shipping rates from post.ch tables
+  const euRates = [
+    // Letters (A4 flat, L+B+H ≤90cm)
+    ['letter',  100,  430], // CHF 4.30
+    ['letter',  250,  750], // CHF 7.50
+    ['letter',  500, 1200], // CHF 12.00
+    ['letter', 1000, 1900], // CHF 19.00
+    ['letter', 2000, 2600], // CHF 26.00
+    // Packets (A3/A2 rolled in tube, L+B+H ≤90cm)
+    ['packet',  100,  450], // CHF 4.50
+    ['packet',  250,  950], // CHF 9.50
+    ['packet',  500, 1450], // CHF 14.50
+    ['packet', 1000, 2050], // CHF 20.50
+    ['packet', 1500, 2550], // CHF 25.50
+    ['packet', 2000, 3050], // CHF 30.50
+  ];
+  for (const [format, max_weight_g, price_chf_cents] of euRates) {
+    await pool.query(
+      `INSERT INTO eu_shipping_rates (format, max_weight_g, price_chf_cents)
+       VALUES ($1,$2,$3) ON CONFLICT (format, max_weight_g) DO NOTHING`,
+      [format, max_weight_g, price_chf_cents]
+    );
+  }
+
+  // Seed personal delivery zones (CH only)
+  const personalDeliveryDefaults = [
+    ['canton_zurich',       'Canton of Zürich',    4000],  // CHF 40
+    ['rest_of_switzerland', 'Rest of Switzerland', 7000],  // CHF 70
+  ];
+  for (const [zone, label, price] of personalDeliveryDefaults) {
+    await pool.query(
+      `INSERT INTO personal_delivery_rates (zone, label, price_chf_cents)
+       VALUES ($1,$2,$3) ON CONFLICT (zone) DO NOTHING`,
+      [zone, label, price]
+    );
+  }
+
   console.log('DB initialised');
 }
 
@@ -609,8 +812,27 @@ app.post('/api/shop/checkout', async (req, res) => {
       subtotal += row.price_chf;
     }
 
-    // Shipping is size-aware: priced by the largest item in the cart for this delivery method
-    const shippingPrice = await getShippingPrice(delivery_method, sizesInCart);
+    // Weight-based shipping calculation using paper weights and packaging
+    const enrichedItems = orderItemsData.map(oi => ({
+      print_id: oi.print_id, size: oi.size,
+      paper_weight_gsm: 200 // fallback; overridden below
+    }));
+    // Fetch actual paper weights
+    for (const oi of orderItemsData) {
+      const { rows: pw } = await pool.query(
+        `SELECT pa.weight_gsm FROM prints p LEFT JOIN papers pa ON pa.id = p.paper_id WHERE p.id = $1`,
+        [oi.print_id]
+      );
+      const matching = enrichedItems.find(e => e.print_id === oi.print_id && e.size === oi.size);
+      if (matching) matching.paper_weight_gsm = pw[0]?.weight_gsm || 200;
+    }
+
+    const countryCode = req.body.country_code || 'CH';
+    const shippingResult = await calculateShipping(enrichedItems, delivery_method, countryCode);
+    if (shippingResult.requires_quote) {
+      return res.status(400).json({ error: 'shipping_quote_required', message: shippingResult.label || 'Contact for shipping quote' });
+    }
+    const shippingPrice = shippingResult.price_chf_cents;
 
     // Add delivery as its own line item
     lineItems.push({
@@ -629,9 +851,11 @@ app.post('/api/shop/checkout', async (req, res) => {
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
       line_items: lineItems,
-      shipping_address_collection: delivery_method === 'intl'
-        ? { allowed_countries: ['DE','FR','IT','AT','GB','US','CA','AU','NL','BE','ES'] }
-        : { allowed_countries: ['CH'] },
+      shipping_address_collection: {
+        allowed_countries: ['CH','LI','AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE',
+          'GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
+          'SE','GB','IS','NO','US','CA','AU','JP','SG','NZ','ZA','BR','MX','AE','SA'],
+      },
       // Stripe needs an actual Customer object to attach an invoice to in
       // payment mode — without this, invoice_creation can silently no-op.
       customer_creation: 'always',
@@ -903,6 +1127,43 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 
 // ── ADMIN SHOP ────────────────────────────────────────────────────────────────
 // Get full shop settings for one print (sale status, edition, sizes, delivery)
+// ── ADMIN SHIPPING SETTINGS ──────────────────────────────────────────────────
+app.get('/api/admin/shipping-settings', requireAuth, async (req, res) => {
+  try {
+    const { rows: settings } = await pool.query('SELECT key, value FROM shipping_settings ORDER BY key');
+    const { rows: euRates } = await pool.query('SELECT * FROM eu_shipping_rates ORDER BY format, max_weight_g');
+    const { rows: personalRates } = await pool.query('SELECT * FROM personal_delivery_rates ORDER BY price_chf_cents');
+    res.json({ settings: Object.fromEntries(settings.map(r => [r.key, r.value])), euRates, personalRates });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/shipping-settings', requireAuth, async (req, res) => {
+  const { settings } = req.body;
+  try {
+    for (const [key, value] of Object.entries(settings)) {
+      await pool.query(
+        `INSERT INTO shipping_settings (key, value) VALUES ($1,$2)
+         ON CONFLICT (key) DO UPDATE SET value = $2`,
+        [key, String(value)]
+      );
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/personal-delivery-rates', requireAuth, async (req, res) => {
+  const { rates } = req.body; // [{zone, label, price_chf_cents}]
+  try {
+    for (const r of rates) {
+      await pool.query(
+        `UPDATE personal_delivery_rates SET label=$1, price_chf_cents=$2 WHERE zone=$3`,
+        [r.label, parseInt(r.price_chf_cents), r.zone]
+      );
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── PAPERS ────────────────────────────────────────────────────────────────────
 app.get('/api/admin/papers', requireAuth, async (req, res) => {
   try {

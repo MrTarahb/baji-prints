@@ -1369,6 +1369,43 @@ nav.on-light .nav-hamburger span,
     <div id="cart-delivery-section" style="display:none">
       <p class="cart-delivery-title">Delivery</p>
       <div id="cart-delivery-options"></div>
+      <div id="cart-country-wrap" style="display:none;margin-top:.85rem">
+        <label class="cart-delivery-title" style="display:block;margin-bottom:.4rem">Destination country</label>
+        <select id="cart-country-select" class="field-input" style="max-width:280px" onchange="onCountryChange()">
+          <option value="">Select a country…</option>
+          <optgroup label="Switzerland & Liechtenstein">
+            <option value="CH">Switzerland</option>
+            <option value="LI">Liechtenstein</option>
+          </optgroup>
+          <optgroup label="European Union & EEA">
+            <option value="AT">Austria</option><option value="BE">Belgium</option>
+            <option value="BG">Bulgaria</option><option value="HR">Croatia</option>
+            <option value="CY">Cyprus</option><option value="CZ">Czech Republic</option>
+            <option value="DK">Denmark</option><option value="EE">Estonia</option>
+            <option value="FI">Finland</option><option value="FR">France</option>
+            <option value="DE">Germany</option><option value="GR">Greece</option>
+            <option value="HU">Hungary</option><option value="IE">Ireland</option>
+            <option value="IT">Italy</option><option value="LV">Latvia</option>
+            <option value="LT">Lithuania</option><option value="LU">Luxembourg</option>
+            <option value="MT">Malta</option><option value="NL">Netherlands</option>
+            <option value="PL">Poland</option><option value="PT">Portugal</option>
+            <option value="RO">Romania</option><option value="SK">Slovakia</option>
+            <option value="SI">Slovenia</option><option value="ES">Spain</option>
+            <option value="SE">Sweden</option><option value="GB">United Kingdom</option>
+            <option value="IS">Iceland</option><option value="NO">Norway</option>
+          </optgroup>
+          <optgroup label="Rest of World">
+            <option value="US">United States</option><option value="CA">Canada</option>
+            <option value="AU">Australia</option><option value="JP">Japan</option>
+            <option value="SG">Singapore</option><option value="NZ">New Zealand</option>
+            <option value="ZA">South Africa</option><option value="BR">Brazil</option>
+            <option value="MX">Mexico</option><option value="AE">UAE</option>
+            <option value="SA">Saudi Arabia</option>
+            <option value="OTHER">Other</option>
+          </optgroup>
+        </select>
+      </div>
+      <div id="cart-quote-msg" style="display:none;margin-top:.75rem;font-size:11px;color:var(--fg-m);line-height:1.7"></div>
     </div>
     <div class="cart-total-row" id="cart-total-row" style="display:none">
       <span>Total</span><span id="cart-total-amount"></span>
@@ -2260,7 +2297,7 @@ function closeShopDetail() {
   document.body.style.overflow = '';
 }
 
-function renderCart() {
+async function renderCart() {
   const itemsWrap = document.getElementById('cart-items');
   const deliverySection = document.getElementById('cart-delivery-section');
   const totalRow = document.getElementById('cart-total-row');
@@ -2301,25 +2338,42 @@ function renderCart() {
 
   deliverySection.style.display = 'block';
   const deliveryWrap = document.getElementById('cart-delivery-options');
+  const countryWrap = document.getElementById('cart-country-wrap');
   deliveryWrap.innerHTML = '';
   ['ch','personal','intl'].forEach(method => {
     const available = deliveryAvailability[method];
-    const price = available ? getShippingPriceForCart(method) : null;
     const opt = document.createElement('div');
     opt.className = 'cart-delivery-option' + (!available ? ' disabled' : '') + (selectedDelivery === method ? ' selected' : '');
-    opt.innerHTML = `<span>${DELIVERY_OPTION_LABELS[method]}</span><span>${available ? fmtCHF(price) : 'Not available'}</span>`;
-    if (available) opt.addEventListener('click', () => { selectedDelivery = method; renderCart(); });
+    const priceLabel = available
+      ? (selectedDelivery === method ? fmtCHF(calculatedShippingPrice) : '—')
+      : 'Not available';
+    opt.innerHTML = `<span>${DELIVERY_OPTION_LABELS[method]}</span><span>${priceLabel}</span>`;
+    if (available) opt.addEventListener('click', async () => {
+      selectedDelivery = method;
+      // Show country selector for intl, hide for ch/personal
+      countryWrap.style.display = method === 'intl' ? 'block' : 'none';
+      if (method !== 'intl') selectedCountry = 'CH';
+      await recalcShipping();
+      renderCart();
+    });
     deliveryWrap.appendChild(opt);
   });
+  // Keep country selector visible if intl is selected
+  if (countryWrap) countryWrap.style.display = selectedDelivery === 'intl' ? 'block' : 'none';
 
   const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
   termsRow.style.display = 'flex';
   if (selectedDelivery && deliveryAvailability[selectedDelivery]) {
-    const shipping = getShippingPriceForCart(selectedDelivery);
-    totalRow.style.display = 'flex';
-    document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + shipping);
-    checkoutBtn.disabled = !termsCheckbox.checked;
-    checkoutBtn.textContent = 'Checkout';
+    if (shippingQuoteRequired) {
+      totalRow.style.display = 'none';
+      checkoutBtn.disabled = true;
+      checkoutBtn.textContent = 'Contact us for a shipping quote';
+    } else {
+      totalRow.style.display = 'flex';
+      document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + calculatedShippingPrice);
+      checkoutBtn.disabled = !termsCheckbox.checked;
+      checkoutBtn.textContent = 'Checkout';
+    }
   } else {
     totalRow.style.display = 'none';
     checkoutBtn.disabled = true;
@@ -2327,11 +2381,48 @@ function renderCart() {
   }
 }
 
+let selectedCountry = 'CH';
+let shippingQuoteRequired = false;
+let calculatedShippingPrice = 0;
+
+async function onCountryChange() {
+  selectedCountry = document.getElementById('cart-country-select').value;
+  if (!selectedCountry) return;
+  await recalcShipping();
+  renderCart();
+}
+
+async function recalcShipping() {
+  if (!selectedDelivery || !cart.length) return;
+  try {
+    const res = await fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
+        delivery_method: selectedDelivery,
+        country_code: selectedCountry
+      })
+    });
+    const data = await res.json();
+    shippingQuoteRequired = data.requires_quote || false;
+    calculatedShippingPrice = data.price_chf_cents || 0;
+    const quoteMsg = document.getElementById('cart-quote-msg');
+    if (shippingQuoteRequired) {
+      quoteMsg.style.display = 'block';
+      quoteMsg.innerHTML = `Shipping to this destination requires a custom quote.<br>
+        Complete your order and we'll confirm the shipping cost before dispatching.<br>
+        <a href="#" onclick="event.preventDefault();showPage('contact')" style="color:var(--pink-d)">Contact us first</a> if you'd like a price before ordering.`;
+    } else {
+      quoteMsg.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('Shipping calc failed:', e);
+  }
+}
+
 function getShippingPriceForCart(method) {
-  const sizes = cart.map(i => i.size);
-  const largest = sizes.reduce((biggest, s) => (SIZE_RANK[s]||0) > (SIZE_RANK[biggest]||0) ? s : biggest, sizes[0]);
-  const rate = shippingRatesData.find(r => r.delivery_method === method && r.size === largest);
-  return rate ? rate.price_chf : 0;
+  return calculatedShippingPrice;
 }
 
 function removeFromCart(index) {
@@ -2344,6 +2435,7 @@ async function goToCheckout() {
   const btn = document.getElementById('btn-checkout');
   const msg = document.getElementById('checkout-msg');
   if (!cart.length || !selectedDelivery) return;
+  if (shippingQuoteRequired) return;
   btn.disabled = true; btn.textContent = 'Redirecting…'; msg.textContent = '';
 
   try {
@@ -2353,6 +2445,7 @@ async function goToCheckout() {
       body: JSON.stringify({
         items: cart.map(i => ({ print_id: i.print_id, size: i.size, note: i.note || '' })),
         delivery_method: selectedDelivery,
+        country_code: selectedCountry || 'CH',
       }),
     });
     const data = await res.json();
