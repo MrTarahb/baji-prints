@@ -2350,11 +2350,15 @@ async function renderCart() {
     opt.innerHTML = `<span>${DELIVERY_OPTION_LABELS[method]}</span><span>${priceLabel}</span>`;
     if (available) opt.addEventListener('click', async () => {
       selectedDelivery = method;
-      // Show country selector for intl, hide for ch/personal
       countryWrap.style.display = method === 'intl' ? 'block' : 'none';
       if (method !== 'intl') selectedCountry = 'CH';
+      // Show loading state immediately
+      document.querySelectorAll('.cart-delivery-option').forEach(el => el.classList.remove('selected'));
+      opt.classList.add('selected');
+      opt.querySelector('span:last-child').textContent = '…';
+      // Recalc then re-render with correct price
       await recalcShipping();
-      renderCart();
+      await renderCart();
     });
     deliveryWrap.appendChild(opt);
   });
@@ -2389,7 +2393,7 @@ async function onCountryChange() {
   selectedCountry = document.getElementById('cart-country-select').value;
   if (!selectedCountry) return;
   await recalcShipping();
-  renderCart();
+  await renderCart();
 }
 
 async function recalcShipping() {
