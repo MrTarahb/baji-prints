@@ -353,7 +353,6 @@ textarea.field-input{resize:vertical;min-height:70px}
       <span class="sidebar-label">Shop</span>
       <button class="sidebar-btn" onclick="showPanel('orders',this)">Orders <span class="badge" id="orders-badge" style="display:none">0</span></button>
       <button class="sidebar-btn" onclick="showPanel('shop',this)">Prints for sale</button>
-      <button class="sidebar-btn" onclick="showPanel('shipping',this)">Shipping rates</button>
       <button class="sidebar-btn" onclick="showPanel('papers',this)">Papers</button>
       <button class="sidebar-btn" onclick="showPanel('shipping',this)">Shipping</button>
       <span class="sidebar-label">Text content</span>
@@ -434,14 +433,7 @@ textarea.field-input{resize:vertical;min-height:70px}
         <div id="shop-prints-list"></div>
       </div>
 
-      <!-- SHIPPING RATES -->
-      <div class="panel" id="panel-shipping">
-        <h2 class="panel-title">Shipping rates</h2>
-        <p class="panel-sub">One price per delivery method and size. When an order has multiple items, the largest size in the cart sets the price (an A2 needs a bigger tube than an A4).</p>
-        <div id="shipping-rates-list"></div>
-      </div>
-
-      <!-- PAPERS -->
+      <!-- SHIPPING -->
       <div class="panel" id="panel-shipping">
         <h2 class="panel-title">Shipping settings</h2>
         <p class="panel-sub">Packaging weights and delivery pricing. Paper weights are set per paper in the Papers panel.</p>
@@ -1396,64 +1388,6 @@ const SHIPPING_METHODS = [
   { key:'intl',     label:'International', sub:'Outside Switzerland' },
 ];
 
-async function loadShippingRates(){
-  const wrap = document.getElementById('shipping-rates-list');
-  try{
-    const res = await fetch('/api/admin/shipping-rates', {credentials:'include'});
-    const rates = await res.json();
-
-    wrap.innerHTML = '';
-    SHIPPING_METHODS.forEach(method => {
-      const table = document.createElement('div');
-      table.className = 'shipping-table';
-
-      const header = document.createElement('div');
-      header.innerHTML = `<div style="padding:.85rem 1.1rem;border-bottom:1px solid var(--border)">
-        <div class="shipping-method-label">${method.label}</div>
-        <div class="shipping-method-sub">${method.sub}</div>
-      </div>`;
-      table.appendChild(header);
-
-      SHOP_SIZES.forEach(size => {
-        const rate = rates.find(r => r.delivery_method === method.key && r.size === size);
-        const price = rate ? (rate.price_chf/100) : 0;
-        const row = document.createElement('div');
-        row.className = 'shipping-row';
-        row.innerHTML = `
-          <span class="shipping-method-label" style="font-weight:400;font-size:.8rem;color:var(--text-m)">${size === 'A4' ? 'A4 — flat mailer' : size+' — postal tube'}</span>
-          <span class="shipping-size-badge">${size}</span>
-          <div class="shipping-price-wrap">
-            <span>CHF</span>
-            <input type="number" class="field-input" id="ship-${method.key}-${size}" value="${price}" min="0" step="0.5" style="width:90px">
-          </div>
-          <button class="btn-shipping-save" onclick="saveShippingRate('${method.key}','${size}',this)">Save</button>
-        `;
-        table.appendChild(row);
-      });
-
-      wrap.appendChild(table);
-    });
-  }catch(e){ wrap.innerHTML = '<p class="prints-empty">Could not load shipping rates.</p>'; }
-}
-
-async function saveShippingRate(method, size, btn){
-  const input = document.getElementById(`ship-${method}-${size}`);
-  const priceChf = Math.round((parseFloat(input.value) || 0) * 100);
-  btn.disabled = true; btn.textContent = '...';
-  try{
-    await fetch('/api/admin/shipping-rates', {
-      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ delivery_method: method, size, price_chf: priceChf })
-    });
-    btn.textContent = 'Saved ✓';
-    btn.classList.add('saved');
-    setTimeout(()=>{ btn.textContent = 'Save'; btn.classList.remove('saved'); btn.disabled = false; }, 2000);
-  }catch(e){
-    btn.textContent = 'Error';
-    btn.disabled = false;
-  }
-}
-
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
@@ -1518,7 +1452,6 @@ async function loadAll(){
   await loadPapers();
   await loadShopPrints();
   await loadOrders();
-  await loadShippingRates();
 }
 
 async function loadStats(){
