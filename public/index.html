@@ -1191,16 +1191,22 @@ nav.on-light .nav-hamburger span,
 .about-body strong { color: var(--fg); font-weight: 400; }
 .about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
 .about-spec {
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  line-height: 1.8;
+}
 
 /* FAQ */
 .faq-section { margin-bottom: 2.5rem; }
 .faq-heading {
   font-family: var(--fm);
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: .16em;
   text-transform: uppercase;
   color: var(--fg-l);
-  margin-bottom: 1rem;
+  margin-bottom: .75rem;
   padding-bottom: .5rem;
   border-bottom: 1px solid var(--border);
 }
@@ -1210,41 +1216,42 @@ nav.on-light .nav-hamburger span,
   text-align: left;
   background: none;
   border: none;
-  padding: 1rem 1.5rem 1rem 0;
+  outline: none;
+  padding: .9rem 1.5rem .9rem 0;
   font-family: var(--fm);
   font-size: 11px;
-  letter-spacing: .03em;
+  letter-spacing: .02em;
   color: var(--fg);
   cursor: none;
-  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  transition: color .2s;
 }
+.faq-q:hover { color: var(--fg-m); }
 .faq-q::after {
   content: '+';
-  font-size: 16px;
-  font-weight: 300;
+  font-family: var(--fm);
+  font-size: 18px;
+  font-weight: 200;
   color: var(--fg-l);
   flex-shrink: 0;
-  transition: transform .2s;
+  line-height: 1;
+  transition: transform .25s ease, color .2s;
 }
-.faq-q.open::after { transform: rotate(45deg); }
+.faq-q.open { color: var(--fg); }
+.faq-q.open::after { transform: rotate(45deg); color: var(--fg-m); }
 .faq-a {
   display: none;
+  font-family: var(--fm);
   font-size: 11px;
   color: var(--fg-m);
-  line-height: 1.85;
-  padding: 0 1.5rem 1.25rem 0;
+  line-height: 1.9;
+  padding: 0 2rem 1.1rem 0;
+  letter-spacing: .01em;
 }
 .faq-a.open { display: block; }
-  font-size: 9px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--fg-l);
-  line-height: 1.8;
-}
 
 /* RESPONSIVE */
 @media(max-width:768px){
