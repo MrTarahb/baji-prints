@@ -876,12 +876,10 @@ app.post('/api/shop/checkout', async (req, res) => {
 
     let allowedCountries;
     if (baseDeliveryMethod === 'ch' || baseDeliveryMethod === 'personal') {
-      // CH/LI only — no other country can be entered
       allowedCountries = CH_LI;
-    } else if (baseDeliveryMethod === 'intl' && country_code && country_code !== 'CH' && country_code !== 'LI') {
-      // Lock to the specific country they selected — or their country + neighbours if it's EU
-      const isEu = EU_COUNTRIES_LIST.includes(country_code);
-      allowedCountries = isEu ? EU_COUNTRIES_LIST : [country_code];
+    } else if (baseDeliveryMethod === 'intl' && countryCode && countryCode !== 'CH' && countryCode !== 'LI') {
+      const isEu = EU_COUNTRIES_LIST.includes(countryCode);
+      allowedCountries = isEu ? EU_COUNTRIES_LIST : [countryCode];
     } else {
       allowedCountries = [...CH_LI, ...EU_COUNTRIES_LIST];
     }
