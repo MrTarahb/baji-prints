@@ -924,6 +924,62 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
 .cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
 .cart-item-note { font-size: 9px; color: var(--fg-l); font-style: italic; margin-top: .2rem; line-height: 1.5; }
+
+/* Country picker */
+.country-picker { position: relative; max-width: 280px; }
+.country-picker-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .6rem .85rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--fg-m);
+  cursor: none;
+  text-align: left;
+  transition: border-color .2s, color .2s;
+}
+.country-picker-btn:hover { border-color: var(--fg-m); color: var(--fg); }
+.country-picker-btn svg { opacity: .4; transition: transform .2s; }
+.country-picker.open .country-picker-btn svg { transform: rotate(180deg); }
+.country-picker-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+}
+.country-picker.open .country-picker-menu { display: block; }
+.country-picker-group {
+  font-family: var(--fm);
+  font-size: 7.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  padding: .6rem .85rem .3rem;
+}
+.country-picker-option {
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--fg-m);
+  padding: .45rem .85rem;
+  cursor: none;
+  transition: background .1s, color .1s;
+}
+.country-picker-option:hover { background: var(--bg-2); color: var(--fg); }
+.country-picker-option.selected { color: var(--fg); }
 .shop-customer-note-wrap { margin-bottom: 1rem; }
 .shop-customer-note-label { display: block; font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin-bottom: .4rem; }
 .shop-customer-note { width: 100%; font-family: var(--fm); font-size: 11px; color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; padding: .6rem .75rem; resize: vertical; line-height: 1.6; }
@@ -1371,35 +1427,58 @@ nav.on-light .nav-hamburger span,
       <div id="cart-delivery-options"></div>
       <div id="cart-country-wrap" style="display:none;margin-top:.85rem">
         <label class="cart-delivery-title" style="display:block;margin-bottom:.4rem">Destination country</label>
-        <select id="cart-country-select" class="field-input" style="max-width:280px" onchange="onCountryChange()">
-          <option value="">Select a country…</option>
-          <optgroup label="European Union & EEA">
-            <option value="AT">Austria</option><option value="BE">Belgium</option>
-            <option value="BG">Bulgaria</option><option value="HR">Croatia</option>
-            <option value="CY">Cyprus</option><option value="CZ">Czech Republic</option>
-            <option value="DK">Denmark</option><option value="EE">Estonia</option>
-            <option value="FI">Finland</option><option value="FR">France</option>
-            <option value="DE">Germany</option><option value="GR">Greece</option>
-            <option value="HU">Hungary</option><option value="IE">Ireland</option>
-            <option value="IT">Italy</option><option value="LV">Latvia</option>
-            <option value="LT">Lithuania</option><option value="LU">Luxembourg</option>
-            <option value="MT">Malta</option><option value="NL">Netherlands</option>
-            <option value="PL">Poland</option><option value="PT">Portugal</option>
-            <option value="RO">Romania</option><option value="SK">Slovakia</option>
-            <option value="SI">Slovenia</option><option value="ES">Spain</option>
-            <option value="SE">Sweden</option><option value="GB">United Kingdom</option>
-            <option value="IS">Iceland</option><option value="NO">Norway</option>
-          </optgroup>
-          <optgroup label="Rest of World">
-            <option value="US">United States</option><option value="CA">Canada</option>
-            <option value="AU">Australia</option><option value="JP">Japan</option>
-            <option value="SG">Singapore</option><option value="NZ">New Zealand</option>
-            <option value="ZA">South Africa</option><option value="BR">Brazil</option>
-            <option value="MX">Mexico</option><option value="AE">UAE</option>
-            <option value="SA">Saudi Arabia</option>
-            <option value="OTHER">Other</option>
-          </optgroup>
-        </select>
+        <div class="country-picker" id="country-picker">
+          <button type="button" class="country-picker-btn" id="country-picker-btn" onclick="toggleCountryPicker()">
+            <span id="country-picker-label">Select a country…</span>
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div class="country-picker-menu" id="country-picker-menu">
+            <div class="country-picker-group">EU & EEA</div>
+            <div class="country-picker-option" data-value="AT" onclick="selectCountry('AT','Austria')">Austria</div>
+            <div class="country-picker-option" data-value="BE" onclick="selectCountry('BE','Belgium')">Belgium</div>
+            <div class="country-picker-option" data-value="BG" onclick="selectCountry('BG','Bulgaria')">Bulgaria</div>
+            <div class="country-picker-option" data-value="HR" onclick="selectCountry('HR','Croatia')">Croatia</div>
+            <div class="country-picker-option" data-value="CY" onclick="selectCountry('CY','Cyprus')">Cyprus</div>
+            <div class="country-picker-option" data-value="CZ" onclick="selectCountry('CZ','Czech Republic')">Czech Republic</div>
+            <div class="country-picker-option" data-value="DK" onclick="selectCountry('DK','Denmark')">Denmark</div>
+            <div class="country-picker-option" data-value="EE" onclick="selectCountry('EE','Estonia')">Estonia</div>
+            <div class="country-picker-option" data-value="FI" onclick="selectCountry('FI','Finland')">Finland</div>
+            <div class="country-picker-option" data-value="FR" onclick="selectCountry('FR','France')">France</div>
+            <div class="country-picker-option" data-value="DE" onclick="selectCountry('DE','Germany')">Germany</div>
+            <div class="country-picker-option" data-value="GR" onclick="selectCountry('GR','Greece')">Greece</div>
+            <div class="country-picker-option" data-value="HU" onclick="selectCountry('HU','Hungary')">Hungary</div>
+            <div class="country-picker-option" data-value="IE" onclick="selectCountry('IE','Ireland')">Ireland</div>
+            <div class="country-picker-option" data-value="IT" onclick="selectCountry('IT','Italy')">Italy</div>
+            <div class="country-picker-option" data-value="LV" onclick="selectCountry('LV','Latvia')">Latvia</div>
+            <div class="country-picker-option" data-value="LT" onclick="selectCountry('LT','Lithuania')">Lithuania</div>
+            <div class="country-picker-option" data-value="LU" onclick="selectCountry('LU','Luxembourg')">Luxembourg</div>
+            <div class="country-picker-option" data-value="MT" onclick="selectCountry('MT','Malta')">Malta</div>
+            <div class="country-picker-option" data-value="NL" onclick="selectCountry('NL','Netherlands')">Netherlands</div>
+            <div class="country-picker-option" data-value="PL" onclick="selectCountry('PL','Poland')">Poland</div>
+            <div class="country-picker-option" data-value="PT" onclick="selectCountry('PT','Portugal')">Portugal</div>
+            <div class="country-picker-option" data-value="RO" onclick="selectCountry('RO','Romania')">Romania</div>
+            <div class="country-picker-option" data-value="SK" onclick="selectCountry('SK','Slovakia')">Slovakia</div>
+            <div class="country-picker-option" data-value="SI" onclick="selectCountry('SI','Slovenia')">Slovenia</div>
+            <div class="country-picker-option" data-value="ES" onclick="selectCountry('ES','Spain')">Spain</div>
+            <div class="country-picker-option" data-value="SE" onclick="selectCountry('SE','Sweden')">Sweden</div>
+            <div class="country-picker-option" data-value="GB" onclick="selectCountry('GB','United Kingdom')">United Kingdom</div>
+            <div class="country-picker-option" data-value="IS" onclick="selectCountry('IS','Iceland')">Iceland</div>
+            <div class="country-picker-option" data-value="NO" onclick="selectCountry('NO','Norway')">Norway</div>
+            <div class="country-picker-group">Rest of World</div>
+            <div class="country-picker-option" data-value="US" onclick="selectCountry('US','United States')">United States</div>
+            <div class="country-picker-option" data-value="CA" onclick="selectCountry('CA','Canada')">Canada</div>
+            <div class="country-picker-option" data-value="AU" onclick="selectCountry('AU','Australia')">Australia</div>
+            <div class="country-picker-option" data-value="JP" onclick="selectCountry('JP','Japan')">Japan</div>
+            <div class="country-picker-option" data-value="SG" onclick="selectCountry('SG','Singapore')">Singapore</div>
+            <div class="country-picker-option" data-value="NZ" onclick="selectCountry('NZ','New Zealand')">New Zealand</div>
+            <div class="country-picker-option" data-value="ZA" onclick="selectCountry('ZA','South Africa')">South Africa</div>
+            <div class="country-picker-option" data-value="BR" onclick="selectCountry('BR','Brazil')">Brazil</div>
+            <div class="country-picker-option" data-value="MX" onclick="selectCountry('MX','Mexico')">Mexico</div>
+            <div class="country-picker-option" data-value="AE" onclick="selectCountry('AE','UAE')">UAE</div>
+            <div class="country-picker-option" data-value="SA" onclick="selectCountry('SA','Saudi Arabia')">Saudi Arabia</div>
+            <div class="country-picker-option" data-value="OTHER" onclick="selectCountry('OTHER','Other')">Other</div>
+          </div>
+        </div>
       </div>
       <div id="cart-quote-msg" style="display:none;margin-top:.75rem;font-size:11px;color:var(--fg-m);line-height:1.7"></div>
     </div>
@@ -2455,8 +2534,25 @@ let shippingQuoteRequired = false;
 let calculatedShippingPrice = 0;
 let chPriceCache = 0; // cached so cart doesn't re-fetch on every render
 
+function toggleCountryPicker() {
+  document.getElementById('country-picker').classList.toggle('open');
+}
+function selectCountry(code, label) {
+  selectedCountry = code;
+  document.getElementById('country-picker-label').textContent = label;
+  document.querySelectorAll('.country-picker-option').forEach(el =>
+    el.classList.toggle('selected', el.dataset.value === code)
+  );
+  document.getElementById('country-picker').classList.remove('open');
+  onCountryChange();
+}
+// Close picker when clicking outside
+document.addEventListener('click', e => {
+  const picker = document.getElementById('country-picker');
+  if (picker && !picker.contains(e.target)) picker.classList.remove('open');
+});
+
 async function onCountryChange() {
-  selectedCountry = document.getElementById('cart-country-select').value;
   if (!selectedCountry) return;
   const intlOpt = document.querySelector('[data-method="intl"] .cart-delivery-price');
   if (intlOpt) intlOpt.textContent = '…';
