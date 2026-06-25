@@ -164,34 +164,6 @@ async function calculateShipping(items, delivery_method, country_code, zone) {
   return { price_chf_cents: 0, requires_quote: false };
 }
 
-// Public endpoint to calculate shipping before checkout
-// POST /api/shipping/calculate  {items:[{print_id, size}], delivery_method, country_code}
-app.post('/api/shipping/calculate', async (req, res) => {
-  try {
-    const { items, delivery_method, country_code, zone } = req.body;
-    if (!items || !items.length) return res.status(400).json({ error: 'No items' });
-
-    const enrichedItems = await Promise.all(items.map(async item => {
-      const { rows } = await pool.query(
-        `SELECT ps.size, pa.weight_gsm as paper_weight_gsm
-         FROM print_sizes ps
-         JOIN prints p ON p.id = ps.print_id
-         LEFT JOIN papers pa ON pa.id = p.paper_id
-         WHERE ps.print_id = $1 AND ps.size = $2`,
-        [item.print_id, item.size]
-      );
-      return { ...item, paper_weight_gsm: rows[0]?.paper_weight_gsm || 200, size: item.size };
-    }));
-
-    const result = await calculateShipping(enrichedItems, delivery_method, country_code, zone);
-    const { weight_g, format } = await calcShipmentWeight(enrichedItems);
-    console.log(`[shipping] method=${delivery_method} zone=${zone||'-'} country=${country_code} weight=${weight_g}g format=${format} price=${result.price_chf_cents} quote=${result.requires_quote}`);
-    res.json({ ...result, weight_g, format });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // Size rank — used to pick the "largest" size in a cart for shipping calculation
 const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
 
@@ -408,6 +380,34 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 // Everything else gets normal JSON parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Public endpoint to calculate shipping before checkout
+// Must be after express.json() so req.body is parsed
+app.post('/api/shipping/calculate', async (req, res) => {
+  try {
+    const { items, delivery_method, country_code, zone } = req.body;
+    if (!items || !items.length) return res.status(400).json({ error: 'No items' });
+
+    const enrichedItems = await Promise.all(items.map(async item => {
+      const { rows } = await pool.query(
+        `SELECT ps.size, pa.weight_gsm as paper_weight_gsm
+         FROM print_sizes ps
+         JOIN prints p ON p.id = ps.print_id
+         LEFT JOIN papers pa ON pa.id = p.paper_id
+         WHERE ps.print_id = $1 AND ps.size = $2`,
+        [item.print_id, item.size]
+      );
+      return { ...item, paper_weight_gsm: rows[0]?.paper_weight_gsm || 200, size: item.size };
+    }));
+
+    const result = await calculateShipping(enrichedItems, delivery_method, country_code, zone);
+    const { weight_g, format } = await calcShipmentWeight(enrichedItems);
+    console.log(`[shipping] method=${delivery_method} zone=${zone||'-'} country=${country_code} weight=${weight_g}g format=${format} price=${result.price_chf_cents} quote=${result.requires_quote}`);
+    res.json({ ...result, weight_g, format });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
     // index.html (and the admin's index.html) is the entry point and changes
