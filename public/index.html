@@ -2370,7 +2370,9 @@ async function renderCart() {
       })
     });
     const d = await r.json();
-    chPrice = d.price_chf_cents || 0;
+    console.log('[chPrice] raw:', JSON.stringify(d));
+    chPrice = parseInt(d.price_chf_cents) || 0;
+    console.log('[chPrice] value:', chPrice);
   } catch(e) {}
 
   const addOption = (method, label, available, price) => {
@@ -2473,9 +2475,10 @@ async function recalcShipping() {
       return;
     }
     const data = await res.json();
-    console.log('[recalcShipping] response:', data);
-    shippingQuoteRequired = data.requires_quote || false;
-    calculatedShippingPrice = data.price_chf_cents || 0;
+    console.log('[recalcShipping] raw response:', JSON.stringify(data));
+    shippingQuoteRequired = data.requires_quote === true;
+    calculatedShippingPrice = parseInt(data.price_chf_cents) || 0;
+    console.log('[recalcShipping] calculatedShippingPrice:', calculatedShippingPrice);
     const quoteMsg = document.getElementById('cart-quote-msg');
     if (quoteMsg) {
       if (shippingQuoteRequired) {
