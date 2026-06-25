@@ -2142,7 +2142,7 @@ let personalDeliveryZones = []; // loaded from API
 
 function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
 
-function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); updateCartBar(); }
+function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); chPriceCache = 0; updateCartBar(); }
 
 function openMobileNav() {
   document.getElementById('nav-mobile-menu').classList.add('open');
@@ -2356,101 +2356,132 @@ async function renderCart() {
   const deliveryWrap = document.getElementById('cart-delivery-options');
   deliveryWrap.innerHTML = '';
   const countryWrap = document.getElementById('cart-country-wrap');
+  if (countryWrap) countryWrap.style.display = selectedDelivery === 'intl' ? 'block' : 'none';
 
-  // Pre-calculate CH shipping price so it shows before the user clicks
-  let chPrice = 0;
-  try {
-    const r = await fetch('/api/shipping/calculate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
-        delivery_method: 'ch',
-        country_code: 'CH'
-      })
-    });
-    const d = await r.json();
-    console.log('[chPrice] raw:', JSON.stringify(d));
-    chPrice = parseInt(d.price_chf_cents) || 0;
-    console.log('[chPrice] value:', chPrice);
-  } catch(e) {}
+  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
 
-  const addOption = (method, label, available, price) => {
+  // Helper to update total row in place — called after prices are known
+  function updateTotal() {
+    const baseMethod = selectedDelivery ? selectedDelivery.split('_')[0] : null;
+    const deliverySelected = selectedDelivery && (
+      deliveryAvailability[selectedDelivery] ||
+      (baseMethod === 'personal' && deliveryAvailability.personal) ||
+      (baseMethod === 'ch' && deliveryAvailability.ch)
+    );
+    termsRow.style.display = 'flex';
+    if (deliverySelected) {
+      if (shippingQuoteRequired) {
+        totalRow.style.display = 'none';
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Contact us for a shipping quote';
+      } else {
+        totalRow.style.display = 'flex';
+        document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + calculatedShippingPrice);
+        checkoutBtn.disabled = !termsCheckbox.checked;
+        checkoutBtn.textContent = 'Checkout';
+      }
+    } else {
+      totalRow.style.display = 'none';
+      checkoutBtn.disabled = true;
+      checkoutBtn.textContent = 'Select a delivery option';
+    }
+  }
+
+  // Only rebuild the delivery options DOM if it's empty or cart contents changed
+  // — avoids the flicker/jump from full re-renders on every price update
+  const needsRebuild = deliveryWrap.children.length === 0;
+
+  const addOption = (method, label, available, priceLabel) => {
+    if (!needsRebuild) {
+      // Just update the price label in the existing element
+      const existing = deliveryWrap.querySelector(`[data-method="${method}"]`);
+      if (existing) existing.querySelector('.cart-delivery-price').textContent = priceLabel;
+      return;
+    }
     const opt = document.createElement('div');
     opt.className = 'cart-delivery-option' + (!available ? ' disabled' : '') + (selectedDelivery === method ? ' selected' : '');
-    let priceLabel;
-    if (!available) priceLabel = 'Not available';
-    else if (selectedDelivery === method) priceLabel = fmtCHF(calculatedShippingPrice);
-    else if (method === 'intl') priceLabel = 'Select country';
-    else priceLabel = fmtCHF(price);
-    opt.innerHTML = `<span>${label}</span><span>${priceLabel}</span>`;
+    opt.dataset.method = method;
+    opt.innerHTML = `<span>${label}</span><span class="cart-delivery-price">${priceLabel}</span>`;
     if (available) opt.addEventListener('click', async () => {
+      document.querySelectorAll('.cart-delivery-option').forEach(el => el.classList.remove('selected'));
+      opt.classList.add('selected');
+      opt.querySelector('.cart-delivery-price').textContent = '…';
       selectedDelivery = method;
       if (countryWrap) countryWrap.style.display = method === 'intl' ? 'block' : 'none';
       if (method !== 'intl') selectedCountry = 'CH';
-      document.querySelectorAll('.cart-delivery-option').forEach(el => el.classList.remove('selected'));
-      opt.classList.add('selected');
-      opt.querySelector('span:last-child').textContent = '…';
       await recalcShipping();
-      await renderCart();
+      // Update this option's price and the total in place — no full re-render
+      opt.querySelector('.cart-delivery-price').textContent = fmtCHF(calculatedShippingPrice);
+      updateTotal();
     });
     deliveryWrap.appendChild(opt);
   };
 
-  // Standard shipping CH — show pre-calculated price
-  addOption('ch', 'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch, chPrice);
+  // Personal delivery zone price (from DB, already loaded)
+  const personalZone = personalDeliveryZones[0];
+  const personalPrice = personalZone ? personalZone.price_chf_cents : 5000;
 
-  // Personal delivery — single flat rate for all CH/LI
+  addOption('ch',           'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch,       '…');
   if (deliveryAvailability.personal) {
-    const zone = personalDeliveryZones[0];
-    const price = zone ? zone.price_chf_cents : 5000;
-    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true, price);
+    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true, fmtCHF(personalPrice));
   } else {
-    addOption('personal', 'Personal delivery', false, 0);
+    addOption('personal', 'Personal delivery', false, 'Not available');
   }
+  addOption('intl',         'International shipping',                            deliveryAvailability.intl,    selectedDelivery === 'intl' ? fmtCHF(calculatedShippingPrice) : 'Select country');
 
-  // International — price shown after country selection
-  addOption('intl', 'International shipping', deliveryAvailability.intl, 0);
+  updateTotal();
 
-  if (countryWrap) countryWrap.style.display = selectedDelivery === 'intl' ? 'block' : 'none';
-
-  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
-  termsRow.style.display = 'flex';
-
-  // selectedDelivery may be 'ch', 'intl', or 'personal_canton_zurich' etc.
-  const baseMethod = selectedDelivery ? selectedDelivery.split('_')[0] : null;
-  const deliverySelected = selectedDelivery && (
-    deliveryAvailability[selectedDelivery] || // exact match (ch, intl)
-    (baseMethod === 'personal' && deliveryAvailability.personal) // zone-prefixed personal
-  );
-
-  if (deliverySelected) {
-    if (shippingQuoteRequired) {
-      totalRow.style.display = 'none';
-      checkoutBtn.disabled = true;
-      checkoutBtn.textContent = 'Contact us for a shipping quote';
-    } else {
-      totalRow.style.display = 'flex';
-      document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + calculatedShippingPrice);
-      checkoutBtn.disabled = !termsCheckbox.checked;
-      checkoutBtn.textContent = 'Checkout';
-    }
-  } else {
-    totalRow.style.display = 'none';
-    checkoutBtn.disabled = true;
-    checkoutBtn.textContent = 'Select a delivery option';
+  // Fetch CH price in background and update label in place — no re-render
+  if (needsRebuild || !chPriceCache) {
+    fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.map(i => ({ print_id: i.print_id, size: i.size })), delivery_method: 'ch', country_code: 'CH' })
+    }).then(r => r.json()).then(d => {
+      chPriceCache = parseInt(d.price_chf_cents) || 0;
+      const chOpt = deliveryWrap.querySelector('[data-method="ch"]');
+      if (chOpt) {
+        chOpt.querySelector('.cart-delivery-price').textContent = selectedDelivery === 'ch' ? fmtCHF(calculatedShippingPrice) : fmtCHF(chPriceCache);
+      }
+      if (selectedDelivery === 'ch' && !calculatedShippingPrice) {
+        calculatedShippingPrice = chPriceCache;
+        updateTotal();
+      }
+    }).catch(() => {
+      const chOpt = deliveryWrap.querySelector('[data-method="ch"]');
+      if (chOpt) chOpt.querySelector('.cart-delivery-price').textContent = '—';
+    });
   }
 }
 
 let selectedCountry = 'CH';
 let shippingQuoteRequired = false;
 let calculatedShippingPrice = 0;
+let chPriceCache = 0; // cached so cart doesn't re-fetch on every render
 
 async function onCountryChange() {
   selectedCountry = document.getElementById('cart-country-select').value;
   if (!selectedCountry) return;
+  const intlOpt = document.querySelector('[data-method="intl"] .cart-delivery-price');
+  if (intlOpt) intlOpt.textContent = '…';
   await recalcShipping();
-  await renderCart();
+  // Update intl price and total in place — no full re-render
+  if (intlOpt) intlOpt.textContent = shippingQuoteRequired ? 'Quote required' : fmtCHF(calculatedShippingPrice);
+  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
+  const totalAmountEl = document.getElementById('cart-total-amount');
+  const totalRow = document.getElementById('cart-total-row');
+  const checkoutBtn = document.getElementById('btn-checkout');
+  const termsCheckbox = document.getElementById('accept-terms');
+  if (shippingQuoteRequired) {
+    totalRow.style.display = 'none';
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Contact us for a shipping quote';
+  } else {
+    totalRow.style.display = 'flex';
+    if (totalAmountEl) totalAmountEl.textContent = fmtCHF(subtotal + calculatedShippingPrice);
+    checkoutBtn.disabled = !termsCheckbox.checked;
+    checkoutBtn.textContent = 'Checkout';
+  }
 }
 
 async function recalcShipping() {
