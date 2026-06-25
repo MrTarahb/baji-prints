@@ -2320,6 +2320,10 @@ async function renderCart() {
       shopProducts = await fetch('/api/shop/products').then(r => r.json());
     } catch(e) {}
   }
+  console.log('[renderCart] cart:', cart.length, 'shopProducts:', shopProducts.length, 'personalZones:', personalDeliveryZones.length);
+  console.log('[renderCart] cart print_ids:', cart.map(i => i.print_id));
+  const matched = cart.map(item => shopProducts.find(p => p.id === item.print_id));
+  console.log('[renderCart] matched products:', matched.map(p => p ? {id:p.id, delivery_ch:p.delivery_ch} : 'NOT FOUND'));
 
   if (!cart.length) {
     itemsWrap.innerHTML = '<div class="cart-empty">Your cart is empty.</div>';
