@@ -750,6 +750,19 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 #terms-page .inner { max-width: 600px; margin: 0 auto; }
 #terms-page.active { display: block; }
 
+#faq-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#faq-page .inner { max-width: 680px; margin: 0 auto; }
+#faq-page.active { display: block; }
+
 /* SHOP PAGE */
 #shop-page, #shop-success-page {
   display: none;
@@ -1178,6 +1191,54 @@ nav.on-light .nav-hamburger span,
 .about-body strong { color: var(--fg); font-weight: 400; }
 .about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
 .about-spec {
+
+/* FAQ */
+.faq-section { margin-bottom: 2.5rem; }
+.faq-heading {
+  font-family: var(--fm);
+  font-size: 9px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  margin-bottom: 1rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 1rem 1.5rem 1rem 0;
+  font-family: var(--fm);
+  font-size: 11px;
+  letter-spacing: .03em;
+  color: var(--fg);
+  cursor: none;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.faq-q::after {
+  content: '+';
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--fg-l);
+  flex-shrink: 0;
+  transition: transform .2s;
+}
+.faq-q.open::after { transform: rotate(45deg); }
+.faq-a {
+  display: none;
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.85;
+  padding: 0 1.5rem 1.25rem 0;
+}
+.faq-a.open { display: block; }
   font-size: 9px;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -1292,6 +1353,7 @@ nav.on-light .nav-hamburger span,
     <div class="footer-contact">
       <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
+      <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
       <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
@@ -1391,6 +1453,132 @@ nav.on-light .nav-hamburger span,
 
       <div class="about-divider"></div>
       <p class="about-spec">This page is a good-faith summary, not formal legal advice. Questions about an order can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ PAGE -->
+<div id="faq-page">
+  <div class="inner">
+    <h1 class="about-heading">FAQ.</h1>
+    <div class="about-body">
+
+      <p class="about-spec" style="margin-bottom:2rem">Answers to the most common questions. Something missing? <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">Get in touch</a>.</p>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Prints &amp; paper</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What paper are the prints made on?</button>
+          <div class="faq-a">Each print is produced on museum-grade fine art paper — the specific paper for each image is noted in the shop. I use archival papers such as Hahnemühle Photo Rag and similar. The paper choice is made per image to best complement the photograph.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What sizes are available?</button>
+          <div class="faq-a">Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Are the prints signed?</button>
+          <div class="faq-a">Yes. All prints are signed by hand. Limited edition prints are also numbered.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What is a limited edition print?</button>
+          <div class="faq-a">A limited edition means only a fixed number of that print will ever be produced in that size. The edition size is shown in the shop. Once the edition sells out, no more copies of that print in that size will be made. Your edition number is recorded at the time of purchase.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Will prints have a margin / passepartout?</button>
+          <div class="faq-a">Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you'd prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I'll accommodate it.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Ordering &amp; payment</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How do I order?</button>
+          <div class="faq-a">Browse the shop, select a print and size, add it to your cart, choose a delivery method, and proceed to checkout. Payment is handled securely by Stripe — your card details are never seen or stored by me.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What payment methods do you accept?</button>
+          <div class="faq-a">Credit and debit cards (Visa, Mastercard, Amex) and TWINT for Swiss customers. All payments are processed securely via Stripe.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Can I order a print that isn't in the shop?</button>
+          <div class="faq-a">Yes — if you've seen a photo in my portfolio that isn't currently available as a print, just <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">get in touch</a> and I'll arrange it for you.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Shipping</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How are prints shipped?</button>
+          <div class="faq-a">A4 prints are sent flat in a rigid protective mailer. A3 and A2 prints are shipped rolled in a sturdy postal tube. All prints are carefully packaged to arrive in perfect condition.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How long does delivery take?</button>
+          <div class="faq-a">I aim to print and dispatch every order within one to two weeks of payment. Swiss delivery typically takes 2–4 working days after dispatch; EU and international delivery takes longer depending on destination. You'll receive a confirmation email when your order ships.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you ship internationally?</button>
+          <div class="faq-a">Yes — I ship to EU countries and a range of other destinations worldwide. Shipping cost is calculated at checkout based on your country and the size of your order. For destinations not listed at checkout, <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact me</a> for a quote.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How much does shipping cost?</button>
+          <div class="faq-a">Shipping is calculated automatically at checkout based on your delivery method, destination, and the size and weight of your prints. Swiss standard shipping starts from CHF 2 for A4 and CHF 9 for A3/A2. EU rates vary by weight — shown at checkout once you select your country.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Personal delivery</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What is personal delivery?</button>
+          <div class="faq-a">Personal delivery means I bring the print to you in person — no postal service, no tube. It's the most careful way to receive a large fine art print, and it gives us a chance to meet and make sure you're happy with the piece.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Which areas are covered?</button>
+          <div class="faq-a">Personal delivery is available across Switzerland and Liechtenstein. After placing your order, I'll contact you directly to arrange a time and location that works for you.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How does personal delivery work in practice?</button>
+          <div class="faq-a">Once your order is confirmed and the print is ready, I'll reach out by email to coordinate. We arrange a meeting point — your home, your office, or anywhere convenient. I bring the print in person, flat or rolled depending on size, and you can inspect it on the spot before I leave.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Returns &amp; quality</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What if my print arrives damaged?</button>
+          <div class="faq-a">If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I'll arrange a replacement or full refund, including return shipping costs, at no charge to you.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you accept returns?</button>
+          <div class="faq-a">Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I'll refund the full purchase price. See the <a href="#" onclick="showPage('terms');return false;" style="color:var(--pink-d)">terms of sale</a> for full details.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Framing</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you offer framing?</button>
+          <div class="faq-a">Not yet — but it's coming. I'm in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">Get in touch</a> if you'd like to know more or be notified when it launches.</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1628,7 +1816,7 @@ function initScrollAnimation() {
       // not just about/contact, otherwise scrolling on shop/privacy/success
       // incorrectly hides the nav since this list was never kept in sync with
       // every page showPage() actually knows about.
-      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','shop-page','shop-success-page','cart-page']
+      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','shop-page','shop-success-page','cart-page']
         .some(id => document.getElementById(id)?.classList.contains('active'));
       if (!onSubPage) nav.classList.remove('visible');
     }
@@ -1702,6 +1890,7 @@ function showPage(name){
   const contactEl = document.getElementById('contact-page');
   const privacyEl = document.getElementById('privacy-page');
   const termsEl = document.getElementById('terms-page');
+  const faqEl = document.getElementById('faq-page');
   const shopEl = document.getElementById('shop-page');
   const shopSuccessEl = document.getElementById('shop-success-page');
   const cartEl = document.getElementById('cart-page');
@@ -1709,6 +1898,7 @@ function showPage(name){
   contactEl.classList.toggle('active', name==='contact');
   privacyEl.classList.toggle('active', name==='privacy');
   termsEl.classList.toggle('active', name==='terms');
+  faqEl.classList.toggle('active', name==='faq');
   shopEl.classList.toggle('active', name==='shop');
   shopSuccessEl.classList.toggle('active', name==='shop-success');
   cartEl.classList.toggle('active', name==='cart');
@@ -1716,6 +1906,7 @@ function showPage(name){
   if (name === 'contact') contactEl.scrollTop = 0;
   if (name === 'privacy') privacyEl.scrollTop = 0;
   if (name === 'terms') termsEl.scrollTop = 0;
+  if (name === 'faq') faqEl.scrollTop = 0;
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
   if (name === 'cart') {
@@ -2155,6 +2346,21 @@ function _renderLightbox(src, title, printId) {
     inner.style.opacity = '1';
   });
 }
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const isOpen = btn.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.faq-q.open').forEach(q => {
+    q.classList.remove('open');
+    q.nextElementSibling.classList.remove('open');
+  });
+  // Toggle clicked one
+  if (!isOpen) {
+    btn.classList.add('open');
+    answer.classList.add('open');
+  }
+}
+
 function toggleLightboxDesc() {
   const panel = document.getElementById('lightbox-desc');
   const toggle = document.getElementById('lightbox-desc-toggle');
