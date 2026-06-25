@@ -2314,6 +2314,13 @@ async function renderCart() {
   const termsRow = document.getElementById('terms-accept-row');
   const termsCheckbox = document.getElementById('accept-terms');
 
+  // Ensure shop products are loaded — needed to check delivery availability per print
+  if (!shopProducts.length && cart.length) {
+    try {
+      shopProducts = await fetch('/api/shop/products').then(r => r.json());
+    } catch(e) {}
+  }
+
   if (!cart.length) {
     itemsWrap.innerHTML = '<div class="cart-empty">Your cart is empty.</div>';
     deliverySection.style.display = 'none';
