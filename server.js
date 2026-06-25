@@ -630,6 +630,25 @@ async function initDB() {
     ['shop_cart_heading', 'Your cart.'],
     ['shop_success_heading', 'Thank you.'],
     ['shop_continue_btn', 'Continue browsing'],
+    // FAQ answers
+    ['faq_paper', 'Each print is produced on museum-grade fine art paper — the specific paper for each image is noted in the shop. I use archival papers such as Hahnemühle Photo Rag and similar. The paper choice is made per image to best complement the photograph.'],
+    ['faq_sizes', 'Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.'],
+    ['faq_signed', 'Yes. All prints are signed by hand. Limited edition prints are also numbered.'],
+    ['faq_limited', 'A limited edition means only a fixed number of that print will ever be produced in that size. The edition size is shown in the shop. Once the edition sells out, no more copies of that print in that size will be made. Your edition number is recorded at the time of purchase.'],
+    ['faq_margin', 'Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you\'d prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I\'ll accommodate it.'],
+    ['faq_how_order', 'Browse the shop, select a print and size, add it to your cart, choose a delivery method, and proceed to checkout. Payment is handled securely by Stripe — your card details are never seen or stored by me.'],
+    ['faq_payment', 'Credit and debit cards (Visa, Mastercard, Amex) and TWINT for Swiss customers. All payments are processed securely via Stripe.'],
+    ['faq_custom_print', 'Yes — if you\'ve seen a photo in my portfolio that isn\'t currently available as a print, just get in touch and I\'ll arrange it for you.'],
+    ['faq_packaging', 'A4 prints are sent flat in a rigid protective mailer. A3 and A2 prints are shipped rolled in a sturdy postal tube. All prints are carefully packaged to arrive in perfect condition.'],
+    ['faq_delivery_time', 'I aim to print and dispatch every order within one to two weeks of payment. Swiss delivery typically takes 2–4 working days after dispatch; EU and international delivery takes longer depending on destination. You\'ll receive a confirmation email when your order ships.'],
+    ['faq_intl', 'Yes — I ship to EU countries and a range of other destinations worldwide. Shipping cost is calculated at checkout based on your country and the size of your order. For destinations not listed at checkout, contact me for a quote.'],
+    ['faq_shipping_cost', 'Shipping is calculated automatically at checkout based on your delivery method, destination, and the size and weight of your prints. Swiss standard shipping starts from CHF 2 for A4 and CHF 9 for A3/A2. EU rates vary by weight — shown at checkout once you select your country.'],
+    ['faq_personal_what', 'Personal delivery means I bring the print to you in person — no postal service, no tube. It\'s the most careful way to receive a large fine art print, and it gives us a chance to meet and make sure you\'re happy with the piece.'],
+    ['faq_personal_where', 'Personal delivery is available across Switzerland and Liechtenstein. After placing your order, I\'ll contact you directly to arrange a time and location that works for you.'],
+    ['faq_personal_how', 'Once your order is confirmed and the print is ready, I\'ll reach out by email to coordinate. We arrange a meeting point — your home, your office, or anywhere convenient. I bring the print in person, flat or rolled depending on size, and you can inspect it on the spot before I leave.'],
+    ['faq_damaged', 'If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I\'ll arrange a replacement or full refund, including return shipping costs, at no charge to you.'],
+    ['faq_returns', 'Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I\'ll refund the full purchase price. See the terms of sale for full details.'],
+    ['faq_framing', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
   ];
 
   for (const [key, value] of defaults) {

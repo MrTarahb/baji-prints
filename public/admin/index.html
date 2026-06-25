@@ -360,6 +360,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
       <button class="sidebar-btn" onclick="showPanel('about',this)">About page</button>
       <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
+      <button class="sidebar-btn" onclick="showPanel('faq',this)">FAQ</button>
       <button class="sidebar-btn" onclick="showPanel('shoptext',this)">Shop text</button>
       <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
       <button class="sidebar-btn" onclick="showPanel('seo',this)">SEO & sharing</button>
@@ -559,6 +560,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Contact page</h2>
         <p class="panel-sub">Text on the Contact page.</p>
         <div id="contact-fields"></div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="panel" id="panel-faq">
+        <h2 class="panel-title">FAQ</h2>
+        <p class="panel-sub">Edit the answers shown on the FAQ page. Questions are fixed; only answers are editable here.</p>
+        <div id="faq-fields"></div>
       </div>
 
       <!-- SHOP TEXT -->
@@ -1414,6 +1422,27 @@ async function loadAll(){
 
   buildFields('contact-fields',[
     ['contact_title', 'Page heading',            false],
+  ]);
+
+  buildFields('faq-fields',[
+    ['faq_paper',         'What paper are the prints made on?',             true],
+    ['faq_sizes',         'What sizes are available?',                      true],
+    ['faq_signed',        'Are the prints signed?',                         true],
+    ['faq_limited',       'What is a limited edition print?',               true],
+    ['faq_margin',        'Will prints have a margin / passepartout?',      true],
+    ['faq_how_order',     'How do I order?',                                true],
+    ['faq_payment',       'What payment methods do you accept?',            true],
+    ['faq_custom_print',  'Can I order a print that isn\'t in the shop?',   true],
+    ['faq_packaging',     'How are prints shipped?',                        true],
+    ['faq_delivery_time', 'How long does delivery take?',                   true],
+    ['faq_intl',          'Do you ship internationally?',                   true],
+    ['faq_shipping_cost', 'How much does shipping cost?',                   true],
+    ['faq_personal_what', 'What is personal delivery?',                     true],
+    ['faq_personal_where','Which areas are covered?',                       true],
+    ['faq_personal_how',  'How does personal delivery work in practice?',   true],
+    ['faq_damaged',       'What if my print arrives damaged?',              true],
+    ['faq_returns',       'Do you accept returns?',                         true],
+    ['faq_framing',       'Do you offer framing?',                          true],
   ]);
 
   buildFields('shoptext-fields',[
