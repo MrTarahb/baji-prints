@@ -1875,6 +1875,17 @@ async function loadContent() {
       if (img) { img.src = d.about_photo_url; img.style.display = 'block'; }
     }
 
+    // FAQ — hide items where *_enabled is explicitly 'false'
+    document.querySelectorAll('[id^="c-faq_"]').forEach(el => {
+      const key = el.id.replace('c-', '');
+      const enabledKey = key + '_enabled';
+      if (d[enabledKey] === 'false') {
+        // Hide the whole .faq-item ancestor
+        const item = el.closest('.faq-item');
+        if (item) item.style.display = 'none';
+      }
+    });
+
     // IG link — update href and label separately
     if (d.footer_ig) {
       const igEl = document.getElementById('c-footer_ig_link');

@@ -649,6 +649,13 @@ async function initDB() {
     ['faq_damaged', 'If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I\'ll arrange a replacement or full refund, including return shipping costs, at no charge to you.'],
     ['faq_returns', 'Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I\'ll refund the full purchase price. See the terms of sale for full details.'],
     ['faq_framing', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
+    // FAQ visibility flags — 'false' hides that question on the site
+    ['faq_paper_enabled','true'],['faq_sizes_enabled','true'],['faq_signed_enabled','true'],
+    ['faq_limited_enabled','true'],['faq_margin_enabled','true'],['faq_how_order_enabled','true'],
+    ['faq_payment_enabled','true'],['faq_custom_print_enabled','true'],['faq_packaging_enabled','true'],
+    ['faq_delivery_time_enabled','true'],['faq_intl_enabled','true'],['faq_shipping_cost_enabled','true'],
+    ['faq_personal_what_enabled','true'],['faq_personal_where_enabled','true'],['faq_personal_how_enabled','true'],
+    ['faq_damaged_enabled','true'],['faq_returns_enabled','true'],['faq_framing_enabled','true'],
   ];
 
   for (const [key, value] of defaults) {
