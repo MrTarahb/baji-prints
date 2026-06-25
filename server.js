@@ -866,20 +866,25 @@ app.post('/api/shop/checkout', async (req, res) => {
     const total = subtotal + shippingPrice;
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
-    // Restrict allowed address countries per delivery method so customers
-    // can't game shipping by entering a different country than they selected
-    const CH_LI = ['CH','LI'];
+    // Lock the Stripe address form to exactly the country the customer selected —
+    // this prevents gaming shipping rates by entering a different address country.
+    const CH_LI = ['CH', 'LI'];
     const EU_COUNTRIES_LIST = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE',
       'GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
       'SE','GB','IS','NO'];
-    const REST_OF_WORLD = ['US','CA','AU','JP','SG','NZ','ZA','BR','MX','AE','SA'];
     const baseDeliveryMethod = delivery_method.startsWith('personal') ? 'personal' : delivery_method;
-    const allowedCountries =
-      baseDeliveryMethod === 'ch' || baseDeliveryMethod === 'personal'
-        ? CH_LI
-        : baseDeliveryMethod === 'intl'
-          ? [...EU_COUNTRIES_LIST, ...REST_OF_WORLD]
-          : [...CH_LI, ...EU_COUNTRIES_LIST, ...REST_OF_WORLD];
+
+    let allowedCountries;
+    if (baseDeliveryMethod === 'ch' || baseDeliveryMethod === 'personal') {
+      // CH/LI only — no other country can be entered
+      allowedCountries = CH_LI;
+    } else if (baseDeliveryMethod === 'intl' && country_code && country_code !== 'CH' && country_code !== 'LI') {
+      // Lock to the specific country they selected — or their country + neighbours if it's EU
+      const isEu = EU_COUNTRIES_LIST.includes(country_code);
+      allowedCountries = isEu ? EU_COUNTRIES_LIST : [country_code];
+    } else {
+      allowedCountries = [...CH_LI, ...EU_COUNTRIES_LIST];
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
