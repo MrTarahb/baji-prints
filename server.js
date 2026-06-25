@@ -866,14 +866,27 @@ app.post('/api/shop/checkout', async (req, res) => {
     const total = subtotal + shippingPrice;
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
+    // Restrict allowed address countries per delivery method so customers
+    // can't game shipping by entering a different country than they selected
+    const CH_LI = ['CH','LI'];
+    const EU_COUNTRIES_LIST = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE',
+      'GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
+      'SE','GB','IS','NO'];
+    const REST_OF_WORLD = ['US','CA','AU','JP','SG','NZ','ZA','BR','MX','AE','SA'];
+    const baseDeliveryMethod = delivery_method.startsWith('personal') ? 'personal' : delivery_method;
+    const allowedCountries =
+      baseDeliveryMethod === 'ch' || baseDeliveryMethod === 'personal'
+        ? CH_LI
+        : baseDeliveryMethod === 'intl'
+          ? [...EU_COUNTRIES_LIST, ...REST_OF_WORLD]
+          : [...CH_LI, ...EU_COUNTRIES_LIST, ...REST_OF_WORLD];
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
       line_items: lineItems,
       shipping_address_collection: {
-        allowed_countries: ['CH','LI','AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE',
-          'GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
-          'SE','GB','IS','NO','US','CA','AU','JP','SG','NZ','ZA','BR','MX','AE','SA'],
+        allowed_countries: allowedCountries,
       },
       // Stripe needs an actual Customer object to attach an invoice to in
       // payment mode — without this, invoice_creation can silently no-op.
