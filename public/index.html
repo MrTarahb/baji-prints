@@ -2357,10 +2357,30 @@ async function renderCart() {
   deliveryWrap.innerHTML = '';
   const countryWrap = document.getElementById('cart-country-wrap');
 
+  // Pre-calculate CH shipping price so it shows before the user clicks
+  let chPrice = 0;
+  try {
+    const r = await fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
+        delivery_method: 'ch',
+        country_code: 'CH'
+      })
+    });
+    const d = await r.json();
+    chPrice = d.price_chf_cents || 0;
+  } catch(e) {}
+
   const addOption = (method, label, available, price) => {
     const opt = document.createElement('div');
     opt.className = 'cart-delivery-option' + (!available ? ' disabled' : '') + (selectedDelivery === method ? ' selected' : '');
-    const priceLabel = !available ? 'Not available' : (selectedDelivery === method ? fmtCHF(calculatedShippingPrice) : fmtCHF(price));
+    let priceLabel;
+    if (!available) priceLabel = 'Not available';
+    else if (selectedDelivery === method) priceLabel = fmtCHF(calculatedShippingPrice);
+    else if (method === 'intl') priceLabel = 'Select country';
+    else priceLabel = fmtCHF(price);
     opt.innerHTML = `<span>${label}</span><span>${priceLabel}</span>`;
     if (available) opt.addEventListener('click', async () => {
       selectedDelivery = method;
@@ -2375,8 +2395,8 @@ async function renderCart() {
     deliveryWrap.appendChild(opt);
   };
 
-  // Standard shipping CH
-  addOption('ch', 'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch, 0);
+  // Standard shipping CH — show pre-calculated price
+  addOption('ch', 'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch, chPrice);
 
   // Personal delivery zones — one option per zone
   if (deliveryAvailability.personal) {
@@ -2387,7 +2407,7 @@ async function renderCart() {
     addOption('personal', 'Personal delivery', false, 0);
   }
 
-  // International
+  // International — price shown after country selection
   addOption('intl', 'International shipping', deliveryAvailability.intl, 0);
 
   if (countryWrap) countryWrap.style.display = selectedDelivery === 'intl' ? 'block' : 'none';
