@@ -471,8 +471,10 @@ textarea.field-input{resize:vertical;min-height:70px}
             </div>
           </div>
 
-          <p class="field-label" style="margin:.75rem 0 .4rem">Personal delivery rates (CHF)</p>
-          <div id="personal-delivery-rates-form" style="margin-bottom:.75rem"></div>
+          <p class="field-label" style="margin:.75rem 0 .4rem">Personal delivery rate — Switzerland & Liechtenstein (CHF)</p>
+          <div style="margin-bottom:.75rem">
+            <input class="field-input" id="pd-ch_li" type="number" step="1" placeholder="50" style="max-width:120px">
+          </div>
 
           <button class="btn-order-action" onclick="saveShippingSettings(this)">Save all shipping settings</button>
           <span id="shipping-settings-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
@@ -710,15 +712,10 @@ async function loadShippingSettings() {
     const packetEl = document.getElementById('ss-ch_packet_price');
     if (letterEl) letterEl.value = s.ch_letter_price ? (parseInt(s.ch_letter_price)/100).toFixed(2) : '';
     if (packetEl) packetEl.value = s.ch_packet_price ? (parseInt(s.ch_packet_price)/100).toFixed(2) : '';
-    // Personal delivery rates
-    const pdForm = document.getElementById('personal-delivery-rates-form');
-    if (pdForm && data.personalRates) {
-      pdForm.innerHTML = data.personalRates.map(r => `
-        <div style="display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;margin-bottom:.4rem">
-          <label class="field-label" style="font-size:.72rem">${esc(r.label)}</label>
-          <input class="field-input" id="pd-${r.zone}" type="number" step="1" value="${(r.price_chf_cents/100).toFixed(0)}" style="max-width:80px">
-        </div>
-      `).join('');
+    // Personal delivery rate
+    const pdEl = document.getElementById('pd-ch_li');
+    if (pdEl && data.personalRates && data.personalRates.length) {
+      pdEl.value = (data.personalRates[0].price_chf_cents / 100).toFixed(0);
     }
     // EU rates table (read-only display for now)
     const euTable = document.getElementById('eu-rates-table');
@@ -753,12 +750,9 @@ async function saveShippingSettings(btn) {
     ch_letter_price: Math.round(letterVal * 100),
     ch_packet_price: Math.round(packetVal * 100),
   };
-  // Personal delivery rates
-  const pdData = await fetch('/api/admin/shipping-settings', {credentials:'include'}).then(r=>r.json());
-  const personalRates = (pdData.personalRates || []).map(r => ({
-    zone: r.zone, label: r.label,
-    price_chf_cents: Math.round(parseFloat(document.getElementById('pd-'+r.zone)?.value || 0) * 100)
-  }));
+  // Personal delivery rate
+  const pdVal = parseFloat(document.getElementById('pd-ch_li')?.value || 50);
+  const personalRates = [{ zone: 'ch_li', label: 'Switzerland & Liechtenstein', price_chf_cents: Math.round(pdVal * 100) }];
   try {
     await fetch('/api/admin/shipping-settings', {
       method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',

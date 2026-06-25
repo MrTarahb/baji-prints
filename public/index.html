@@ -2400,11 +2400,11 @@ async function renderCart() {
   // Standard shipping CH — show pre-calculated price
   addOption('ch', 'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch, chPrice);
 
-  // Personal delivery zones — one option per zone
+  // Personal delivery — single flat rate for all CH/LI
   if (deliveryAvailability.personal) {
-    personalDeliveryZones.forEach(zone => {
-      addOption('personal_' + zone.zone, `Personal delivery — ${zone.label}`, true, zone.price_chf_cents);
-    });
+    const zone = personalDeliveryZones[0];
+    const price = zone ? zone.price_chf_cents : 5000;
+    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true, price);
   } else {
     addOption('personal', 'Personal delivery', false, 0);
   }

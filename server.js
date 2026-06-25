@@ -699,15 +699,14 @@ async function initDB() {
     );
   }
 
-  // Seed personal delivery zones (CH only)
+  // Seed personal delivery — single flat rate for all CH/LI
   const personalDeliveryDefaults = [
-    ['canton_zurich',       'Canton of Zürich',    4000],  // CHF 40
-    ['rest_of_switzerland', 'Rest of Switzerland', 7000],  // CHF 70
+    ['ch_li', 'Switzerland & Liechtenstein', 5000],  // CHF 50 flat
   ];
   for (const [zone, label, price] of personalDeliveryDefaults) {
     await pool.query(
       `INSERT INTO personal_delivery_rates (zone, label, price_chf_cents)
-       VALUES ($1,$2,$3) ON CONFLICT (zone) DO NOTHING`,
+       VALUES ($1,$2,$3) ON CONFLICT (zone) DO UPDATE SET label=$2, price_chf_cents=$3`,
       [zone, label, price]
     );
   }
