@@ -111,21 +111,26 @@ async function calcShipmentWeight(items) {
 
 // Calculate shipping price for a given delivery method and country
 // Returns { price_chf_cents, label, requires_quote }
-async function calculateShipping(items, delivery_method, country_code) {
+async function calculateShipping(items, delivery_method, country_code, zone) {
   const s = await getShippingSettings();
   const { weight_g, format } = await calcShipmentWeight(items);
   const isChLi = !country_code || country_code === 'CH' || country_code === 'LI';
   const isEu = EU_COUNTRIES.has(country_code);
 
   if (delivery_method === 'personal') {
-    // Personal delivery only available in CH/LI for now
     if (!isChLi) return { price_chf_cents: 0, requires_quote: true, label: 'Contact for quote' };
-    // Default to canton_zurich rate — zone selection happens post-order
+    if (zone) {
+      const { rows } = await pool.query(
+        `SELECT price_chf_cents, label FROM personal_delivery_rates WHERE zone=$1`, [zone]
+      );
+      if (rows[0]) return { price_chf_cents: rows[0].price_chf_cents, requires_quote: false, label: rows[0].label };
+    }
+    // Default to cheapest zone if none specified
     const { rows } = await pool.query(
       `SELECT price_chf_cents, label FROM personal_delivery_rates ORDER BY price_chf_cents ASC LIMIT 1`
     );
     const basePrice = rows[0] ? rows[0].price_chf_cents : 4000;
-    return { price_chf_cents: basePrice, requires_quote: false, label: 'Personal delivery — final price confirmed after order' };
+    return { price_chf_cents: basePrice, requires_quote: false };
   }
 
   if (delivery_method === 'ch') {
@@ -163,10 +168,9 @@ async function calculateShipping(items, delivery_method, country_code) {
 // POST /api/shipping/calculate  {items:[{print_id, size}], delivery_method, country_code}
 app.post('/api/shipping/calculate', async (req, res) => {
   try {
-    const { items, delivery_method, country_code } = req.body;
+    const { items, delivery_method, country_code, zone } = req.body;
     if (!items || !items.length) return res.status(400).json({ error: 'No items' });
 
-    // Fetch paper weights for each item
     const enrichedItems = await Promise.all(items.map(async item => {
       const { rows } = await pool.query(
         `SELECT ps.size, pa.weight_gsm as paper_weight_gsm
@@ -179,9 +183,9 @@ app.post('/api/shipping/calculate', async (req, res) => {
       return { ...item, paper_weight_gsm: rows[0]?.paper_weight_gsm || 200, size: item.size };
     }));
 
-    const result = await calculateShipping(enrichedItems, delivery_method, country_code);
+    const result = await calculateShipping(enrichedItems, delivery_method, country_code, zone);
     const { weight_g, format } = await calcShipmentWeight(enrichedItems);
-    console.log(`[shipping] method=${delivery_method} country=${country_code} weight=${weight_g}g format=${format} price=${result.price_chf_cents} quote=${result.requires_quote}`);
+    console.log(`[shipping] method=${delivery_method} zone=${zone||'-'} country=${country_code} weight=${weight_g}g format=${format} price=${result.price_chf_cents} quote=${result.requires_quote}`);
     res.json({ ...result, weight_g, format });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -842,7 +846,9 @@ app.post('/api/shop/checkout', async (req, res) => {
     }
 
     const countryCode = req.body.country_code || 'CH';
-    const shippingResult = await calculateShipping(enrichedItems, delivery_method, countryCode);
+    const zone = req.body.zone || null;
+    const baseMethod = delivery_method.startsWith('personal_') ? 'personal' : delivery_method;
+    const shippingResult = await calculateShipping(enrichedItems, baseMethod, countryCode, zone);
     if (shippingResult.requires_quote) {
       return res.status(400).json({ error: 'shipping_quote_required', message: shippingResult.label || 'Contact for shipping quote' });
     }
@@ -1141,6 +1147,22 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
 
 // ── ADMIN SHOP ────────────────────────────────────────────────────────────────
 // Get full shop settings for one print (sale status, edition, sizes, delivery)
+// Public: personal delivery zones (for cart display)
+app.get('/api/personal-delivery-zones', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT zone, label, price_chf_cents FROM personal_delivery_rates ORDER BY price_chf_cents ASC');
+    res.json(rows.length ? rows : [
+      { zone: 'canton_zurich', label: 'Canton of Zürich', price_chf_cents: 4000 },
+      { zone: 'rest_of_switzerland', label: 'Rest of Switzerland', price_chf_cents: 7000 },
+    ]);
+  } catch (e) {
+    res.json([
+      { zone: 'canton_zurich', label: 'Canton of Zürich', price_chf_cents: 4000 },
+      { zone: 'rest_of_switzerland', label: 'Rest of Switzerland', price_chf_cents: 7000 },
+    ]);
+  }
+});
+
 // ── ADMIN SHIPPING SETTINGS ──────────────────────────────────────────────────
 app.get('/api/admin/shipping-settings', requireAuth, async (req, res) => {
   try {
