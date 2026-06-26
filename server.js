@@ -740,6 +740,9 @@ async function initDB() {
   const personalDeliveryDefaults = [
     ['ch_li', 'Switzerland & Liechtenstein', 5000],  // CHF 50 flat
   ];
+  // Clean up old personal delivery zones, keep only ch_li
+  await pool.query(`DELETE FROM personal_delivery_rates WHERE zone NOT IN ('ch_li')`);
+
   for (const [zone, label, price] of personalDeliveryDefaults) {
     await pool.query(
       `INSERT INTO personal_delivery_rates (zone, label, price_chf_cents)

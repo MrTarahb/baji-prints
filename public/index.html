@@ -2748,7 +2748,9 @@ async function renderCart() {
 
   addOption('ch',           'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch,       '…');
   if (deliveryAvailability.personal) {
-    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true, fmtCHF(personalPrice));
+    const isPersonalSelected = selectedDelivery === 'personal_ch_li';
+    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true,
+      isPersonalSelected ? fmtCHF(calculatedShippingPrice) : '…');
   } else {
     addOption('personal', 'Personal delivery', false, 'Not available');
   }
@@ -2776,6 +2778,21 @@ async function renderCart() {
       const chOpt = deliveryWrap.querySelector('[data-method="ch"]');
       if (chOpt) chOpt.querySelector('.cart-delivery-price').textContent = '—';
     });
+  }
+
+  // Fetch personal delivery price in background
+  if (needsRebuild && deliveryAvailability.personal) {
+    fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.map(i => ({ print_id: i.print_id, size: i.size })), delivery_method: 'personal', country_code: 'CH', zone: 'ch_li' })
+    }).then(r => r.json()).then(d => {
+      const price = parseInt(d.price_chf_cents) || 0;
+      const pOpt = deliveryWrap.querySelector('[data-method="personal_ch_li"]');
+      if (pOpt) {
+        pOpt.querySelector('.cart-delivery-price').textContent = selectedDelivery === 'personal_ch_li' ? fmtCHF(calculatedShippingPrice) : fmtCHF(price);
+      }
+    }).catch(() => {});
   }
 }
 
