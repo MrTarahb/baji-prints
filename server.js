@@ -97,16 +97,37 @@ async function calcShipmentWeight(items) {
       totalWeight += paperWeightG;
     }
 
-    // Add tube weights — use heaviest tube type if mixed A3/A2
-    const hasA2 = tubeItems.some(i => i.size === 'A2');
-    const tubeWeight = hasA2 ? (s.tube_weight_a2_g || 200) : (s.tube_weight_a3_g || 100);
-    totalWeight += tubeWeight * tubesNeeded;
+    // Add tube weights per tube based on actual contents.
+    // Strategy: fill tubes with A2s first (they need the larger/heavier tube),
+    // then pack remaining A3s. Each tube gets the weight of its largest print.
+    const printsPerTube = s.prints_per_tube || 3;
+    const a2s = tubeItems.filter(i => i.size === 'A2');
+    const a3s = tubeItems.filter(i => i.size === 'A3');
+
+    // Tubes filled by A2 prints
+    const a2Tubes = Math.ceil(a2s.length / printsPerTube);
+    // Remaining capacity in the last A2 tube
+    const remainingInLastA2Tube = a2Tubes > 0 ? (a2Tubes * printsPerTube - a2s.length) : 0;
+    // A3s that fit in the last A2 tube
+    const a3sInA2Tube = Math.min(remainingInLastA2Tube, a3s.length);
+    // Remaining A3s that need their own tubes
+    const a3sNeedingOwnTube = a3s.length - a3sInA2Tube;
+    const a3Tubes = Math.ceil(a3sNeedingOwnTube / printsPerTube);
+
+    totalWeight += a2Tubes * (s.tube_weight_a2_g || 200);
+    totalWeight += a3Tubes * (s.tube_weight_a3_g || 100);
   }
 
   // If cart has both A4 and tube items, format is packet
   if (a4Items.length && tubeItems.length) format = 'packet';
 
-  return { weight_g: Math.ceil(totalWeight), format, tubes_needed: tubeItems.length ? Math.ceil(tubeItems.length / (s.prints_per_tube || 3)) : 0 };
+  return {
+    weight_g: Math.ceil(totalWeight),
+    format,
+    tubes_needed: a2Tubes + a3Tubes,
+    a2_tubes: a2Tubes,
+    a3_tubes: a3Tubes,
+  };
 }
 
 // Calculate shipping price for a given delivery method and country
