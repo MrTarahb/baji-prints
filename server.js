@@ -76,9 +76,10 @@ async function calcShipmentWeight(items) {
 
   let totalWeight = 0;
   let format = 'letter';
+  let a2Tubes = 0;
+  let a3Tubes = 0;
 
   // A4: flat envelope + paper weight per sheet
-  // Paper weight per sheet: gsm × A4 area (0.0625 m²) = gsm * 0.0625g
   for (const item of a4Items) {
     const paperWeightG = (item.paper_weight_gsm || 200) * 0.0625;
     totalWeight += paperWeightG;
@@ -88,37 +89,26 @@ async function calcShipmentWeight(items) {
   // A3/A2 tube items
   if (tubeItems.length) {
     format = 'packet';
-    const tubesNeeded = Math.ceil(tubeItems.length / (s.prints_per_tube || 3));
+    const printsPerTube = s.prints_per_tube || 3;
+    const a2s = tubeItems.filter(i => i.size === 'A2');
+    const a3s = tubeItems.filter(i => i.size === 'A3');
+
+    a2Tubes = Math.ceil(a2s.length / printsPerTube);
+    const remainingInLastA2Tube = a2Tubes > 0 ? (a2Tubes * printsPerTube - a2s.length) : 0;
+    const a3sInA2Tube = Math.min(remainingInLastA2Tube, a3s.length);
+    const a3sNeedingOwnTube = a3s.length - a3sInA2Tube;
+    a3Tubes = Math.ceil(a3sNeedingOwnTube / printsPerTube);
 
     for (const item of tubeItems) {
-      // Paper area: A3 = 0.125m², A2 = 0.25m²
       const area = item.size === 'A2' ? 0.25 : 0.125;
       const paperWeightG = (item.paper_weight_gsm || 200) * area;
       totalWeight += paperWeightG;
     }
 
-    // Add tube weights per tube based on actual contents.
-    // Strategy: fill tubes with A2s first (they need the larger/heavier tube),
-    // then pack remaining A3s. Each tube gets the weight of its largest print.
-    const printsPerTube = s.prints_per_tube || 3;
-    const a2s = tubeItems.filter(i => i.size === 'A2');
-    const a3s = tubeItems.filter(i => i.size === 'A3');
-
-    // Tubes filled by A2 prints
-    const a2Tubes = Math.ceil(a2s.length / printsPerTube);
-    // Remaining capacity in the last A2 tube
-    const remainingInLastA2Tube = a2Tubes > 0 ? (a2Tubes * printsPerTube - a2s.length) : 0;
-    // A3s that fit in the last A2 tube
-    const a3sInA2Tube = Math.min(remainingInLastA2Tube, a3s.length);
-    // Remaining A3s that need their own tubes
-    const a3sNeedingOwnTube = a3s.length - a3sInA2Tube;
-    const a3Tubes = Math.ceil(a3sNeedingOwnTube / printsPerTube);
-
     totalWeight += a2Tubes * (s.tube_weight_a2_g || 200);
     totalWeight += a3Tubes * (s.tube_weight_a3_g || 100);
   }
 
-  // If cart has both A4 and tube items, format is packet
   if (a4Items.length && tubeItems.length) format = 'packet';
 
   return {
