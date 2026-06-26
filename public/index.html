@@ -709,7 +709,10 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   max-width: 560px;
   margin: 0 auto;
 }
-/* CONTACT PAGE */
+.sub-page-footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--border);
+}
 #contact-page {
   display: none;
   position: fixed;
@@ -1847,6 +1850,26 @@ document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
 
 // CONTENT — load and apply to all pages
 async function loadContent() {
+  // Inject footer into sub-pages (all except cart and shop-success)
+  const subPageFooterHTML = `<footer class="site-footer sub-page-footer">
+    <div class="footer-left">
+      <span class="footer-name" id="c-footer_name">Bharat Bhatia</span>
+      <span class="footer-loc" id="c-footer_loc">Zürich · Fine art print</span>
+    </div>
+    <div class="footer-contact">
+      <a href="https://instagram.com/bajidigital" target="_blank" rel="noopener" id="c-footer_ig_link">@bajidigital</a>
+      <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
+      <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
+      <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
+      <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
+    </div>
+  </footer>`;
+  ['about-page','contact-page','faq-page','privacy-page','terms-page','shop-page'].forEach(id => {
+    const page = document.getElementById(id);
+    if (page && !page.querySelector('.sub-page-footer')) {
+      page.insertAdjacentHTML('beforeend', subPageFooterHTML);
+    }
+  });
   try {
     const d = await fetch('/api/content').then(r=>r.json());
     Object.entries(d).forEach(([k,v]) => {
