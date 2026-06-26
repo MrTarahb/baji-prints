@@ -1864,7 +1864,7 @@ async function loadContent() {
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
   </footer>`;
-  ['about-page','contact-page','faq-page','privacy-page','terms-page','shop-page'].forEach(id => {
+  ['about-page','contact-page','faq-page','privacy-page','terms-page','shop-page','cart-page'].forEach(id => {
     const page = document.getElementById(id);
     if (page && !page.querySelector('.sub-page-footer')) {
       page.insertAdjacentHTML('beforeend', subPageFooterHTML);
