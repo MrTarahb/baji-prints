@@ -746,7 +746,7 @@ async function initDB() {
   for (const [zone, label, price] of personalDeliveryDefaults) {
     await pool.query(
       `INSERT INTO personal_delivery_rates (zone, label, price_chf_cents)
-       VALUES ($1,$2,$3) ON CONFLICT (zone) DO UPDATE SET label=$2, price_chf_cents=$3`,
+       VALUES ($1,$2,$3) ON CONFLICT (zone) DO NOTHING`,
       [zone, label, price]
     );
   }
