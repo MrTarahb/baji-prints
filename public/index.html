@@ -1875,6 +1875,8 @@ async function loadContent() {
       const img = document.getElementById('about-photo');
       if (img) { img.src = d.about_photo_url; img.style.display = 'block'; }
     }
+    // Shipping debug panel toggle
+    window._shippingDebugEnabled = d.shipping_debug === 'true';
 
     // FAQ — hide items where *_enabled is explicitly 'false'
     document.querySelectorAll('[id^="c-faq_"]').forEach(el => {
@@ -2831,19 +2833,21 @@ async function recalcShipping() {
     // Debug panel — shows weight breakdown for verification
     const debugEl = document.getElementById('cart-shipping-debug');
     if (debugEl && data.weight_g !== undefined) {
-      const a4Count = cart.filter(i => i.size === 'A4').length;
-      const a3Count = cart.filter(i => i.size === 'A3').length;
-      const a2Count = cart.filter(i => i.size === 'A2').length;
-      const tubeItems = a3Count + a2Count;
-      const tubesNeeded = tubeItems > 0 ? Math.ceil(tubeItems / 3) : 0;
-      debugEl.style.display = 'block';
-      debugEl.innerHTML = [
-        `<strong>🔧 Shipping debug</strong>`,
-        `Cart: ${a4Count} × A4, ${a3Count} × A3, ${a2Count} × A2`,
-        `Format: ${data.format || '—'} | Tubes needed: ${tubesNeeded}`,
-        `Total shipment weight: ${data.weight_g}g`,
-        `Price: CHF ${(calculatedShippingPrice/100).toFixed(2)} | Quote required: ${shippingQuoteRequired}`,
-      ].join('<br>');
+      if (window._shippingDebugEnabled) {
+        const a4Count = cart.filter(i => i.size === 'A4').length;
+        const a3Count = cart.filter(i => i.size === 'A3').length;
+        const a2Count = cart.filter(i => i.size === 'A2').length;
+        debugEl.style.display = 'block';
+        debugEl.innerHTML = [
+          `<strong>🔧 Shipping debug</strong>`,
+          `Cart: ${a4Count} × A4, ${a3Count} × A3, ${a2Count} × A2`,
+          `Format: ${data.format || '—'} | Tubes: ${data.a2_tubes || 0} × A2 tube, ${data.a3_tubes || 0} × A3 tube (${data.tubes_needed || 0} total)`,
+          `Total shipment weight: ${data.weight_g}g`,
+          `Price: CHF ${(calculatedShippingPrice/100).toFixed(2)} | Quote required: ${shippingQuoteRequired}`,
+        ].join('<br>');
+      } else {
+        debugEl.style.display = 'none';
+      }
     }
     const quoteMsg = document.getElementById('cart-quote-msg');
     if (quoteMsg) {

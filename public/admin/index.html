@@ -480,6 +480,11 @@ textarea.field-input{resize:vertical;min-height:70px}
           <button class="btn-order-action" onclick="saveShippingSettings(this)">Save all shipping settings</button>
           <span id="shipping-settings-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
 
+          <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.75rem">
+            <label class="field-label" style="margin:0">Show shipping debug panel on cart page</label>
+            <input type="checkbox" id="shipping-debug-toggle" onchange="saveShippingDebug(this)" style="cursor:pointer">
+          </div>
+
           <p class="field-label" style="margin:1.25rem 0 .4rem">EU rate brackets (from post.ch tables)</p>
           <p class="panel-sub" style="margin-bottom:.75rem">These are seeded from your post.ch data. Contact for rest of world.</p>
           <div id="eu-rates-table" style="font-size:.78rem"></div>
@@ -706,6 +711,14 @@ async function uploadAboutPhoto(input) {
   }
 }
 
+async function saveShippingDebug(checkbox) {
+  await fetch('/api/admin/content', {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include',
+    body: JSON.stringify({ key: 'shipping_debug', value: checkbox.checked ? 'true' : 'false' })
+  });
+  allContent.shipping_debug = checkbox.checked ? 'true' : 'false';
+}
+
 async function loadShippingSettings() {
   try {
     const data = await fetch('/api/admin/shipping-settings', {credentials:'include'}).then(r=>r.json());
@@ -725,7 +738,9 @@ async function loadShippingSettings() {
     if (pdEl && data.personalRates && data.personalRates.length) {
       pdEl.value = (data.personalRates[0].price_chf_cents / 100).toFixed(0);
     }
-    // EU rates table (read-only display for now)
+    // Load debug toggle
+    const dbgToggle = document.getElementById('shipping-debug-toggle');
+    if (dbgToggle) dbgToggle.checked = allContent.shipping_debug === 'true';
     const euTable = document.getElementById('eu-rates-table');
     if (euTable && data.euRates) {
       euTable.innerHTML = `<table style="width:100%;border-collapse:collapse">
