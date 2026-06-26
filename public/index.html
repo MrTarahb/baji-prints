@@ -1676,6 +1676,7 @@ nav.on-light .nav-hamburger span,
         </div>
       </div>
       <div id="cart-quote-msg" style="display:none;margin-top:.75rem;font-size:11px;color:var(--fg-m);line-height:1.7"></div>
+      <div id="cart-shipping-debug" style="display:none;margin-top:1rem;padding:.75rem;background:rgba(255,200,0,.08);border:1px solid rgba(255,200,0,.25);border-radius:2px;font-family:monospace;font-size:10px;line-height:1.7;color:var(--fg-m)"></div>
     </div>
     <div class="cart-total-row" id="cart-total-row" style="display:none">
       <span>Total</span><span id="cart-total-amount"></span>
@@ -2826,6 +2827,24 @@ async function recalcShipping() {
     shippingQuoteRequired = data.requires_quote === true;
     calculatedShippingPrice = parseInt(data.price_chf_cents) || 0;
     console.log('[recalcShipping] calculatedShippingPrice:', calculatedShippingPrice);
+
+    // Debug panel — shows weight breakdown for verification
+    const debugEl = document.getElementById('cart-shipping-debug');
+    if (debugEl && data.weight_g !== undefined) {
+      const a4Count = cart.filter(i => i.size === 'A4').length;
+      const a3Count = cart.filter(i => i.size === 'A3').length;
+      const a2Count = cart.filter(i => i.size === 'A2').length;
+      const tubeItems = a3Count + a2Count;
+      const tubesNeeded = tubeItems > 0 ? Math.ceil(tubeItems / 3) : 0;
+      debugEl.style.display = 'block';
+      debugEl.innerHTML = [
+        `<strong>🔧 Shipping debug</strong>`,
+        `Cart: ${a4Count} × A4, ${a3Count} × A3, ${a2Count} × A2`,
+        `Format: ${data.format || '—'} | Tubes needed: ${tubesNeeded}`,
+        `Total shipment weight: ${data.weight_g}g`,
+        `Price: CHF ${(calculatedShippingPrice/100).toFixed(2)} | Quote required: ${shippingQuoteRequired}`,
+      ].join('<br>');
+    }
     const quoteMsg = document.getElementById('cart-quote-msg');
     if (quoteMsg) {
       if (shippingQuoteRequired) {
@@ -2845,10 +2864,14 @@ function getShippingPriceForCart(method) {
   return calculatedShippingPrice;
 }
 
-function removeFromCart(index) {
+async function removeFromCart(index) {
   cart.splice(index, 1);
-  saveCart();
-  renderCart();
+  saveCart(); // also resets chPriceCache
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
 }
 
 async function goToCheckout() {
