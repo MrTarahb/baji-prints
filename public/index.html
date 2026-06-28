@@ -2584,10 +2584,12 @@ async function loadShopProducts() {
       const card = document.createElement('div');
       card.className = 'shop-card';
       card.style.transitionDelay = (cardIndex * 0.07) + 's';
+      const isLimited = p.edition_type === 'limited';
+      console.log('[shop card]', p.title, 'edition_type:', p.edition_type, 'isLimited:', isLimited);
       card.innerHTML = `
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
-          ${p.edition_type === 'limited' ? '<span class="shop-card-limited">Limited edition</span>' : ''}
+          ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
           <img src="${p.image_url}" alt="${esc(p.title)}" loading="lazy">
         </div>
         <div class="shop-card-title">${esc(p.title)}</div>
