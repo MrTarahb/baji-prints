@@ -237,7 +237,8 @@ app.use(cors());
 
 // Stripe webhook needs the RAW body for signature verification —
 // this route is registered BEFORE express.json() so the body stays unparsed
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+// Support both /api/stripe-webhook (Stripe Workbench default) and /api/stripe/webhook
+const stripeWebhookHandler = async (req, res) => {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(500).send('Stripe not configured');
   }
@@ -386,7 +387,11 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
   }
 
   res.json({ received: true });
-});
+};
+
+// Register both URL patterns — Stripe Workbench uses dash, legacy uses slash
+app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
 // Everything else gets normal JSON parsing
 app.use(express.json());
