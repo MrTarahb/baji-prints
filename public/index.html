@@ -2514,7 +2514,6 @@ document.addEventListener('keydown', e => {
 
 // ── SHOP ──────────────────────────────────────────────────────────────────────
 let shopProducts = [];
-let shippingRatesData = [];
 let cart = JSON.parse(localStorage.getItem('cart') || '[]'); // [{print_id, title, image_url, size, price_chf}]
 let selectedDelivery = null;
 let selectedDetailProduct = null;
@@ -2557,13 +2556,11 @@ function updateCartBar() {
 async function loadShopProducts() {
   const grid = document.getElementById('shop-grid');
   try {
-    const [products, rates, zones] = await Promise.all([
+    const [products, zones] = await Promise.all([
       fetch('/api/shop/products').then(r => r.json()),
-      fetch('/api/shop/shipping-rates').then(r => r.json()),
       fetch('/api/personal-delivery-zones').then(r => r.json()),
     ]);
     shopProducts = products;
-    shippingRatesData = rates;
     personalDeliveryZones = zones;
 
     if (!products.length) {
@@ -2934,12 +2931,10 @@ async function recalcShipping() {
       return;
     }
     const data = await res.json();
-    console.log('[recalcShipping] raw response:', JSON.stringify(data));
     shippingQuoteRequired = data.requires_quote === true;
     calculatedShippingPrice = parseInt(data.price_chf_cents) || 0;
-    console.log('[recalcShipping] calculatedShippingPrice:', calculatedShippingPrice);
 
-    // Debug panel — shows weight breakdown for verification
+    // Shipping debug panel — only shown when enabled from admin
     const debugEl = document.getElementById('cart-shipping-debug');
     if (debugEl && data.weight_g !== undefined) {
       if (window._shippingDebugEnabled) {

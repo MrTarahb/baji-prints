@@ -1106,7 +1106,6 @@ app.post('/api/admin/upload/hero', requireAuth, (req, res, next) => {
 }, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file received' });
-    console.log('File uploaded:', req.file);
     const url = req.file.path;
     await pool.query(
       "INSERT INTO content (key, value) VALUES ('hero_image_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
@@ -1435,8 +1434,6 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
     if (!order || !order.stripe_session_id) return res.status(404).json({ error: 'Order not found' });
 
     const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
-    console.log('[sync] customer_details:', JSON.stringify(session.customer_details));
-    console.log('[sync] shipping_details:', JSON.stringify(session.shipping_details));
 
     if (session.payment_status === 'paid' && order.status === 'pending') {
       await pool.query(

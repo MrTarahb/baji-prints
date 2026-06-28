@@ -1458,12 +1458,6 @@ async function confirmClearOrders(){
 }
 
 // ── SHIPPING RATES ────────────────────────────────────────────────────────────
-const SHIPPING_METHODS = [
-  { key:'ch',       label:'Switzerland', sub:'Standard Swiss Post' },
-  { key:'personal', label:'Personal delivery', sub:'Zürich area, hand-delivered' },
-  { key:'intl',     label:'International', sub:'Outside Switzerland' },
-];
-
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
