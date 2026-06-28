@@ -857,7 +857,9 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   background: none; color: var(--fg); border: 1px solid var(--fg);
   padding: .2rem .5rem; border-radius: 2px;
   opacity: .75;
+  z-index: 2;
 }
+.shop-card-img-wrap img { position: relative; z-index: 1; }
 .shop-empty { padding: 4rem 0; text-align: center; color: var(--fg-l); font-style: italic; font-size: 11px; }
 
 /* PRODUCT DETAIL OVERLAY */
@@ -2585,7 +2587,6 @@ async function loadShopProducts() {
       card.className = 'shop-card';
       card.style.transitionDelay = (cardIndex * 0.07) + 's';
       const isLimited = p.edition_type === 'limited';
-      console.log('[shop card]', p.title, 'edition_type:', p.edition_type, 'isLimited:', isLimited);
       card.innerHTML = `
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
