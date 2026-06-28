@@ -360,6 +360,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('hero',this)">Hero section</button>
       <button class="sidebar-btn" onclick="showPanel('about',this)">About page</button>
       <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
+      <button class="sidebar-btn" onclick="showPanel('impressum',this)">Impressum</button>
       <button class="sidebar-btn" onclick="showPanel('faq',this)">FAQ</button>
       <button class="sidebar-btn" onclick="showPanel('shoptext',this)">Shop text</button>
       <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
@@ -565,6 +566,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Contact page</h2>
         <p class="panel-sub">Text on the Contact page.</p>
         <div id="contact-fields"></div>
+      </div>
+
+      <!-- IMPRESSUM -->
+      <div class="panel" id="panel-impressum">
+        <h2 class="panel-title">Impressum</h2>
+        <p class="panel-sub">Legal disclosure required by Swiss law. Must include your name, address and email.</p>
+        <div id="impressum-fields"></div>
       </div>
 
       <!-- FAQ -->
@@ -1488,6 +1496,14 @@ async function loadAll(){
 
   buildFields('contact-fields',[
     ['contact_title', 'Page heading',            false],
+  ]);
+
+  buildFields('impressum-fields',[
+    ['impressum_name',       'Full name',             false],
+    ['impressum_address',    'Postal address',        true],
+    ['impressum_email',      'Email address',         false],
+    ['impressum_vat',        'VAT / tax note',        true],
+    ['impressum_disclaimer', 'Disclaimer (optional)', true],
   ]);
 
   buildFaqFields([

@@ -753,6 +753,19 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 #terms-page .inner { max-width: 600px; margin: 0 auto; }
 #terms-page.active { display: block; }
 
+#impressum-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#impressum-page .inner { max-width: 600px; margin: 0 auto; }
+#impressum-page.active { display: block; }
+
 #faq-page {
   display: none;
   position: fixed;
@@ -1364,6 +1377,7 @@ nav.on-light .nav-hamburger span,
       <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
       <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
+      <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
       <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
@@ -1463,6 +1477,41 @@ nav.on-light .nav-hamburger span,
 
       <div class="about-divider"></div>
       <p class="about-spec">This page is a good-faith summary, not formal legal advice. Questions about an order can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- IMPRESSUM -->
+<div id="impressum-page">
+  <div class="inner">
+    <h1 class="about-heading">Impressum.</h1>
+    <div class="about-body">
+
+      <p class="about-spec" style="margin-bottom:2rem">Legal disclosure as required by Swiss law (UWG Art. 3 Abs. 1 lit. s).</p>
+
+      <p><strong>Responsible for this website</strong></p>
+      <p id="c-impressum_name">Bharat Bhatia</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Address</strong></p>
+      <p id="c-impressum_address" style="white-space:pre-line">Atelier Bhatia<br>Quellenstrasse 25<br>8005 Zürich<br>Switzerland</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Contact</strong></p>
+      <p>Email: <a id="c-impressum_email_link" href="mailto:support@bharatbhatia.photography" style="color:var(--pink-d)" id="c-impressum_email">support@bharatbhatia.photography</a></p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>VAT</strong></p>
+      <p id="c-impressum_vat">Not VAT registered. Annual turnover below the Swiss CHF 100,000 threshold.</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Disclaimer</strong></p>
+      <p id="c-impressum_disclaimer">All prints are produced and sold by Bharat Bhatia as an individual. All images on this site are copyright Bharat Bhatia. Reproduction without written permission is prohibited.</p>
+
     </div>
   </div>
 </div>
@@ -1827,7 +1876,7 @@ function initScrollAnimation() {
       // not just about/contact, otherwise scrolling on shop/privacy/success
       // incorrectly hides the nav since this list was never kept in sync with
       // every page showPage() actually knows about.
-      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','shop-page','shop-success-page','cart-page']
+      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','shop-page','shop-success-page','cart-page']
         .some(id => document.getElementById(id)?.classList.contains('active'));
       if (!onSubPage) nav.classList.remove('visible');
     }
@@ -1860,11 +1909,12 @@ async function loadContent() {
       <a href="https://instagram.com/bajidigital" target="_blank" rel="noopener" id="c-footer_ig_link">@bajidigital</a>
       <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
       <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
+      <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
       <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
   </footer>`;
-  ['about-page','contact-page','faq-page','privacy-page','terms-page','shop-page','cart-page'].forEach(id => {
+  ['about-page','contact-page','faq-page','impressum-page','privacy-page','terms-page','shop-page','cart-page'].forEach(id => {
     const page = document.getElementById(id);
     if (page && !page.querySelector('.sub-page-footer')) {
       page.insertAdjacentHTML('beforeend', subPageFooterHTML);
@@ -1900,6 +1950,11 @@ async function loadContent() {
     }
     // Shipping debug panel toggle
     window._shippingDebugEnabled = d.shipping_debug === 'true';
+    // Update Impressum email mailto link
+    if (d.impressum_email) {
+      const link = document.getElementById('c-impressum_email_link');
+      if (link) { link.href = 'mailto:' + d.impressum_email; link.textContent = d.impressum_email; }
+    }
 
     // FAQ — hide items where *_enabled is explicitly 'false'
     document.querySelectorAll('[id^="c-faq_"]').forEach(el => {
@@ -1935,6 +1990,7 @@ function showPage(name){
   const privacyEl = document.getElementById('privacy-page');
   const termsEl = document.getElementById('terms-page');
   const faqEl = document.getElementById('faq-page');
+  const impressumEl = document.getElementById('impressum-page');
   const shopEl = document.getElementById('shop-page');
   const shopSuccessEl = document.getElementById('shop-success-page');
   const cartEl = document.getElementById('cart-page');
@@ -1943,6 +1999,7 @@ function showPage(name){
   privacyEl.classList.toggle('active', name==='privacy');
   termsEl.classList.toggle('active', name==='terms');
   faqEl.classList.toggle('active', name==='faq');
+  impressumEl.classList.toggle('active', name==='impressum');
   shopEl.classList.toggle('active', name==='shop');
   shopSuccessEl.classList.toggle('active', name==='shop-success');
   cartEl.classList.toggle('active', name==='cart');
@@ -1951,6 +2008,7 @@ function showPage(name){
   if (name === 'privacy') privacyEl.scrollTop = 0;
   if (name === 'terms') termsEl.scrollTop = 0;
   if (name === 'faq') faqEl.scrollTop = 0;
+  if (name === 'impressum') impressumEl.scrollTop = 0;
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
   if (name === 'cart') {

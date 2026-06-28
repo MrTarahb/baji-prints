@@ -641,6 +641,12 @@ async function initDB() {
     ['shop_cart_heading', 'Your cart.'],
     ['shop_success_heading', 'Thank you.'],
     ['shop_continue_btn', 'Continue browsing'],
+    // Impressum
+    ['impressum_name',       'Bharat Bhatia'],
+    ['impressum_address',    'Atelier Bhatia\nQuellenstrasse 25\n8005 Zürich\nSwitzerland'],
+    ['impressum_email',      'support@bharatbhatia.photography'],
+    ['impressum_vat',        'Not VAT registered. Annual turnover below the Swiss CHF 100,000 threshold.'],
+    ['impressum_disclaimer', 'All prints are produced and sold by Bharat Bhatia as an individual. All images on this site are copyright Bharat Bhatia. Reproduction without written permission is prohibited.'],
     // FAQ answers
     ['faq_paper', 'Each print is produced on museum-grade fine art paper — the specific paper for each image is noted in the shop. I use archival papers such as Hahnemühle Photo Rag and similar. The paper choice is made per image to best complement the photograph.'],
     ['faq_sizes', 'Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.'],
