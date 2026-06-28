@@ -616,6 +616,7 @@ async function initDB() {
     ['about_p1', "I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap."],
     ['about_p2', 'I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.'],
     ['about_p3', 'Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.'],
+    ['about_p4', ''],
     ['atelier_eyebrow', 'The space'],
     ['atelier_headline', 'A small room. A lot of paper.'],
     ['atelier_p1', "I do the slow work here — proofing, calibrating, printing, looking. It's not a lab. It doesn't need to be fast."],
