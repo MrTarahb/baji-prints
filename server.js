@@ -475,6 +475,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 app.set('trust proxy', 1);
+// Refuse to boot without a real session secret — a hardcoded fallback would
+// mean anyone reading the source could forge admin session cookies.
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set');
+  process.exit(1);
+}
 app.use(session({
   // Postgres-backed sessions (replaces the default MemoryStore, which leaks
   // memory and wipes all sessions on every deploy — i.e. admin logout each
@@ -486,7 +492,7 @@ app.use(session({
     tableName: 'session',
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'baji-secret',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
