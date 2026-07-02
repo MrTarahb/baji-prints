@@ -2438,7 +2438,15 @@ function _renderLightbox(src, title, printId) {
   const descPanel = document.getElementById('lightbox-desc');
   const descText = document.getElementById('lightbox-desc-text');
 
-  img.src = cld(src, 2000);
+  // Progressive load: the w_1200 version is almost always already in the
+  // browser cache from the feed/shop grid, so it renders instantly; the
+  // sharper w_2000 swaps in silently once it has loaded. The dataset guard
+  // stops a slow hi-res from overwriting a photo the user has moved on from.
+  img.src = cld(src, 1200);
+  img.dataset.baseSrc = src;
+  const hiRes = new Image();
+  hiRes.onload = () => { if (img.dataset.baseSrc === src) img.src = hiRes.src; };
+  hiRes.src = cld(src, 2000);
   cap.textContent = title || '';
 
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
@@ -2632,7 +2640,7 @@ function openShopDetail(printId) {
   const validSizes = p.sizes.filter(s => s.price_chf > 0);
   const inner = document.getElementById('shop-detail-inner');
   inner.innerHTML = `
-    <img class="shop-detail-img" src="${cld(p.image_url, 2000)}" alt="${esc(p.title)}">
+    <img class="shop-detail-img" src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}">
     <div>
       <p class="shop-detail-title">${esc(p.title)}</p>
       <p class="shop-detail-desc">${esc(p.description || '')}</p>
@@ -2653,6 +2661,16 @@ function openShopDetail(printId) {
     const detailImg = inner.querySelector('.shop-detail-img');
     if (detailImg && orientation === 'landscape') detailImg.classList.add('landscape');
   });
+
+  // Progressive upgrade to the sharper w_2000 once it's loaded. If the user
+  // closed/reopened the overlay for another print, the captured element is no
+  // longer in the document (innerHTML was replaced) and the swap is skipped.
+  const detailImgEl = inner.querySelector('.shop-detail-img');
+  if (detailImgEl) {
+    const hiRes = new Image();
+    hiRes.onload = () => { if (detailImgEl.isConnected) detailImgEl.src = hiRes.src; };
+    hiRes.src = cld(p.image_url, 2000);
+  }
 
   const sizeWrap = document.getElementById('shop-size-options');
   ['A4','A3','A2'].forEach(size => {
@@ -2736,7 +2754,7 @@ async function renderCart() {
 
   itemsWrap.innerHTML = cart.map((item, i) => `
     <div class="cart-item">
-      <div class="cart-item-img-wrap"><img src="${cld(item.image_url, 200)}" alt="${esc(item.title)}"></div>
+      <div class="cart-item-img-wrap"><img src="${cld(item.image_url, 1200)}" alt="${esc(item.title)}"></div>
       <div>
         <div class="cart-item-title">${esc(item.title)}</div>
         <div class="cart-item-size">${item.size}</div>
