@@ -6,6 +6,7 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const cors = require('cors');
 
@@ -475,6 +476,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 app.set('trust proxy', 1);
 app.use(session({
+  // Postgres-backed sessions (replaces the default MemoryStore, which leaks
+  // memory and wipes all sessions on every deploy — i.e. admin logout each
+  // time Railway restarts the container). Reuses the existing pg pool; the
+  // "session" table is created automatically on first boot, and expired rows
+  // are pruned in the background by connect-pg-simple.
+  store: new PgSession({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  }),
   secret: process.env.SESSION_SECRET || 'baji-secret',
   resave: false,
   saveUninitialized: false,
