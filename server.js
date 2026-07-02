@@ -27,8 +27,8 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 // Delivery method display labels (prices now live in the shipping_rates table, editable from admin)
 const DELIVERY_LABELS = {
-  ch:       'Standard shipping (Switzerland)',
-  personal: 'Personal delivery (Zürich)',
+  ch:       'Standard shipping (Switzerland / Liechtenstein)',
+  personal: 'Personal delivery (Switzerland / Liechtenstein)',
   intl:     'International shipping',
 };
 

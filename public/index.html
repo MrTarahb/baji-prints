@@ -1277,8 +1277,9 @@ nav.on-light .nav-hamburger span,
   .feed-col:last-child { margin-top: 0; }
   .feed-col { gap: 6vw; }
   .shop-grid { flex-direction: column; gap: 6vw; }
-  .shop-col { gap: 6vw; }
-  .shop-col:last-child { padding-top: 0; }
+  /* Dissolve the two columns so cards stack as direct children of .shop-grid,
+     sorted by their flex order (= admin sort order) instead of column-by-column */
+  .shop-col { display: contents; }
   .intro-title { font-size:clamp(2rem,8vw,4rem); }
 }
 @media(max-width:480px){
@@ -2607,6 +2608,10 @@ async function loadShopProducts() {
       const card = document.createElement('div');
       card.className = 'shop-card';
       card.style.transitionDelay = (cardIndex * 0.07) + 's';
+      // Sequence index as flex order — no-op on desktop (each column is already
+      // ascending), but on mobile the columns become display:contents and this
+      // restores 1,2,3,4… instead of col0-then-col1 (1,3,5…2,4,6…).
+      card.style.order = cardIndex;
       const isLimited = p.edition_type === 'limited';
       card.innerHTML = `
         <div class="shop-card-img-wrap">
@@ -2740,6 +2745,23 @@ async function renderCart() {
     try {
       shopProducts = await fetch('/api/shop/products').then(r => r.json());
     } catch(e) {}
+  }
+
+  // Refresh cart prices from the live catalogue. localStorage stores a price
+  // snapshot from add-to-cart time; if a price was changed in admin since,
+  // the cart would display the old number while Stripe charges the new one.
+  // Checkout always uses authoritative DB prices — this keeps the display honest.
+  if (shopProducts.length && cart.length) {
+    let pricesChanged = false;
+    cart.forEach(item => {
+      const prod = shopProducts.find(p => p.id === item.print_id);
+      const size = prod && prod.sizes ? prod.sizes.find(s => s.size === item.size) : null;
+      if (size && size.price_chf > 0 && size.price_chf !== item.price_chf) {
+        item.price_chf = size.price_chf;
+        pricesChanged = true;
+      }
+    });
+    if (pricesChanged) saveCart();
   }
 
   if (!cart.length) {
