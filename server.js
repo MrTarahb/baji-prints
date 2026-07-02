@@ -190,6 +190,15 @@ function generateOrderRef() {
   return `BHT-${code}`;
 }
 
+// Same idea for workshop bookings — distinct prefix so an email subject or a
+// search in admin makes immediately clear which kind of purchase it is.
+function generateWorkshopRef() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return `WSH-${code}`;
+}
+
 // Basic HTML escaping for any user/customer-supplied text dropped into email
 // templates (e.g. shipping address fields), so stray characters can't break
 // the markup or inject anything unexpected.
@@ -233,6 +242,14 @@ const storage = new CloudinaryStorage({
   cloudinary,
   params: { folder: 'baji-prints', allowed_formats: ['jpg', 'jpeg', 'png', 'webp'] },
 });
+
+// Separate folder for workshop gallery photos so they never mix with the
+// portfolio/shop images in Cloudinary's media library.
+const workshopStorage = new CloudinaryStorage({
+  cloudinary,
+  params: { folder: 'baji-workshops', allowed_formats: ['jpg', 'jpeg', 'png', 'webp'] },
+});
+const workshopUpload = multer({ storage: workshopStorage });
 const upload = multer({ storage });
 
 app.use(cors());
@@ -658,6 +675,40 @@ async function initDB() {
       read BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS workshop_dates (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      capacity INTEGER NOT NULL DEFAULT 6,
+      price_chf_cents INTEGER NOT NULL DEFAULT 30000,
+      frame_price_chf_cents INTEGER, -- optional add-on, NULL = not offered yet
+      status TEXT NOT NULL DEFAULT 'draft', -- draft | open | closed | past
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS workshop_bookings (
+      id SERIAL PRIMARY KEY,
+      booking_ref TEXT UNIQUE, -- short human-readable reference, e.g. WSH-7K2X9P
+      workshop_date_id INTEGER REFERENCES workshop_dates(id),
+      stripe_session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | paid | cancelled | refunded
+      customer_name TEXT,
+      customer_email TEXT,
+      frame BOOLEAN DEFAULT FALSE,
+      dietary TEXT,
+      notes TEXT,
+      amount_chf_cents INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS workshop_photos (
+      id SERIAL PRIMARY KEY,
+      image_url TEXT NOT NULL,
+      public_id TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Step 2: seed default content with parameterised queries
@@ -734,6 +785,19 @@ async function initDB() {
     ['faq_delivery_time_enabled','true'],['faq_intl_enabled','true'],['faq_shipping_cost_enabled','true'],
     ['faq_personal_what_enabled','true'],['faq_personal_where_enabled','true'],['faq_personal_how_enabled','true'],
     ['faq_damaged_enabled','true'],['faq_returns_enabled','true'],['faq_framing_enabled','true'],
+    // Workshop page — every visible text editable from admin
+    ['workshop_banner_enabled', 'true'],
+    ['workshop_banner_text', 'This page is a work in progress — dates and booking are not live yet.'],
+    ['workshop_heading', 'Workshop.'],
+    ['workshop_sub', 'Photo to print · A full day of abstract photography in Zürich, ending with your own A2 fine art print.'],
+    ['workshop_intro', 'One day, six people, one photograph. We spend the morning shooting intentional camera movement and abstract work on a planned route through Zürich, then bring the day into the atelier: culling, editing, proofing on paper, and printing your strongest frame on A2 museum-grade fine art paper. You don\'t leave with theory — you leave with a print.'],
+    ['workshop_schedule', '09:00 — Arrival at the atelier. Coffee, introductions, and a look at real prints.\n09:30 — Intentional camera movement: technique, prompts, and what to look for.\n10:15 — Photowalk. A pre-planned route through Zürich, shooting as we go.\n13:00 — Lunch together, included.\n14:00 — Culling and editing at the atelier. Narrowing down to your two strongest frames.\n15:30 — Hard proofs on A4. We review every print together, on paper, under neutral light.\n16:30 — Final edits on your winning photograph.\n17:00 — Your photo goes to print on A2 museum-grade paper — shipped to your door in the days after.'],
+    ['workshop_included', 'A full day of guided shooting and one-on-one feedback\nCoffee and lunch\nAll materials — A4 proof prints and your final A2 fine art print\nShipping of your A2 print anywhere in Switzerland or Liechtenstein\nLoaner ND and creative filters in common thread sizes'],
+    ['workshop_bring', 'A camera you can control fully manually — no smartphones or analog for this one\nYour laptop with your editing software of choice, and your card reader\nND or creative filters if you own any\nComfortable shoes — we walk for a few hours, whatever the weather'],
+    ['workshop_weather', 'The workshop runs rain or shine — Zürich in bad weather makes better abstract photographs than postcards do. Only genuinely extreme conditions lead to a reschedule, in which case you\'ll be offered the next date or a full refund.'],
+    ['workshop_min', 'The workshop runs with a minimum of 4 participants. If a date doesn\'t reach the minimum, you\'ll be offered the next date or a full refund.'],
+    ['workshop_price_note', 'CHF 300 per person — everything included.'],
+    ['workshop_cta', 'Book your spot'],
   ];
 
   for (const [key, value] of defaults) {
@@ -1657,6 +1721,158 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
 });
 
 // ── PAGEVIEW TRACKING ────────────────────────────────────────────────────────
+// ── WORKSHOPS ─────────────────────────────────────────────────────────────────
+
+// Deep link: /workshops serves the SPA, which opens the workshop page on load.
+// (The static middleware only serves real files, so this route catches the path.)
+app.get('/workshops', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Public: upcoming open dates with live remaining capacity. A spot is taken by
+// a paid booking, or by a pending one younger than 35 minutes (the lifetime of
+// its Stripe Checkout session) — so two people can't both buy the last spot,
+// but an abandoned checkout releases its hold automatically.
+app.get('/api/workshops', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.frame_price_chf_cents,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
+      FROM workshop_dates wd
+      LEFT JOIN workshop_bookings wb ON wb.workshop_date_id = wd.id
+      WHERE wd.status = 'open' AND wd.date >= CURRENT_DATE
+      GROUP BY wd.id
+      ORDER BY wd.date ASC
+    `);
+    res.json(rows.map(r => ({
+      id: r.id,
+      date: r.date,
+      capacity: r.capacity,
+      price_chf_cents: r.price_chf_cents,
+      frame_price_chf_cents: r.frame_price_chf_cents,
+      spots_left: Math.max(0, r.capacity - parseInt(r.paid_count) - parseInt(r.pending_count)),
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public: workshop gallery photos
+app.get('/api/workshop-photos', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, image_url FROM workshop_photos ORDER BY sort_order ASC, id ASC');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: all dates (any status) with booking counts
+app.get('/api/admin/workshop-dates', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT wd.*,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
+      FROM workshop_dates wd
+      LEFT JOIN workshop_bookings wb ON wb.workshop_date_id = wd.id
+      GROUP BY wd.id
+      ORDER BY wd.date DESC
+    `);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/workshop-dates', requireAuth, async (req, res) => {
+  try {
+    const { date, capacity, price_chf_cents, frame_price_chf_cents, status } = req.body;
+    if (!date) return res.status(400).json({ error: 'Date is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO workshop_dates (date, capacity, price_chf_cents, frame_price_chf_cents, status)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [date, capacity || 6, price_chf_cents || 30000, frame_price_chf_cents || null, status || 'draft']
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/workshop-dates/:id', requireAuth, async (req, res) => {
+  try {
+    const { date, capacity, price_chf_cents, frame_price_chf_cents, status } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE workshop_dates SET
+         date = COALESCE($1, date),
+         capacity = COALESCE($2, capacity),
+         price_chf_cents = COALESCE($3, price_chf_cents),
+         frame_price_chf_cents = $4,
+         status = COALESCE($5, status)
+       WHERE id = $6 RETURNING *`,
+      [date || null, capacity || null, price_chf_cents || null, frame_price_chf_cents ?? null, status || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete a date — only allowed while it has no bookings at all, so a date with
+// paying customers can never vanish. Close it instead (status = 'closed').
+app.delete('/api/admin/workshop-dates/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows: bookings } = await pool.query(
+      'SELECT COUNT(*) FROM workshop_bookings WHERE workshop_date_id = $1', [req.params.id]
+    );
+    if (parseInt(bookings[0].count) > 0) {
+      return res.status(400).json({ error: 'This date has bookings — set it to closed instead of deleting.' });
+    }
+    await pool.query('DELETE FROM workshop_dates WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: bookings for one date (who's coming, contact, frame, dietary)
+app.get('/api/admin/workshop-bookings', requireAuth, async (req, res) => {
+  try {
+    const { date_id } = req.query;
+    if (!date_id) return res.status(400).json({ error: 'date_id required' });
+    const { rows } = await pool.query(
+      `SELECT * FROM workshop_bookings WHERE workshop_date_id = $1 ORDER BY created_at ASC`,
+      [date_id]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: gallery management
+app.post('/api/admin/workshop-photos', requireAuth, workshopUpload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file received' });
+    const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), 0) AS max FROM workshop_photos');
+    const { rows } = await pool.query(
+      'INSERT INTO workshop_photos (image_url, public_id, sort_order) VALUES ($1, $2, $3) RETURNING *',
+      [req.file.path, req.file.filename, maxRows[0].max + 1]
+    );
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/workshop-photos/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('DELETE FROM workshop_photos WHERE id = $1 RETURNING public_id', [req.params.id]);
+    if (rows[0] && rows[0].public_id) {
+      try { await cloudinary.uploader.destroy(rows[0].public_id); } catch (e) { /* orphan in Cloudinary is acceptable */ }
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/workshop-photos/reorder', requireAuth, async (req, res) => {
+  try {
+    const { order } = req.body; // array of photo ids in desired order
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
+    for (let i = 0; i < order.length; i++) {
+      await pool.query('UPDATE workshop_photos SET sort_order = $1 WHERE id = $2', [i, order[i]]);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Track visits to the main site (not admin, not API)
 app.post('/api/pageview', async (req, res) => {
   try {
