@@ -253,10 +253,23 @@ const stripeWebhookHandler = async (req, res) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     try {
-      await pool.query(
-        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE stripe_session_id=$2`,
+      // Idempotency guard — Stripe retries webhook deliveries, and without this
+      // check a retry would double-increment edition counters and send duplicate
+      // emails. The atomic UPDATE ... WHERE status='pending' RETURNING means only
+      // ONE delivery can ever claim the pending→paid transition; any duplicate
+      // (retry, concurrent delivery, manual resend) sees zero rows and exits.
+      const { rows: claimed } = await pool.query(
+        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW()
+         WHERE stripe_session_id=$2 AND status='pending'
+         RETURNING id`,
         [session.payment_intent, session.id]
       );
+      if (!claimed.length) {
+        // Already processed, or unknown session — acknowledge with 200 so
+        // Stripe stops retrying, but do no further work.
+        console.log(`[webhook] duplicate/already-processed event for session ${session.id} — skipping`);
+        return res.json({ received: true, duplicate: true });
+      }
 
       // Populate customer details from the Stripe session — must happen before
       // we read the order back, otherwise the admin notification email shows
@@ -1436,17 +1449,24 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
     const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
 
     if (session.payment_status === 'paid' && order.status === 'pending') {
-      await pool.query(
-        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW() WHERE id=$2`,
+      // Same atomic claim as the webhook — protects against the race where the
+      // webhook lands between our read of the order above and this update,
+      // which would otherwise double-increment the edition counters.
+      const { rows: claimed } = await pool.query(
+        `UPDATE orders SET status='paid', stripe_payment_intent=$1, updated_at=NOW()
+         WHERE id=$2 AND status='pending'
+         RETURNING id`,
         [session.payment_intent, order.id]
       );
-      // Increment edition_sold counts, same as the webhook would
-      const { rows: items } = await pool.query('SELECT print_id, size FROM order_items WHERE order_id=$1', [order.id]);
-      for (const item of items) {
-        await pool.query(
-          `UPDATE print_sizes SET edition_sold = edition_sold + 1 WHERE print_id=$1 AND size=$2`,
-          [item.print_id, item.size]
-        );
+      if (claimed.length) {
+        // Increment edition_sold counts, same as the webhook would
+        const { rows: items } = await pool.query('SELECT print_id, size FROM order_items WHERE order_id=$1', [order.id]);
+        for (const item of items) {
+          await pool.query(
+            `UPDATE print_sizes SET edition_sold = edition_sold + 1 WHERE print_id=$1 AND size=$2`,
+            [item.print_id, item.size]
+          );
+        }
       }
     }
 
