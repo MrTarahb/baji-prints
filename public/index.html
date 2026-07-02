@@ -766,6 +766,47 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 #impressum-page .inner { max-width: 600px; margin: 0 auto; }
 #impressum-page.active { display: block; }
 
+#workshop-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#workshop-page .inner { max-width: 680px; margin: 0 auto; }
+#workshop-page.active { display: block; }
+.ws-banner {
+  font-family: var(--fm); font-size: 10px; letter-spacing: .02em;
+  color: var(--pink-d); background: rgba(200,144,122,.1);
+  border: 1px solid rgba(200,144,122,.3); border-radius: 3px;
+  padding: .75rem 1rem; margin-bottom: 1.75rem; line-height: 1.6;
+}
+.ws-section-title { font-family: var(--fm); font-size: 8px; letter-spacing: .16em; text-transform: uppercase; color: var(--fg-l); margin: 0 0 1rem; }
+.ws-sched-row { display: flex; gap: 1rem; padding: .45rem 0; border-bottom: 1px solid var(--border); font-size: 11px; line-height: 1.7; }
+.ws-sched-row:last-child { border-bottom: none; }
+.ws-sched-time { font-family: var(--fm); color: var(--fg-l); flex-shrink: 0; width: 46px; letter-spacing: .04em; }
+.ws-sched-text { color: var(--fg-m); }
+.ws-list { list-style: none; padding: 0; margin: 0; }
+.ws-list li { font-size: 11px; color: var(--fg-m); line-height: 1.8; padding-left: 1.1rem; position: relative; }
+.ws-list li::before { content: '·'; position: absolute; left: .3rem; color: var(--fg-l); }
+.ws-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.ws-gallery img { width: 100%; height: auto; display: block; cursor: none; }
+.ws-date-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: 2px; padding: .9rem 1.1rem; margin-bottom: .6rem; }
+.ws-date-label { font-size: 12px; color: var(--fg); }
+.ws-date-spots { font-family: var(--fm); font-size: 9px; letter-spacing: .06em; color: var(--fg-l); margin-top: .25rem; }
+.ws-date-right { display: flex; align-items: center; gap: .9rem; flex-shrink: 0; }
+.ws-date-price { font-family: var(--fm); font-size: 11px; color: var(--fg); letter-spacing: .04em; }
+.ws-book-btn { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; padding: .55rem .9rem; background: var(--fg); color: var(--bg); border: none; border-radius: 2px; cursor: none; }
+.ws-book-btn[disabled] { opacity: .45; }
+.ws-no-dates { font-size: 11px; color: var(--fg-l); }
+@media(max-width:640px){
+  .ws-date-card { flex-direction: column; align-items: flex-start; }
+  .ws-gallery { grid-template-columns: 1fr; }
+}
+
 #faq-page {
   display: none;
   position: fixed;
@@ -1523,6 +1564,45 @@ nav.on-light .nav-hamburger span,
   </div>
 </div>
 
+<!-- WORKSHOP PAGE — hidden: no nav/footer link, reachable via /workshops -->
+<div id="workshop-page">
+  <div class="inner">
+    <div id="workshop-banner" class="ws-banner" style="display:none"></div>
+    <h1 class="about-heading" id="c-workshop_heading">Workshop.</h1>
+    <div class="about-body">
+      <p class="about-spec" id="c-workshop_sub" style="margin-bottom:2rem">Photo to print · A full day of abstract photography in Zürich, ending with your own A2 fine art print.</p>
+      <p id="c-workshop_intro"></p>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">The day</h2>
+      <div id="workshop-schedule"></div>
+
+      <div id="workshop-gallery-section" style="display:none">
+        <div class="about-divider"></div>
+        <h2 class="ws-section-title">In action</h2>
+        <div class="ws-gallery" id="workshop-gallery"></div>
+      </div>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">What's included</h2>
+      <ul class="ws-list" id="workshop-included"></ul>
+
+      <h2 class="ws-section-title" style="margin-top:1.75rem">What to bring</h2>
+      <ul class="ws-list" id="workshop-bring"></ul>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">Good to know</h2>
+      <p id="c-workshop_weather"></p>
+      <p id="c-workshop_min"></p>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">Dates &amp; booking</h2>
+      <p id="c-workshop_price_note" style="margin-bottom:1.25rem"></p>
+      <div id="workshop-dates"></div>
+    </div>
+  </div>
+</div>
+
 <!-- FAQ PAGE -->
 <div id="faq-page">
   <div class="inner">
@@ -1882,7 +1962,7 @@ function initScrollAnimation() {
       // not just about/contact, otherwise scrolling on shop/privacy/success
       // incorrectly hides the nav since this list was never kept in sync with
       // every page showPage() actually knows about.
-      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','shop-page','shop-success-page','cart-page']
+      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
         .some(id => document.getElementById(id)?.classList.contains('active'));
       if (!onSubPage) nav.classList.remove('visible');
     }
@@ -1920,7 +2000,7 @@ async function loadContent() {
       <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
     </div>
   </footer>`;
-  ['about-page','contact-page','faq-page','impressum-page','privacy-page','terms-page','shop-page','cart-page'].forEach(id => {
+  ['about-page','contact-page','faq-page','impressum-page','privacy-page','terms-page','workshop-page','shop-page','cart-page'].forEach(id => {
     const page = document.getElementById(id);
     if (page && !page.querySelector('.sub-page-footer')) {
       page.insertAdjacentHTML('beforeend', subPageFooterHTML);
@@ -1965,6 +2045,33 @@ async function loadContent() {
       if (link) { link.href = 'mailto:' + d.impressum_email; link.textContent = d.impressum_email; }
     }
 
+    // Workshop page — banner toggle plus multiline content built into structure
+    const wsBanner = document.getElementById('workshop-banner');
+    if (wsBanner) {
+      if (d.workshop_banner_enabled !== 'false' && d.workshop_banner_text) {
+        wsBanner.textContent = d.workshop_banner_text;
+        wsBanner.style.display = 'block';
+      } else {
+        wsBanner.style.display = 'none';
+      }
+    }
+    const wsSched = document.getElementById('workshop-schedule');
+    if (wsSched && d.workshop_schedule) {
+      wsSched.innerHTML = d.workshop_schedule.split('\n').filter(l => l.trim()).map(line => {
+        // "09:00 — text" → time column + text; lines without a leading time render full-width
+        const m = line.match(/^\s*([0-2]?\d[:.]\d\d)\s*[—–-]+\s*(.*)$/);
+        const time = m ? m[1] : '';
+        const text = m ? m[2] : line.trim();
+        return `<div class="ws-sched-row"><span class="ws-sched-time">${esc(time)}</span><span class="ws-sched-text">${esc(text)}</span></div>`;
+      }).join('');
+    }
+    const wsFillList = (id, value) => {
+      const el = document.getElementById(id);
+      if (el && value) el.innerHTML = value.split('\n').filter(l => l.trim()).map(l => `<li>${esc(l.trim())}</li>`).join('');
+    };
+    wsFillList('workshop-included', d.workshop_included);
+    wsFillList('workshop-bring', d.workshop_bring);
+
     // FAQ — hide items where *_enabled is explicitly 'false'
     document.querySelectorAll('[id^="c-faq_"]').forEach(el => {
       const key = el.id.replace('c-', '');
@@ -2000,6 +2107,7 @@ function showPage(name){
   const termsEl = document.getElementById('terms-page');
   const faqEl = document.getElementById('faq-page');
   const impressumEl = document.getElementById('impressum-page');
+  const workshopEl = document.getElementById('workshop-page');
   const shopEl = document.getElementById('shop-page');
   const shopSuccessEl = document.getElementById('shop-success-page');
   const cartEl = document.getElementById('cart-page');
@@ -2009,6 +2117,7 @@ function showPage(name){
   termsEl.classList.toggle('active', name==='terms');
   faqEl.classList.toggle('active', name==='faq');
   impressumEl.classList.toggle('active', name==='impressum');
+  workshopEl.classList.toggle('active', name==='workshop');
   shopEl.classList.toggle('active', name==='shop');
   shopSuccessEl.classList.toggle('active', name==='shop-success');
   cartEl.classList.toggle('active', name==='cart');
@@ -2018,6 +2127,7 @@ function showPage(name){
   if (name === 'terms') termsEl.scrollTop = 0;
   if (name === 'faq') faqEl.scrollTop = 0;
   if (name === 'impressum') impressumEl.scrollTop = 0;
+  if (name === 'workshop') { workshopEl.scrollTop = 0; loadWorkshopData(); }
   if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
   if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
   if (name === 'cart') {
@@ -3107,11 +3217,50 @@ updateCartBar();
 // or building it while #main-content is hidden behind a shop overlay.
 let mainFeedBuilt = false;
 
+// ── WORKSHOP PAGE DATA ────────────────────────────────────────────────────────
+let workshopDataLoaded = false;
+async function loadWorkshopData() {
+  if (workshopDataLoaded) return;
+  workshopDataLoaded = true;
+  try {
+    const photos = await fetch('/api/workshop-photos').then(r => r.json());
+    if (photos.length) {
+      document.getElementById('workshop-gallery-section').style.display = 'block';
+      document.getElementById('workshop-gallery').innerHTML = photos.map(p =>
+        `<img src="${cld(p.image_url, 1200)}" alt="" loading="lazy" onclick="openLightbox('${p.image_url}', '')">`
+      ).join('');
+    }
+  } catch(e) {}
+  try {
+    const dates = await fetch('/api/workshops').then(r => r.json());
+    const wrap = document.getElementById('workshop-dates');
+    if (!dates.length) {
+      wrap.innerHTML = '<p class="ws-no-dates">No dates announced yet. Check back soon.</p>';
+      return;
+    }
+    wrap.innerHTML = dates.map(d => {
+      const dt = new Date(d.date);
+      const label = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const full = d.spots_left <= 0;
+      return `<div class="ws-date-card">
+        <div>
+          <div class="ws-date-label">${label}</div>
+          <div class="ws-date-spots">${full ? 'Fully booked' : d.spots_left + ' of ' + d.capacity + ' spots left'}</div>
+        </div>
+        <div class="ws-date-right">
+          <span class="ws-date-price">${fmtCHF(d.price_chf_cents)}</span>
+          <button class="ws-book-btn" disabled title="Booking opens soon">Booking opens soon</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
 // Determine initial route FIRST, then decide whether to build the main feed.
 // This avoids a race where buildFeed() (GSAP/ScrollTrigger setup, hero image load)
 // runs while #main-content is about to be hidden by a shop/shop-success route.
 const initialPath = window.location.pathname;
-const startingOnShop = initialPath.indexOf('/shop') === 0 || initialPath.indexOf('/cart') === 0;
+const startingOnShop = initialPath.indexOf('/shop') === 0 || initialPath.indexOf('/cart') === 0 || initialPath.indexOf('/workshops') === 0;
 
 loadContent().then(() => {
   if (!startingOnShop) { load().then(success => { if (success) mainFeedBuilt = true; }); }
@@ -3123,6 +3272,8 @@ if (initialPath.indexOf('/shop/success') === 0) {
   showPage('cart');
 } else if (initialPath.indexOf('/shop') === 0) {
   showPage('shop');
+} else if (initialPath.indexOf('/workshops') === 0) {
+  showPage('workshop');
 }
 
 // Track pageview with referrer — skipped on browsers flagged via the admin
