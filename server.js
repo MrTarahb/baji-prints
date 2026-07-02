@@ -237,6 +237,105 @@ app.use(cors());
 
 // Stripe webhook needs the RAW body for signature verification —
 // this route is registered BEFORE express.json() so the body stays unparsed
+// Cloudinary transform helper — injects width/format/quality params into an
+// upload URL at render time. Originals stay untouched in Cloudinary; this just
+// asks their CDN for an appropriately-sized derivative (f_auto = WebP/AVIF for
+// supporting clients, q_auto = automatic quality).
+function cldUrl(url, width) {
+  if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
+  return url.replace('/image/upload/', `/image/upload/w_${width},f_auto,q_auto/`);
+}
+
+// Sends the admin notification + customer confirmation for a paid order.
+// Shared by the Stripe webhook and the manual admin "Sync" route, so that
+// whichever path claims the pending→paid transition also triggers the emails —
+// the losing path skips both (idempotency guard sits upstream of this call).
+async function sendOrderConfirmationEmails(stripeSessionId) {
+  if (!resend) return;
+  const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id=$1', [stripeSessionId]);
+  const order = orderRows[0];
+  if (!order) return;
+
+  const { rows: items } = await pool.query(
+    `SELECT oi.print_id, oi.size, oi.print_title, p.image_url
+     FROM order_items oi
+     JOIN orders o ON o.id = oi.order_id
+     LEFT JOIN prints p ON p.id = oi.print_id
+     WHERE o.stripe_session_id = $1`,
+    [stripeSessionId]
+  );
+
+  const adminItemsHtml = items.map(i => `
+    <tr>
+      <td style="padding:8px 0;width:64px"><table cellpadding="0" cellspacing="0" style="width:60px;height:60px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${cldUrl(i.image_url, 200)}" alt="" style="max-width:60px;max-height:60px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
+      <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)}<span style="color:#8A8680">, ${i.size}</span></td>
+    </tr>
+  `).join('');
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+      to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
+      subject: `New order ${order.order_ref || ''}: CHF ${(order.total_chf/100).toFixed(2)}`,
+      html: emailShell(`
+        <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 6px;color:#1A1714">New print order</h2>
+        ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">${order.order_ref}</p>` : ''}
+        <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
+        <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
+        <p style="margin:0 0 18px;font-size:14px;color:#1A1714"><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px">${adminItemsHtml}</table>
+        <p style="font-size:13px;color:#8A8680;margin:0">View full order details, the fulfilment checklist, and the customer's shipping address in the admin panel.</p>
+      `)
+    });
+  } catch (e) { console.error('Order email failed:', e); }
+
+  // Customer-facing confirmation — separate from Stripe's own invoice email,
+  // this one carries your own voice and shows the actual prints they bought.
+  if (order.customer_email) {
+    const customerItemsHtml = items.map(i => `
+      <tr>
+        <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${cldUrl(i.image_url, 200)}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
+        <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''}<span style="color:#8A8680">, ${i.size}</span></td>
+      </tr>
+    `).join('');
+
+    // Format the shipping address (if one was collected) so the customer
+    // can verify it's correct and flag anything wrong before it ships.
+    let addressHtml = '';
+    if (order.shipping_address) {
+      try {
+        const addr = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
+        const lines = [addr.line1, addr.line2, [addr.postal_code, addr.city].filter(Boolean).join(' '), addr.state, addr.country].filter(Boolean);
+        if (lines.length) {
+          addressHtml = `
+            <p style="margin:0 0 4px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Shipping to:</strong></p>
+            <p style="margin:0 0 22px;font-size:13px;color:#8A8680;line-height:1.6">${lines.map(l => esc(l)).join('<br>')}</p>
+          `;
+        }
+      } catch (e) { /* malformed address, just skip showing it */ }
+    }
+
+    try {
+      await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+        to: order.customer_email,
+        reply_to: REPLY_TO_EMAIL,
+        subject: `Your order ${order.order_ref || ''}: Bharat Bhatia`,
+        html: emailShell(`
+          <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
+          ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Order reference: ${order.order_ref}</p>` : ''}
+          <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way. You'll get another note from me once it ships.</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
+          <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
+          ${addressHtml}
+          <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
+          <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Please check the details above, especially the shipping address, and email ${REPLY_TO_EMAIL} right away if anything needs correcting. Mention your order reference if you can.</p>
+        `), customerEmail: true
+      });
+    } catch (e) { console.error('Customer confirmation email failed:', e); }
+  }
+}
+
 // Support both /api/stripe-webhook (Stripe Workbench default) and /api/stripe/webhook
 const stripeWebhookHandler = async (req, res) => {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -302,13 +401,11 @@ const stripeWebhookHandler = async (req, res) => {
         }
       } catch (e) { console.error('Could not fetch customer details for webhook email:', e.message); }
 
-      // Increment edition_sold counts for limited editions, and grab title/image
-      // for each item so the notification email can show real photos, not IDs.
+      // Increment edition_sold counts for limited editions
       const { rows: items } = await pool.query(
-        `SELECT oi.print_id, oi.size, oi.print_title, p.image_url
+        `SELECT oi.print_id, oi.size
          FROM order_items oi
          JOIN orders o ON o.id = oi.order_id
-         LEFT JOIN prints p ON p.id = oi.print_id
          WHERE o.stripe_session_id = $1`,
         [session.id]
       );
@@ -319,81 +416,8 @@ const stripeWebhookHandler = async (req, res) => {
         );
       }
 
-      // Notify via email — now with the customer details and titles freshly populated above
-      const { rows: orderRows } = await pool.query('SELECT * FROM orders WHERE stripe_session_id=$1', [session.id]);
-      const order = orderRows[0];
-
-      if (resend && order) {
-        const adminItemsHtml = items.map(i => `
-          <tr>
-            <td style="padding:8px 0;width:64px"><table cellpadding="0" cellspacing="0" style="width:60px;height:60px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:60px;max-height:60px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-            <td style="padding:8px 0 8px 12px;font-size:14px;color:#1A1714">${i.print_title || ('Print #' + i.print_id)}<span style="color:#8A8680">, ${i.size}</span></td>
-          </tr>
-        `).join('');
-
-        try {
-          await resend.emails.send({
-            from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
-            to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
-            subject: `New order ${order.order_ref || ''}: CHF ${(order.total_chf/100).toFixed(2)}`,
-            html: emailShell(`
-              <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 6px;color:#1A1714">New print order</h2>
-              ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">${order.order_ref}</p>` : ''}
-              <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Customer:</strong> ${order.customer_name || 'Unknown'} (${order.customer_email || 'no email on file'})</p>
-              <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Total:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-              <p style="margin:0 0 18px;font-size:14px;color:#1A1714"><strong>Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-              <table style="width:100%;border-collapse:collapse;margin-bottom:18px">${adminItemsHtml}</table>
-              <p style="font-size:13px;color:#8A8680;margin:0">View full order details, the fulfilment checklist, and the customer's shipping address in the admin panel.</p>
-            `)
-          });
-        } catch (e) { console.error('Order email failed:', e); }
-
-        // Customer-facing confirmation — separate from Stripe's own invoice email,
-        // this one carries your own voice and shows the actual prints they bought.
-        if (order.customer_email) {
-          const customerItemsHtml = items.map(i => `
-            <tr>
-              <td style="padding:10px 0;width:68px"><table cellpadding="0" cellspacing="0" style="width:64px;height:64px"><tr><td align="center" valign="middle">${i.image_url ? `<img src="${i.image_url}" alt="" style="max-width:64px;max-height:64px;border-radius:4px;display:block">` : ''}</td></tr></table></td>
-              <td style="padding:10px 0 10px 14px;font-size:14px;color:#1A1714">${i.print_title || ''}<span style="color:#8A8680">, ${i.size}</span></td>
-            </tr>
-          `).join('');
-
-          // Format the shipping address (if one was collected) so the customer
-          // can verify it's correct and flag anything wrong before it ships.
-          let addressHtml = '';
-          if (order.shipping_address) {
-            try {
-              const addr = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
-              const lines = [addr.line1, addr.line2, [addr.postal_code, addr.city].filter(Boolean).join(' '), addr.state, addr.country].filter(Boolean);
-              if (lines.length) {
-                addressHtml = `
-                  <p style="margin:0 0 4px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Shipping to:</strong></p>
-                  <p style="margin:0 0 22px;font-size:13px;color:#8A8680;line-height:1.6">${lines.map(l => esc(l)).join('<br>')}</p>
-                `;
-              }
-            } catch (e) { /* malformed address, just skip showing it */ }
-          }
-
-          try {
-            await resend.emails.send({
-              from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
-              to: order.customer_email,
-              reply_to: REPLY_TO_EMAIL,
-              subject: `Your order ${order.order_ref || ''}: Bharat Bhatia`,
-              html: emailShell(`
-                <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
-                ${order.order_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Order reference: ${order.order_ref}</p>` : ''}
-                <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your order has been received and payment confirmed. I'll print, package, and get it on its way. You'll get another note from me once it ships.</p>
-                <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${customerItemsHtml}</table>
-                <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
-                ${addressHtml}
-                <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-                <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Please check the details above, especially the shipping address, and email ${REPLY_TO_EMAIL} right away if anything needs correcting. Mention your order reference if you can.</p>
-              `), customerEmail: true
-            });
-          } catch (e) { console.error('Customer confirmation email failed:', e); }
-        }
-      }
+      // Admin notification + customer confirmation (shared with the sync route)
+      await sendOrderConfirmationEmails(session.id);
     } catch (e) {
       console.error('Error processing webhook:', e);
     }
@@ -1448,6 +1472,7 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
 
     const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
 
+    let justClaimed = false;
     if (session.payment_status === 'paid' && order.status === 'pending') {
       // Same atomic claim as the webhook — protects against the race where the
       // webhook lands between our read of the order above and this update,
@@ -1459,6 +1484,7 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
         [session.payment_intent, order.id]
       );
       if (claimed.length) {
+        justClaimed = true;
         // Increment edition_sold counts, same as the webhook would
         const { rows: items } = await pool.query('SELECT print_id, size FROM order_items WHERE order_id=$1', [order.id]);
         for (const item of items) {
@@ -1481,6 +1507,14 @@ app.post('/api/admin/orders/:id/sync', requireAuth, async (req, res) => {
         `UPDATE orders SET customer_name=$1, customer_email=$2, shipping_address=$3 WHERE id=$4`,
         [session.customer_details.name, session.customer_details.email, JSON.stringify(addressToStore), order.id]
       );
+    }
+
+    // If this sync (not the webhook) claimed the pending→paid transition, it
+    // also owns sending the confirmation emails — done after the backfill above
+    // so the customer email has name and shipping address populated.
+    if (justClaimed) {
+      try { await sendOrderConfirmationEmails(order.stripe_session_id); }
+      catch (e) { console.error('Sync confirmation emails failed:', e); }
     }
 
     res.json({

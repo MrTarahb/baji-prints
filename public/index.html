@@ -2219,7 +2219,7 @@ function renderFeed() {
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
-      <img src="${imgUrl}" alt="${imgTitle}" loading="lazy">
+      <img src="${cld(imgUrl, 1200)}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
     </div>`;
 
@@ -2250,13 +2250,22 @@ function renderFeed() {
   setTimeout(initScrollAnimation, 80);
 }
 
-// Detect image orientation then build feed
+// Cloudinary transform helper — asks the CDN for a resized derivative
+// (f_auto = WebP/AVIF where supported, q_auto = automatic quality) instead of
+// shipping the full-resolution original into small layout slots.
+function cld(url, w) {
+  if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
+  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+}
+
+// Detect image orientation then build feed — a w_50 thumb answers
+// width-vs-height identically to the multi-MB original.
 function getOrientation(url) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => resolve(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
     img.onerror = () => resolve('landscape');
-    img.src = url;
+    img.src = cld(url, 50);
   });
 }
 
@@ -2307,7 +2316,7 @@ async function buildFeed(prints) {
   const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
   const heroUrl = heroPick.image_url || heroPick.url || '';
   introImg.onload = applyHeroOrientation;
-  introImg.src = heroUrl;
+  introImg.src = cld(heroUrl, 2000);
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
 
   // Render feed — default to abstract
@@ -2429,7 +2438,7 @@ function _renderLightbox(src, title, printId) {
   const descPanel = document.getElementById('lightbox-desc');
   const descText = document.getElementById('lightbox-desc-text');
 
-  img.src = src;
+  img.src = cld(src, 2000);
   cap.textContent = title || '';
 
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
@@ -2595,7 +2604,7 @@ async function loadShopProducts() {
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
           ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
-          <img src="${p.image_url}" alt="${esc(p.title)}" loading="lazy">
+          <img src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}" loading="lazy">
         </div>
         <div class="shop-card-title">${esc(p.title)}</div>
         <div class="shop-card-price">From ${fmtCHF(minPrice)}</div>
@@ -2623,7 +2632,7 @@ function openShopDetail(printId) {
   const validSizes = p.sizes.filter(s => s.price_chf > 0);
   const inner = document.getElementById('shop-detail-inner');
   inner.innerHTML = `
-    <img class="shop-detail-img" src="${p.image_url}" alt="${esc(p.title)}">
+    <img class="shop-detail-img" src="${cld(p.image_url, 2000)}" alt="${esc(p.title)}">
     <div>
       <p class="shop-detail-title">${esc(p.title)}</p>
       <p class="shop-detail-desc">${esc(p.description || '')}</p>
@@ -2727,7 +2736,7 @@ async function renderCart() {
 
   itemsWrap.innerHTML = cart.map((item, i) => `
     <div class="cart-item">
-      <div class="cart-item-img-wrap"><img src="${item.image_url}" alt="${esc(item.title)}"></div>
+      <div class="cart-item-img-wrap"><img src="${cld(item.image_url, 200)}" alt="${esc(item.title)}"></div>
       <div>
         <div class="cart-item-title">${esc(item.title)}</div>
         <div class="cart-item-size">${item.size}</div>

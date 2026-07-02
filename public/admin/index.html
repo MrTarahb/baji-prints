@@ -657,6 +657,10 @@ function showPanel(name,btn){
 
 // HELPERS
 function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function cld(url, w) {
+  if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
+  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+}
 function relTime(str){const d=new Date(str),now=new Date(),m=Math.floor((now-d)/60000);if(m<2)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';const dy=Math.floor(h/24);if(dy<7)return dy+'d ago';return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
 
 // MESSAGES
@@ -893,7 +897,7 @@ async function loadPrints(){
           ${label}
         </label>`
       ).join('');
-      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${p.image_url}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
 
@@ -1066,7 +1070,7 @@ async function loadShopPrints(){
         const pct = total > 0 ? Math.min(100, Math.round((sold/total)*100)) : 0;
         limitedCards.push(`
           <div class="edition-summary-card">
-            <img src="${p.image_url}" alt="">
+            <img src="${cld(p.image_url, 400)}" alt="">
             <div style="flex:1;min-width:0">
               <div class="edition-summary-title">${esc(p.title)} <span style="color:var(--text-l);font-weight:400">— ${sz.size}</span></div>
               <div class="edition-summary-row">
@@ -1112,7 +1116,7 @@ function buildShopCard(printMeta, shopPrint, sizes){
   const editionSize = shopPrint.edition_size || '';
 
   card.innerHTML = `
-    <img src="${printMeta.image_url}" alt="${esc(printMeta.title)}">
+    <img src="${cld(printMeta.image_url, 400)}" alt="${esc(printMeta.title)}">
     <div>
       <div class="shop-print-title">${esc(printMeta.title)}</div>
 
@@ -1257,7 +1261,7 @@ function buildOrderCard(o){
 
   const itemsHtml = (o.items || []).map(i => `
     <div class="order-item-row" style="display:flex;align-items:center;gap:.6rem">
-      ${i.image_url ? `<img src="${i.image_url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:2px;flex-shrink:0">` : ''}
+      ${i.image_url ? `<img src="${cld(i.image_url, 150)}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:2px;flex-shrink:0">` : ''}
       <div style="flex:1">
         <div>${esc(i.print_title || i.title || ('Print #' + i.print_id))} — ${i.size}</div>
         ${i.customer_note ? `<div style="font-size:.72rem;color:var(--text-l);font-style:italic;margin-top:.15rem">Note: ${esc(i.customer_note)}</div>` : ''}
