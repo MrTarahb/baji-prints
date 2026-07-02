@@ -633,7 +633,7 @@ async function login(){
   try{
     const res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw}),credentials:'include'});
     if(res.ok){document.getElementById('login-screen').style.display='none';document.getElementById('admin-screen').style.display='block';await loadAll();}
-    else err.textContent='Wrong password.';
+    else{const d=await res.json().catch(()=>({}));err.textContent=d.error||'Wrong password.';}
   }catch(e){err.textContent='Connection error.';}
 }
 async function logout(){await fetch('/api/admin/logout',{method:'POST',credentials:'include'});location.reload();}

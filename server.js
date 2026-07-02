@@ -7,6 +7,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cors = require('cors');
 
@@ -1112,9 +1113,20 @@ app.post('/api/contact', async (req, res) => {
 });
 
 // ── ADMIN AUTH ────────────────────────────────────────────────────────────────
-app.post('/api/admin/login', async (req, res) => {
+// Throttle admin login: 10 failed attempts per 15 minutes per IP, then 429.
+// Successful logins don't count against the window (skipSuccessfulRequests),
+// so this only ever bites password-guessing bots, not you.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts — try again in 15 minutes.' },
+});
+
+app.post('/api/admin/login', loginLimiter, async (req, res) => {
   const { password } = req.body;
-  const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'changeme', 10);
   const match = password === (process.env.ADMIN_PASSWORD || 'changeme');
   if (match) {
     req.session.admin = true;
