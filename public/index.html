@@ -2390,7 +2390,7 @@ function getLightboxList() {
 
 function openLightbox(src, title, printId) {
   if (printId) {
-    fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
+    if(!isNoTrack()) fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
   }
 
   // Track position in the filtered list for keyboard navigation
@@ -3125,12 +3125,16 @@ if (initialPath.indexOf('/shop/success') === 0) {
   showPage('shop');
 }
 
-// Track pageview with referrer
-fetch('/api/pageview', {
-  method:'POST',
-  headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({path:'/', referrer: document.referrer || ''})
-}).catch(()=>{});
+// Track pageview with referrer — skipped on browsers flagged via the admin
+// (localStorage 'baji_notrack'), so your own visits don't pollute the stats.
+function isNoTrack(){ try{ return localStorage.getItem('baji_notrack')==='1'; }catch(e){ return false; } }
+if(!isNoTrack()){
+  fetch('/api/pageview', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({path:'/', referrer: document.referrer || ''})
+  }).catch(()=>{});
+}
 </script>
 </body>
 </html>

@@ -33,6 +33,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .top-photo-row img{width:36px;height:36px;object-fit:cover;border-radius:1px;flex-shrink:0}
 .top-photo-title{font-size:.78rem;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-photo-views{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0}
+.referrer-row{display:flex;align-items:center;gap:.6rem;padding:.32rem 0}
+.referrer-name{font-size:.75rem;color:var(--text);width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.referrer-bar-wrap{flex:1;height:5px;background:var(--border);border-radius:2px;overflow:hidden}
+.referrer-bar{height:100%;background:var(--ink);border-radius:2px}
+.referrer-count{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l);flex-shrink:0;min-width:2ch;text-align:right}
 
 /* ORDERS */
 .order-card{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1.1rem 1.25rem;margin-bottom:.75rem}
@@ -374,6 +379,7 @@ textarea.field-input{resize:vertical;min-height:70px}
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
           <div>
             <h2 class="panel-title">Visits</h2>
+            <p class="panel-sub" style="margin:.2rem 0 0">This browser is excluded from the statistics below (set automatically whenever you open the admin).</p>
             <p class="panel-sub">How many times your site has been loaded.</p>
           </div>
           <button class="btn-order-action" id="btn-reset-stats" onclick="resetStats()" style="flex-shrink:0">Reset statistics</button>
@@ -1584,8 +1590,43 @@ async function loadStats(){
         bars.appendChild(bar);
       });
     }
+    // Referrer breakdown — the API has returned this all along; it was never rendered
+    const refList=document.getElementById('referrer-list');
+    if(refList){
+      if(d.referrers&&d.referrers.length){
+        const maxR=Math.max(...d.referrers.map(r=>parseInt(r.count)),1);
+        refList.innerHTML=d.referrers.map(r=>`
+          <div class="referrer-row">
+            <span class="referrer-name" title="${esc(r.source)}">${esc(r.source)}</span>
+            <div class="referrer-bar-wrap"><div class="referrer-bar" style="width:${Math.max(3,Math.round((parseInt(r.count)/maxR)*100))}%"></div></div>
+            <span class="referrer-count">${r.count}</span>
+          </div>`).join('');
+      } else {
+        refList.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">No visits recorded yet.</p>';
+      }
+    }
+    // Most viewed photos
+    const topList=document.getElementById('top-photos-list');
+    if(topList){
+      const withViews=(d.topPhotos||[]).filter(p=>parseInt(p.views)>0);
+      if(withViews.length){
+        topList.innerHTML=withViews.map(p=>`
+          <div class="top-photo-row">
+            <img src="${cld(p.image_url,150)}" alt="">
+            <span class="top-photo-title">${esc(p.title)}</span>
+            <span class="top-photo-views">${p.views}</span>
+          </div>`).join('');
+      } else {
+        topList.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">No photo views recorded yet.</p>';
+      }
+    }
   }catch(e){}
 }
+
+// Exclude this browser from public-site visit tracking. One admin visit per
+// browser/device is enough — the flag persists in localStorage and the public
+// site checks it before sending pageview/photoview pings.
+try{localStorage.setItem('baji_notrack','1');}catch(e){}
 
 async function resetStats(){
   if(!confirm('This permanently deletes all visit and photo-view history. This cannot be undone — are you sure?'))return;
