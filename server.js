@@ -1729,6 +1729,13 @@ app.get('/workshops', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Same for /shop and /cart, so these paths can be typed directly, bookmarked,
+// or shared as links without 404ing. The SPA reads the path on load and opens
+// the matching page. /shop/success is covered by the /shop prefix match here.
+app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/shop/*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 // Public: upcoming open dates with live remaining capacity. A spot is taken by
 // a paid booking, or by a pending one younger than 35 minutes (the lifetime of
 // its Stripe Checkout session) — so two people can't both buy the last spot,
