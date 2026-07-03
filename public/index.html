@@ -2960,7 +2960,7 @@ async function renderCart() {
   function updateTotal() {
     const baseMethod = selectedDelivery ? selectedDelivery.split('_')[0] : null;
     const deliverySelected = selectedDelivery && (
-      deliveryAvailability[selectedDelivery] ||
+      (baseMethod === 'intl' && deliveryAvailability.intl && intlCountrySelected) ||
       (baseMethod === 'personal' && deliveryAvailability.personal) ||
       (baseMethod === 'ch' && deliveryAvailability.ch)
     );
@@ -3001,10 +3001,21 @@ async function renderCart() {
     if (available) opt.addEventListener('click', async () => {
       document.querySelectorAll('.cart-delivery-option').forEach(el => el.classList.remove('selected'));
       opt.classList.add('selected');
-      opt.querySelector('.cart-delivery-price').textContent = '…';
       selectedDelivery = method;
       if (countryWrap) countryWrap.style.display = method === 'intl' ? 'block' : 'none';
       if (method !== 'intl') selectedCountry = 'CH';
+      if (method === 'intl' && !intlCountrySelected) {
+        // No real country chosen yet — don't call the shipping API at all.
+        // Sending 'CH' (the leftover default) would make the server treat
+        // this as domestic and silently return the CH/LI packet rate, which
+        // is the exact bug this guards against.
+        calculatedShippingPrice = 0;
+        shippingQuoteRequired = false;
+        opt.querySelector('.cart-delivery-price').textContent = 'Select country';
+        updateTotal();
+        return;
+      }
+      opt.querySelector('.cart-delivery-price').textContent = '…';
       await recalcShipping();
       // Update this option's price and the total in place — no full re-render
       opt.querySelector('.cart-delivery-price').textContent = fmtCHF(calculatedShippingPrice);
@@ -3068,6 +3079,11 @@ async function renderCart() {
 }
 
 let selectedCountry = 'CH';
+// True only once the person has actually picked a country from the intl
+// dropdown. selectedCountry defaults to 'CH' for unrelated reasons (it's also
+// reused as a harmless placeholder before intl is ever touched), so this flag
+// is what actually distinguishes "no country chosen yet" from "chose CH".
+let intlCountrySelected = false;
 let shippingQuoteRequired = false;
 let calculatedShippingPrice = 0;
 let chPriceCache = 0; // cached so cart doesn't re-fetch on every render
@@ -3132,6 +3148,7 @@ function onCountrySearchKeydown(event) {
 
 function selectCountry(code, label) {
   selectedCountry = code;
+  intlCountrySelected = true;
   document.getElementById('country-picker-label').textContent = label;
   document.querySelectorAll('.country-picker-option').forEach(el =>
     el.classList.toggle('selected', el.dataset.value === code)
@@ -3254,6 +3271,7 @@ async function goToCheckout() {
   const msg = document.getElementById('checkout-msg');
   if (!cart.length || !selectedDelivery) return;
   if (shippingQuoteRequired) return;
+  if (selectedDelivery === 'intl' && !intlCountrySelected) return;
   btn.disabled = true; btn.textContent = 'Redirecting…'; msg.textContent = '';
 
   try {
