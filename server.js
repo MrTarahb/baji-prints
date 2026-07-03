@@ -764,6 +764,7 @@ async function initDB() {
     ['faq_sizes', 'Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.'],
     ['faq_signed', 'Yes. All prints are signed by hand. Limited edition prints are also numbered.'],
     ['faq_limited', 'A limited edition means only a fixed number of that print will ever be produced in that size. The edition size is shown in the shop. Once the edition sells out, no more copies of that print in that size will be made. Your edition number is recorded at the time of purchase.'],
+    ['faq_limited_platforms', 'Some limited editions are also offered through other platforms, such as Artfinder. The edition size is shared across all of them — if a print has an edition of 50, that\'s 50 total, not 50 per platform. Every sale, wherever it happens, is recorded against the same running number, so the edition limit is always honoured and no print is ever oversold. A print may also be available as an open edition on this site even if a limited edition of it is listed elsewhere — the two are always clearly distinguished, and only the limited version is signed, numbered, and capped.'],
     ['faq_margin', 'Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you\'d prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I\'ll accommodate it.'],
     ['faq_how_order', 'Browse the shop, select a print and size, add it to your cart, choose a delivery method, and proceed to checkout. Payment is handled securely by Stripe — your card details are never seen or stored by me.'],
     ['faq_payment', 'Credit and debit cards (Visa, Mastercard, Amex) and TWINT for Swiss customers. All payments are processed securely via Stripe.'],
@@ -780,7 +781,7 @@ async function initDB() {
     ['faq_framing', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
     // FAQ visibility flags — 'false' hides that question on the site
     ['faq_paper_enabled','true'],['faq_sizes_enabled','true'],['faq_signed_enabled','true'],
-    ['faq_limited_enabled','true'],['faq_margin_enabled','true'],['faq_how_order_enabled','true'],
+    ['faq_limited_enabled','true'],['faq_limited_platforms_enabled','true'],['faq_margin_enabled','true'],['faq_how_order_enabled','true'],
     ['faq_payment_enabled','true'],['faq_custom_print_enabled','true'],['faq_packaging_enabled','true'],
     ['faq_delivery_time_enabled','true'],['faq_intl_enabled','true'],['faq_shipping_cost_enabled','true'],
     ['faq_personal_what_enabled','true'],['faq_personal_where_enabled','true'],['faq_personal_how_enabled','true'],
