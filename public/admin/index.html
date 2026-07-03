@@ -367,6 +367,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('contact',this)">Contact page</button>
       <button class="sidebar-btn" onclick="showPanel('impressum',this)">Impressum</button>
       <button class="sidebar-btn" onclick="showPanel('faq',this)">FAQ</button>
+      <button class="sidebar-btn" onclick="showPanel('workshop',this)">Workshop</button>
       <button class="sidebar-btn" onclick="showPanel('shoptext',this)">Shop text</button>
       <button class="sidebar-btn" onclick="showPanel('footer',this)">Footer</button>
       <button class="sidebar-btn" onclick="showPanel('seo',this)">SEO & sharing</button>
@@ -586,6 +587,42 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">FAQ</h2>
         <p class="panel-sub">Toggle questions on/off and edit their answers. Disabled questions won't appear on the site.</p>
         <div id="faq-fields"></div>
+      </div>
+
+      <!-- WORKSHOP -->
+      <div class="panel" id="panel-workshop">
+        <h2 class="panel-title">Workshop</h2>
+        <p class="panel-sub">Everything on the /workshops page. The page stays hidden from the site navigation — share the direct link when you're ready.</p>
+
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;padding:.75rem 1rem;border:1px solid var(--border);border-radius:3px">
+          <input type="checkbox" id="workshop-banner-toggle" onchange="saveWorkshopBanner(this)" style="cursor:pointer">
+          <label class="field-label" style="margin:0">Show "work in progress" banner on the page</label>
+        </div>
+
+        <div id="workshop-fields"></div>
+
+        <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+          <p class="field-label" style="margin-bottom:.35rem">Dates</p>
+          <p class="panel-sub" style="margin-bottom:.85rem">Each date has its own price and capacity. Status: <strong>draft</strong> = invisible, <strong>open</strong> = bookable on the page, <strong>closed</strong> = visible in your admin only. Dates with bookings can't be deleted — close them instead.</p>
+          <div id="workshop-dates-admin"></div>
+          <div style="margin-top:1rem;display:grid;grid-template-columns:auto 90px 100px 100px auto auto;gap:.5rem;align-items:center">
+            <input class="field-input" id="ws-new-date" type="date">
+            <input class="field-input" id="ws-new-capacity" type="number" value="6" min="1" title="Capacity">
+            <input class="field-input" id="ws-new-price" type="number" value="300" min="0" step="1" title="Price CHF">
+            <input class="field-input" id="ws-new-frame" type="number" placeholder="Frame CHF" min="0" step="1" title="Optional frame add-on price, leave empty if not offered">
+            <select class="field-input" id="ws-new-status"><option value="draft">draft</option><option value="open">open</option></select>
+            <button class="btn-order-action" onclick="addWorkshopDate(this)">Add date</button>
+          </div>
+        </div>
+
+        <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+          <p class="field-label" style="margin-bottom:.35rem">Gallery</p>
+          <p class="panel-sub" style="margin-bottom:.85rem">Photos shown in the "In action" section, in upload order. They live in their own Cloudinary folder.</p>
+          <div id="workshop-gallery-admin" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem;margin-bottom:.85rem"></div>
+          <input type="file" id="ws-photo-file" accept="image/jpeg,image/png,image/webp" style="font-size:.75rem">
+          <button class="btn-order-action" onclick="uploadWorkshopPhoto(this)">Upload photo</button>
+          <span id="ws-photo-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
+        </div>
       </div>
 
       <!-- SHOP TEXT -->
@@ -1468,6 +1505,148 @@ async function confirmClearOrders(){
 }
 
 // ── SHIPPING RATES ────────────────────────────────────────────────────────────
+// ── WORKSHOP ADMIN ──
+async function saveWorkshopBanner(checkbox){
+  await fetch('/api/admin/content', {
+    method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({ key:'workshop_banner_enabled', value: checkbox.checked ? 'true' : 'false' })
+  });
+  allContent.workshop_banner_enabled = checkbox.checked ? 'true' : 'false';
+}
+
+async function loadWorkshopDates(){
+  const wrap = document.getElementById('workshop-dates-admin');
+  try{
+    const dates = await fetch('/api/admin/workshop-dates',{credentials:'include'}).then(r=>r.json());
+    if(!dates.length){ wrap.innerHTML='<p class="prints-empty">No dates yet — add your first below (the test run with friends counts).</p>'; return; }
+    wrap.innerHTML = dates.map(d=>{
+      const total = parseInt(d.paid_count)+parseInt(d.pending_count);
+      return `
+      <div style="border:1px solid var(--border);border-radius:3px;padding:.75rem;margin-bottom:.5rem">
+        <div style="display:grid;grid-template-columns:auto 90px 100px 100px auto;gap:.5rem;align-items:center;margin-bottom:.45rem">
+          <input class="field-input" id="ws-date-${d.id}" type="date" value="${String(d.date).slice(0,10)}">
+          <input class="field-input" id="ws-cap-${d.id}" type="number" value="${d.capacity}" min="1" title="Capacity">
+          <input class="field-input" id="ws-price-${d.id}" type="number" value="${Math.round(d.price_chf_cents/100)}" min="0" step="1" title="Price CHF">
+          <input class="field-input" id="ws-frame-${d.id}" type="number" value="${d.frame_price_chf_cents==null?'':Math.round(d.frame_price_chf_cents/100)}" placeholder="Frame CHF" min="0" step="1" title="Optional frame add-on price">
+          <select class="field-input" id="ws-status-${d.id}">
+            ${['draft','open','closed','past'].map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text-l)">${d.paid_count} paid${parseInt(d.pending_count)?` · ${d.pending_count} pending`:''}</span>
+          <span style="flex:1"></span>
+          <button class="btn-order-action" onclick="saveWorkshopDate(${d.id},this)" style="font-size:.65rem">Save</button>
+          <button class="btn-order-action" onclick="toggleWorkshopBookings(${d.id},this)" style="font-size:.65rem">Bookings</button>
+          ${total===0?`<button class="btn-order-action" onclick="deleteWorkshopDate(${d.id})" style="font-size:.65rem;color:#a33">Delete</button>`:''}
+        </div>
+        <div id="ws-bookings-${d.id}" style="display:none;margin-top:.6rem;border-top:1px solid var(--border);padding-top:.6rem"></div>
+      </div>`;
+    }).join('');
+  }catch(e){ wrap.innerHTML='<p class="prints-empty">Could not load dates.</p>'; }
+}
+
+async function saveWorkshopDate(id,btn){
+  btn.disabled=true; btn.textContent='…';
+  const frameVal = document.getElementById('ws-frame-'+id).value;
+  try{
+    const res = await fetch('/api/admin/workshop-dates/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({
+        date: document.getElementById('ws-date-'+id).value,
+        capacity: parseInt(document.getElementById('ws-cap-'+id).value)||6,
+        price_chf_cents: Math.round((parseFloat(document.getElementById('ws-price-'+id).value)||0)*100),
+        frame_price_chf_cents: frameVal==='' ? null : Math.round(parseFloat(frameVal)*100),
+        status: document.getElementById('ws-status-'+id).value,
+      })
+    });
+    btn.textContent = res.ok ? 'Saved ✓' : 'Error';
+  }catch(e){ btn.textContent='Error'; }
+  setTimeout(()=>{ btn.textContent='Save'; btn.disabled=false; },1800);
+}
+
+async function addWorkshopDate(btn){
+  const date = document.getElementById('ws-new-date').value;
+  if(!date){ alert('Pick a date first.'); return; }
+  btn.disabled=true;
+  const frameVal = document.getElementById('ws-new-frame').value;
+  try{
+    await fetch('/api/admin/workshop-dates', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({
+        date,
+        capacity: parseInt(document.getElementById('ws-new-capacity').value)||6,
+        price_chf_cents: Math.round((parseFloat(document.getElementById('ws-new-price').value)||300)*100),
+        frame_price_chf_cents: frameVal==='' ? null : Math.round(parseFloat(frameVal)*100),
+        status: document.getElementById('ws-new-status').value,
+      })
+    });
+    document.getElementById('ws-new-date').value='';
+    await loadWorkshopDates();
+  }catch(e){ alert('Could not add date.'); }
+  btn.disabled=false;
+}
+
+async function deleteWorkshopDate(id){
+  if(!confirm('Delete this date? Only possible while it has no bookings.'))return;
+  const res = await fetch('/api/admin/workshop-dates/'+id, { method:'DELETE', credentials:'include' });
+  if(!res.ok){ const d=await res.json().catch(()=>({})); alert(d.error||'Could not delete.'); }
+  await loadWorkshopDates();
+}
+
+async function toggleWorkshopBookings(dateId,btn){
+  const box = document.getElementById('ws-bookings-'+dateId);
+  if(box.style.display!=='none'){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">Loading…</p>';
+  try{
+    const rows = await fetch('/api/admin/workshop-bookings?date_id='+dateId,{credentials:'include'}).then(r=>r.json());
+    if(!rows.length){ box.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">No bookings for this date.</p>'; return; }
+    box.innerHTML = rows.map(b=>`
+      <div style="display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.74rem">
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-l)">${esc(b.booking_ref||'—')}</span>
+        <span>${esc(b.customer_name||'—')}</span>
+        <span style="color:var(--text-l)">${esc(b.customer_email||'')}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem">${b.status}</span>
+        ${b.frame?'<span style="font-size:.65rem;border:1px solid var(--border);border-radius:2px;padding:.05rem .3rem">frame</span>':''}
+        ${b.dietary?`<span style="color:var(--text-l);font-style:italic">diet: ${esc(b.dietary)}</span>`:''}
+      </div>`).join('');
+  }catch(e){ box.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">Could not load bookings.</p>'; }
+}
+
+async function loadWorkshopGallery(){
+  const wrap = document.getElementById('workshop-gallery-admin');
+  try{
+    const photos = await fetch('/api/workshop-photos').then(r=>r.json());
+    wrap.innerHTML = photos.length ? photos.map(p=>`
+      <div style="position:relative">
+        <img src="${cld(p.image_url,400)}" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:2px;display:block">
+        <button onclick="deleteWorkshopPhoto(${p.id})" title="Delete" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:2px;width:20px;height:20px;cursor:pointer;font-size:12px;line-height:1">×</button>
+      </div>`).join('') : '<p class="prints-empty" style="grid-column:1/-1">No photos yet — upload shots from the test run when you have them.</p>';
+  }catch(e){}
+}
+
+async function uploadWorkshopPhoto(btn){
+  const input = document.getElementById('ws-photo-file');
+  const msg = document.getElementById('ws-photo-msg');
+  if(!input.files || !input.files[0]){ msg.textContent='Choose a file first.'; return; }
+  btn.disabled=true; msg.textContent='Uploading…';
+  const fd = new FormData();
+  fd.append('photo', input.files[0]);
+  try{
+    const res = await fetch('/api/admin/workshop-photos', { method:'POST', credentials:'include', body: fd });
+    if(res.ok){ msg.textContent='Uploaded ✓'; input.value=''; await loadWorkshopGallery(); }
+    else msg.textContent='Upload failed.';
+  }catch(e){ msg.textContent='Upload failed.'; }
+  btn.disabled=false;
+  setTimeout(()=>{ msg.textContent=''; },2500);
+}
+
+async function deleteWorkshopPhoto(id){
+  if(!confirm('Delete this photo?'))return;
+  await fetch('/api/admin/workshop-photos/'+id, { method:'DELETE', credentials:'include' });
+  await loadWorkshopGallery();
+}
+
 // LOAD ALL
 async function loadAll(){
   try{const res=await fetch('/api/content');allContent=await res.json();}catch(e){}
@@ -1510,6 +1689,24 @@ async function loadAll(){
     ['impressum_vat',        'VAT / tax note',        true],
     ['impressum_disclaimer', 'Disclaimer (optional)', true],
   ]);
+
+  buildFields('workshop-fields',[
+    ['workshop_banner_text',  'Banner text',                                        false],
+    ['workshop_heading',      'Page heading',                                       false],
+    ['workshop_sub',          'Subtitle',                                           false],
+    ['workshop_intro',        'Intro paragraph',                                    true],
+    ['workshop_schedule',     'Day schedule — one line per entry: "09:00 — Text"',  true],
+    ['workshop_included',     "What's included — one item per line",                true],
+    ['workshop_bring',        'What to bring — one item per line',                  true],
+    ['workshop_weather',      'Weather policy',                                     true],
+    ['workshop_min',          'Minimum participants note',                          true],
+    ['workshop_price_note',   'Price line (display text on the page)',              false],
+    ['workshop_cta',          'Booking button label',                               false],
+  ]);
+  const wsBannerToggle = document.getElementById('workshop-banner-toggle');
+  if (wsBannerToggle) wsBannerToggle.checked = allContent.workshop_banner_enabled !== 'false';
+  await loadWorkshopDates();
+  await loadWorkshopGallery();
 
   buildFaqFields([
     ['faq_paper',         'What paper are the prints made on?'],
