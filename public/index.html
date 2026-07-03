@@ -1052,6 +1052,36 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 .country-picker-option:hover { background: var(--bg-2); color: var(--fg); }
 .country-picker-option.selected { color: var(--fg); }
+.country-picker-option.filtered-out { display: none; }
+.country-picker-group.filtered-out { display: none; }
+.country-picker-search-wrap {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: .5rem .5rem .4rem;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.country-picker-search {
+  width: 100%;
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .03em;
+  color: var(--fg);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: .4rem .6rem;
+  outline: none;
+}
+.country-picker-search::placeholder { color: var(--fg-l); }
+.country-picker-search:focus { border-color: var(--fg-m); }
+.country-picker-empty {
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--fg-l);
+  padding: .7rem .85rem;
+}
 .shop-customer-note-wrap { margin-bottom: 1rem; }
 .shop-customer-note-label { display: block; font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin-bottom: .4rem; }
 .shop-customer-note { width: 100%; font-family: var(--fm); font-size: 11px; color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; padding: .6rem .75rem; resize: vertical; line-height: 1.6; }
@@ -1771,6 +1801,14 @@ nav.on-light .nav-hamburger span,
             <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
           <div class="country-picker-menu" id="country-picker-menu">
+            <div class="country-picker-search-wrap">
+              <input type="text" id="country-picker-search" class="country-picker-search"
+                placeholder="Search countries…" autocomplete="off"
+                oninput="filterCountryPicker(this.value)"
+                onclick="event.stopPropagation()"
+                onkeydown="onCountrySearchKeydown(event)">
+            </div>
+            <div id="country-picker-empty" class="country-picker-empty" style="display:none">No matching country.</div>
             <div class="country-picker-group">EU & EEA</div>
             <div class="country-picker-option" data-value="AT" onclick="selectCountry('AT','Austria')">Austria</div>
             <div class="country-picker-option" data-value="BE" onclick="selectCountry('BE','Belgium')">Belgium</div>
@@ -3035,8 +3073,63 @@ let calculatedShippingPrice = 0;
 let chPriceCache = 0; // cached so cart doesn't re-fetch on every render
 
 function toggleCountryPicker() {
-  document.getElementById('country-picker').classList.toggle('open');
+  const picker = document.getElementById('country-picker');
+  const opening = !picker.classList.contains('open');
+  picker.classList.toggle('open');
+  if (opening) {
+    const search = document.getElementById('country-picker-search');
+    search.value = '';
+    filterCountryPicker('');
+    // Focus after the menu has actually painted — needed for the picker to
+    // reliably grab focus on first open across browsers (notably mobile Safari).
+    requestAnimationFrame(() => search.focus());
+  }
 }
+
+// Live filter as the admin types. Options and group headers are flat DOM
+// siblings inside the menu, so this walks them in order, tracking whichever
+// group heading it most recently passed — a group hides itself once none of
+// its options still match.
+function filterCountryPicker(query) {
+  const q = query.trim().toLowerCase();
+  const menu = document.getElementById('country-picker-menu');
+  const children = Array.from(menu.children).filter(el =>
+    el.classList.contains('country-picker-group') || el.classList.contains('country-picker-option')
+  );
+  let anyVisible = false;
+  let currentGroup = null;
+  let groupHasVisible = false;
+
+  const closeGroup = () => { if (currentGroup) currentGroup.classList.toggle('filtered-out', !groupHasVisible); };
+
+  children.forEach(el => {
+    if (el.classList.contains('country-picker-group')) {
+      closeGroup();
+      currentGroup = el;
+      groupHasVisible = false;
+    } else {
+      const match = !q || el.textContent.toLowerCase().includes(q);
+      el.classList.toggle('filtered-out', !match);
+      if (match) { groupHasVisible = true; anyVisible = true; }
+    }
+  });
+  closeGroup();
+
+  document.getElementById('country-picker-empty').style.display = anyVisible ? 'none' : 'block';
+}
+
+function onCountrySearchKeydown(event) {
+  if (event.key === 'Enter') {
+    // Select the first still-visible match — lets someone type "germ" and
+    // hit enter instead of reaching for the mouse/finger.
+    event.preventDefault();
+    const firstMatch = document.querySelector('.country-picker-option:not(.filtered-out)');
+    if (firstMatch) firstMatch.click();
+  } else if (event.key === 'Escape') {
+    document.getElementById('country-picker').classList.remove('open');
+  }
+}
+
 function selectCountry(code, label) {
   selectedCountry = code;
   document.getElementById('country-picker-label').textContent = label;
@@ -3044,12 +3137,19 @@ function selectCountry(code, label) {
     el.classList.toggle('selected', el.dataset.value === code)
   );
   document.getElementById('country-picker').classList.remove('open');
+  document.getElementById('country-picker-search').value = '';
+  filterCountryPicker('');
   onCountryChange();
 }
-// Close picker when clicking outside
+// Close picker when clicking outside — also clears the search so the next
+// open starts showing the full list again.
 document.addEventListener('click', e => {
   const picker = document.getElementById('country-picker');
-  if (picker && !picker.contains(e.target)) picker.classList.remove('open');
+  if (picker && !picker.contains(e.target)) {
+    picker.classList.remove('open');
+    const search = document.getElementById('country-picker-search');
+    if (search) { search.value = ''; filterCountryPicker(''); }
+  }
 });
 
 async function onCountryChange() {
