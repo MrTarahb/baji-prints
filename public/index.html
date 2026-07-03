@@ -1670,7 +1670,7 @@ nav.on-light .nav-hamburger span,
         </div>
 
         <div class="faq-item">
-          <button class="faq-q" onclick="toggleFaq(this)">Will prints have a margin / passepartout?</button>
+          <button class="faq-q" onclick="toggleFaq(this)">Will prints have a margin&nbsp;/&nbsp;passepartout?</button>
           <div class="faq-a" id="c-faq_margin">Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you'd prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I'll accommodate it.</div>
         </div>
       </div>
@@ -1809,7 +1809,7 @@ nav.on-light .nav-hamburger span,
                 onkeydown="onCountrySearchKeydown(event)">
             </div>
             <div id="country-picker-empty" class="country-picker-empty" style="display:none">No matching country.</div>
-            <div class="country-picker-group">EU & EEA</div>
+            <div class="country-picker-group">EU&nbsp;&amp;&nbsp;EEA</div>
             <div class="country-picker-option" data-value="AT" onclick="selectCountry('AT','Austria')">Austria</div>
             <div class="country-picker-option" data-value="BE" onclick="selectCountry('BE','Belgium')">Belgium</div>
             <div class="country-picker-option" data-value="BG" onclick="selectCountry('BG','Bulgaria')">Bulgaria</div>
@@ -2695,7 +2695,7 @@ let selectedDetailSize = null;
 
 const SIZE_LABELS = { A4: 'A4 — flat mailer', A3: 'A3 — postal tube', A2: 'A2 — postal tube' };
 const DELIVERY_OPTION_LABELS = {
-  ch: 'Standard shipping (Switzerland / Liechtenstein)',
+  ch: 'Standard shipping (Switzerland / Liechtenstein)',
   intl: 'International shipping',
 };
 const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
@@ -3017,10 +3017,10 @@ async function renderCart() {
   const personalZone = personalDeliveryZones[0];
   const personalPrice = personalZone ? personalZone.price_chf_cents : 5000;
 
-  addOption('ch',           'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch,       '…');
+  addOption('ch',           'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch,       '…');
   if (deliveryAvailability.personal) {
     const isPersonalSelected = selectedDelivery === 'personal_ch_li';
-    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true,
+    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true,
       isPersonalSelected ? fmtCHF(calculatedShippingPrice) : '…');
   } else {
     addOption('personal', 'Personal delivery', false, 'Not available');
