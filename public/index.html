@@ -116,15 +116,10 @@ nav {
   padding: 1.4rem 2rem;
   padding-top: calc(1.4rem + env(safe-area-inset-top, 0px));
   pointer-events: none;
-  /* Deep enough to hold text legible over bright/busy images (fur, foliage,
-     ICM blur), not just dark ones. Extends further down than before so the
-     full nav row — not just its top edge — sits on a darkened backing. */
-  background: linear-gradient(to bottom, rgba(10,10,9,0.72) 0%, rgba(10,10,9,0.5) 45%, rgba(10,10,9,0.18) 80%, transparent 100%);
-  /* Blurs the image directly behind the bar so high-frequency textures can't
-     defeat the gradient — reads as a normal frosted header, not a floating
-     chip, since it spans full width with no visible edge of its own. */
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* Faint top gradient only — the real legibility comes from the nav text
+     using mix-blend-mode (see .nav-blend), which inverts against whatever is
+     behind it per-pixel, so no heavy backing is needed on the hero. */
+  background: linear-gradient(to bottom, rgba(17,17,16,0.35) 0%, transparent 100%);
   opacity: 0;
   transform: translateY(-8px);
   transition: opacity .5s ease, transform .5s ease, padding .3s;
@@ -218,6 +213,25 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   }
   :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a:hover { color: var(--black); }
 }
+
+/* Over-the-hero legibility: while the nav sits over the hero image (main page,
+   before scrolling onto content), its text uses mix-blend-mode:difference —
+   the same per-pixel inversion the custom cursor uses. White text over a dark
+   area renders white, over a light area renders dark, so it stays readable on
+   ANY image with no gradient, blur, or box needed. The class is toggled off
+   the moment you scroll onto content or open a sub-page, where the normal
+   theme-aware colours (above) take over. Overrides theme rules via specificity
+   + !important since it must win regardless of light/dark mode on the hero. */
+nav.nav-blend .nav-name,
+nav.nav-blend .nav-links a,
+nav.nav-blend #theme-toggle {
+  color: #fff !important;
+  mix-blend-mode: difference;
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+nav.nav-blend .nav-links a:hover,
+nav.nav-blend .nav-name:hover { color: #bbb !important; }
 
 /* Work dropdown */
 .nav-dropdown {
@@ -2080,6 +2094,22 @@ function initScrollAnimation() {
   }
   window.updateHeroMenuBtn = updateHeroMenuBtn;
   updateHeroMenuBtn();
+
+  // Toggles mix-blend-mode text on the nav. It should be on only while the nav
+  // actually overlaps the hero image on the main page — that's where a fixed
+  // colour can't stay legible. The hero fills the viewport, so "still over the
+  // hero" ≈ scrolled less than one viewport height. On sub-pages, or once
+  // scrolled onto the feed below the hero, blend comes off and the normal
+  // theme-aware colours apply. Also off when nav.on-light (light sub-page bg).
+  function updateNavBlend() {
+    const onMain = !['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
+      .some(id => document.getElementById(id)?.classList.contains('active'));
+    const overHero = window.scrollY < (window.innerHeight - 90);
+    nav.classList.toggle('nav-blend', onMain && overHero && !nav.classList.contains('on-light'));
+  }
+  window.updateNavBlend = updateNavBlend;
+  updateNavBlend();
+  window.addEventListener('resize', updateNavBlend, { passive: true });
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
     // Hide scroll indicator once user starts scrolling
@@ -2105,6 +2135,7 @@ function initScrollAnimation() {
     // Hero menu button: show only on the homepage while the full nav is hidden
     // (top of hero). Once the nav bar fades in on scroll, hand off to it.
     updateHeroMenuBtn();
+    updateNavBlend();
     lastY = y;
   }, { passive: true });
 })();
@@ -2318,6 +2349,7 @@ function showPage(name){
   // Sync the persistent hero menu button to the new page
   const heroBtn = document.getElementById('hero-menu-btn');
   if (heroBtn) heroBtn.classList.toggle('visible', name === 'main' && window.scrollY <= 40);
+  if (window.updateNavBlend) window.updateNavBlend();
   // Keep the URL in sync with whatever page is showing
   if (name === 'shop') {
     history.replaceState(null, '', '/shop');
@@ -2813,6 +2845,7 @@ function heroMenuClick() {
   } else {
     const nav = document.getElementById('nav');
     nav.classList.add('visible', 'nav-pinned');
+    if (window.updateNavBlend) window.updateNavBlend();
     const btn = document.getElementById('hero-menu-btn');
     if (btn) btn.classList.remove('visible');
   }
