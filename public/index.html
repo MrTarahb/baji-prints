@@ -2143,12 +2143,32 @@ function initScrollAnimation() {
 const cur = document.getElementById('cur');
 let mx=0,my=0,rx=0,ry=0;
 document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
-document.querySelectorAll('a,button,.img-wrap,#lightbox').forEach(el=>{
-  el.addEventListener('mouseenter',()=>{
-    if (el.closest('nav') && !document.querySelector('nav').classList.contains('visible')) return;
-    cur.classList.add('big');
-  });
-  el.addEventListener('mouseleave',()=>cur.classList.remove('big'));
+
+// Big-cursor hover, via event delegation on document rather than binding
+// listeners to a one-time querySelectorAll snapshot. That snapshot only ever
+// covered elements already in the DOM at page-load — anything added later
+// (the footer injected into sub-pages, feed images, shop cards, cart rows,
+// etc.) silently never got the effect. Delegation means any current or
+// future element matching CUR_TARGETS gets it automatically, no re-binding
+// needed anywhere. mouseover/mouseout are used (not mouseenter/mouseleave,
+// which don't bubble) with a tracked "currently matched" element so hovering
+// nested children inside the same target doesn't flicker the effect off/on.
+const CUR_TARGETS = 'a,button,.img-wrap,#lightbox';
+let curHoverEl = null;
+document.addEventListener('mouseover', e => {
+  const match = e.target.closest(CUR_TARGETS);
+  if (!match || match === curHoverEl) return;
+  if (match.closest('nav') && !document.querySelector('nav').classList.contains('visible')) return;
+  curHoverEl = match;
+  cur.classList.add('big');
+});
+document.addEventListener('mouseout', e => {
+  if (!curHoverEl) return;
+  // relatedTarget is where the pointer is going; if it's still inside the
+  // matched element, this is just moving between its children — ignore.
+  if (e.relatedTarget && curHoverEl.contains(e.relatedTarget)) return;
+  curHoverEl = null;
+  cur.classList.remove('big');
 });
 
 // CONTENT — load and apply to all pages
