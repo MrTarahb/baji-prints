@@ -1058,7 +1058,7 @@ app.post('/api/shop/checkout', async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'twint'],
       line_items: lineItems,
       shipping_address_collection: {
         allowed_countries: allowedCountries,
