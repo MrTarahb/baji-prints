@@ -968,6 +968,13 @@ app.post('/api/shop/checkout', async (req, res) => {
     const sizesInCart = [];
     let subtotal = 0;
 
+    // Counts how many units of each print+size have already passed validation
+    // earlier in THIS loop. Needed now that a cart can hold multiple units of
+    // the same limited edition (quantity stepper) — checking row.edition_sold
+    // alone would let two cart entries for the last remaining slot both pass,
+    // since neither iteration knows about the other.
+    const countedInThisCart = {};
+
     for (const item of items) {
       const { rows } = await pool.query(
         `SELECT p.id, p.title, p.image_url, p.edition_type, p.edition_size,
@@ -980,9 +987,14 @@ app.post('/api/shop/checkout', async (req, res) => {
       const row = rows[0];
       if (!row) return res.status(400).json({ error: `Item not available: ${item.print_id} ${item.size}` });
 
-      if (row.edition_type === 'limited' && row.edition_size != null && row.edition_sold >= row.edition_size) {
-        return res.status(400).json({ error: `${row.title} (${row.size}) is sold out` });
+      const key = `${row.id}::${row.size}`;
+      const alreadyCounted = countedInThisCart[key] || 0;
+      if (row.edition_type === 'limited' && row.edition_size != null &&
+          (row.edition_sold + alreadyCounted) >= row.edition_size) {
+        return res.status(400).json({ error: `${row.title} (${row.size}) doesn't have that many copies left` });
       }
+      countedInThisCart[key] = alreadyCounted + 1;
+
       const deliveryAllowed = { ch: row.delivery_ch, personal: row.delivery_personal, intl: row.delivery_intl };
       if (!deliveryAllowed[delivery_method]) {
         return res.status(400).json({ error: `${row.title} doesn't support that delivery method` });

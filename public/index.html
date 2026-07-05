@@ -994,7 +994,17 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .cart-item-title { font-size: 11px; color: var(--fg); }
 .cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
 .cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
-.cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
+.cart-item-qty { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
+.cart-qty-btn {
+  font-family: var(--fm); font-size: 11px; color: var(--fg);
+  background: none; border: 1px solid var(--border); border-radius: 2px;
+  width: 20px; height: 20px; line-height: 1; padding: 0; cursor: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s, opacity .15s;
+}
+.cart-qty-btn:hover:not(:disabled) { border-color: var(--fg-m); }
+.cart-qty-btn:disabled { opacity: .3; }
+.cart-qty-count { font-family: var(--fm); font-size: 10px; color: var(--fg); min-width: 1.2ch; text-align: center; }
 .cart-item-note { font-size: 9px; color: var(--fg-l); font-style: italic; margin-top: .2rem; line-height: 1.5; }
 
 /* Country picker */
@@ -2927,18 +2937,31 @@ async function renderCart() {
     return;
   }
 
-  itemsWrap.innerHTML = cart.map((item, i) => `
+  itemsWrap.innerHTML = groupCartItems().map(group => {
+    const templateIndex = group.indices[0];
+    // Cap the + button at remaining edition stock, if this size is a limited
+    // edition. `remaining` is null for open editions, meaning uncapped.
+    const prod = shopProducts.find(p => p.id === group.print_id);
+    const sizeInfo = prod && prod.sizes ? prod.sizes.find(s => s.size === group.size) : null;
+    const remaining = sizeInfo ? sizeInfo.remaining : null;
+    const atMax = remaining !== null && group.count >= remaining;
+    return `
     <div class="cart-item">
-      <div class="cart-item-img-wrap"><img src="${cld(item.image_url, 1200)}" alt="${esc(item.title)}"></div>
+      <div class="cart-item-img-wrap"><img src="${cld(group.image_url, 1200)}" alt="${esc(group.title)}"></div>
       <div>
-        <div class="cart-item-title">${esc(item.title)}</div>
-        <div class="cart-item-size">${item.size}</div>
-        ${item.note ? `<div class="cart-item-note">${esc(item.note)}</div>` : ''}
-        <button class="cart-item-remove" onclick="removeFromCart(${i})">Remove</button>
+        <div class="cart-item-title">${esc(group.title)}</div>
+        <div class="cart-item-size">${group.size}</div>
+        ${group.note ? `<div class="cart-item-note">${esc(group.note)}</div>` : ''}
+        <div class="cart-item-qty">
+          <button class="cart-qty-btn" onclick="removeFromCart(${templateIndex})" aria-label="Decrease quantity">−</button>
+          <span class="cart-qty-count">${group.count}</span>
+          <button class="cart-qty-btn" onclick="incrementCartItem(${templateIndex})" aria-label="Increase quantity"${atMax ? ' disabled title="No more copies available"' : ''}>+</button>
+        </div>
       </div>
-      <div class="cart-item-price">${fmtCHF(item.price_chf)}</div>
+      <div class="cart-item-price">${fmtCHF(group.price_chf * group.count)}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   // Determine which delivery methods are valid for every item in the cart
   const cartProducts = cart.map(item => shopProducts.find(p => p.id === item.print_id)).filter(Boolean);
@@ -3254,6 +3277,42 @@ async function recalcShipping() {
 
 function getShippingPriceForCart(method) {
   return calculatedShippingPrice;
+}
+
+// Groups cart entries by print+size+note so someone with multiple copies of
+// the same print/size sees one row with a quantity stepper instead of
+// duplicate rows. The underlying `cart` array still holds one entry per
+// physical unit — checkout, edition-number assignment, and the shipping
+// weight calculator all depend on that being true — so grouping happens only
+// here, for display. Different notes stay as separate rows on purpose: they
+// represent genuinely different personalisation requests.
+function groupCartItems() {
+  const groups = [];
+  const indexByKey = {};
+  cart.forEach((item, i) => {
+    const key = `${item.print_id}|${item.size}|${item.note || ''}`;
+    if (indexByKey[key] === undefined) {
+      indexByKey[key] = groups.length;
+      groups.push({ ...item, count: 1, indices: [i] });
+    } else {
+      const g = groups[indexByKey[key]];
+      g.count++;
+      g.indices.push(i);
+    }
+  });
+  return groups;
+}
+
+async function incrementCartItem(templateIndex) {
+  const template = cart[templateIndex];
+  if (!template) return;
+  cart.push({ ...template });
+  saveCart(); // also resets chPriceCache
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
 }
 
 async function removeFromCart(index) {
