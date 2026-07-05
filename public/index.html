@@ -391,11 +391,16 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: .5rem;
+  gap: .55rem;
   opacity: 0;
   animation: fadeIn 1s 1.6s ease forwards;
   z-index: 2;
   transition: opacity .5s ease, transform .5s ease;
+  padding: .7rem 1.1rem .6rem;
+  border-radius: 999px;
+  background: rgba(17,17,16,0.28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 .intro-scroll.hidden {
   opacity: 0 !important;
@@ -403,25 +408,25 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   pointer-events: none;
 }
 .intro-scroll span {
-  font-size: 9px;
-  letter-spacing: .22em;
+  font-size: 9.5px;
+  letter-spacing: .2em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.9);
-  text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.6);
 }
 .intro-scroll .scroll-chevron {
-  width: 16px; height: 16px;
-  margin-top: -.1rem;
-  animation: scrollBounce 1.8s ease-in-out infinite;
+  width: 18px; height: 18px;
+  margin-top: -.05rem;
+  animation: scrollBounce 1.6s ease-in-out infinite;
 }
-.intro-scroll .scroll-chevron svg { display: block; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.5)); }
+.intro-scroll .scroll-chevron svg { display: block; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.6)); }
 @keyframes scrollBounce {
-  0%, 100% { transform: translateY(0); opacity: .7; }
-  50% { transform: translateY(5px); opacity: 1; }
+  0%, 100% { transform: translateY(0); opacity: .8; }
+  50% { transform: translateY(6px); opacity: 1; }
 }
 .scroll-bar {
-  width: 1px; height: 32px;
-  background: linear-gradient(to bottom, rgba(250,250,248,.85), transparent);
+  width: 1.5px; height: 30px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.95), transparent);
   animation: pulse 2s 2s ease infinite;
 }
 
@@ -1413,7 +1418,8 @@ nav.on-light .nav-hamburger span,
   nav { padding:1.1rem 1.25rem; }
   .feed-cols { padding: 4vw 4vw 8vw; }
   .form-row { grid-template-columns:1fr; }
-  .intro-scroll { display: none; }
+  .intro-scroll { bottom: 1.5rem; }
+  .intro-scroll .scroll-bar { display: none; }
   body { cursor:auto; }
   #cur { display:none; }
 }
