@@ -1540,7 +1540,6 @@ nav.on-light .nav-hamburger span,
     </div>
     <div class="footer-contact">
       <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
-      <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
       <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
       <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
       <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
@@ -2162,7 +2161,6 @@ async function loadContent() {
     </div>
     <div class="footer-contact">
       <a href="https://instagram.com/bajidigital" target="_blank" rel="noopener" id="c-footer_ig_link">@bajidigital</a>
-      <a onclick="showPage('contact')" id="c-footer_cta">Get in touch</a>
       <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
       <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
       <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
@@ -2351,14 +2349,16 @@ function showPage(name){
   if (heroBtn) heroBtn.classList.toggle('visible', name === 'main' && window.scrollY <= 40);
   if (window.updateNavBlend) window.updateNavBlend();
   // Keep the URL in sync with whatever page is showing
-  if (name === 'shop') {
-    history.replaceState(null, '', '/shop');
-  } else if (name === 'cart') {
-    history.replaceState(null, '', '/cart');
-  } else if (name === 'shop-success') {
+  const pathForPage = {
+    shop: '/shop', cart: '/cart', workshop: '/workshops',
+    about: '/about', contact: '/contact', faq: '/faq',
+    impressum: '/impressum', privacy: '/privacy', terms: '/terms',
+    main: '/',
+  };
+  if (name === 'shop-success') {
     history.replaceState(null, '', location.pathname + location.search);
-  } else if (name === 'main') {
-    history.replaceState(null, '', '/');
+  } else if (pathForPage[name]) {
+    history.replaceState(null, '', pathForPage[name]);
   }
 }
 
@@ -3595,20 +3595,26 @@ async function loadWorkshopData() {
 // This avoids a race where buildFeed() (GSAP/ScrollTrigger setup, hero image load)
 // runs while #main-content is about to be hidden by a shop/shop-success route.
 const initialPath = window.location.pathname;
-const startingOnShop = initialPath.indexOf('/shop') === 0 || initialPath.indexOf('/cart') === 0 || initialPath.indexOf('/workshops') === 0;
+// Maps a landing URL to the SPA page it should open. Order-independent since
+// we match on exact-or-prefix below; /shop/success is special-cased first.
+const pathToPage = {
+  '/cart': 'cart', '/shop': 'shop', '/workshops': 'workshop',
+  '/about': 'about', '/contact': 'contact', '/faq': 'faq',
+  '/impressum': 'impressum', '/privacy': 'privacy', '/terms': 'terms',
+};
+const landingPage = Object.keys(pathToPage).find(p => initialPath.indexOf(p) === 0);
+// The main hero feed only needs building if we're not deep-linking into a
+// sub-page — otherwise it's wasted work behind the opened page.
+const startingOnSubPage = initialPath.indexOf('/shop/success') === 0 || !!landingPage;
 
 loadContent().then(() => {
-  if (!startingOnShop) { load().then(success => { if (success) mainFeedBuilt = true; }); }
+  if (!startingOnSubPage) { load().then(success => { if (success) mainFeedBuilt = true; }); }
 });
 
 if (initialPath.indexOf('/shop/success') === 0) {
   checkShopSuccess();
-} else if (initialPath.indexOf('/cart') === 0) {
-  showPage('cart');
-} else if (initialPath.indexOf('/shop') === 0) {
-  showPage('shop');
-} else if (initialPath.indexOf('/workshops') === 0) {
-  showPage('workshop');
+} else if (landingPage) {
+  showPage(pathToPage[landingPage]);
 }
 
 // Track pageview with referrer — skipped on browsers flagged via the admin

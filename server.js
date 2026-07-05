@@ -1749,6 +1749,12 @@ app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'inde
 app.get('/shop/*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
+// The remaining content pages, so every page in the nav/footer has its own
+// shareable URL rather than only living behind the SPA's in-page navigation.
+for (const p of ['/about', '/contact', '/faq', '/impressum', '/privacy', '/terms']) {
+  app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+}
+
 // Public: upcoming open dates with live remaining capacity. A spot is taken by
 // a paid booking, or by a pending one younger than 35 minutes (the lifetime of
 // its Stripe Checkout session) — so two people can't both buy the last spot,
