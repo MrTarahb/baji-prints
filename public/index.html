@@ -1418,8 +1418,20 @@ nav.on-light .nav-hamburger span,
   nav { padding:1.1rem 1.25rem; }
   .feed-cols { padding: 4vw 4vw 8vw; }
   .form-row { grid-template-columns:1fr; }
-  .intro-scroll { bottom: 1.5rem; }
+  /* Pin the scroll hint to the bottom-right so it clears the bottom-left
+     name/subtitle, which the centered default position was overlapping.
+     .intro.intro selector doubles specificity to beat the portrait rule. */
+  .intro .intro-scroll,
+  .intro.portrait .intro-scroll {
+    bottom: 1.25rem;
+    left: auto; right: 1.25rem;
+    transform: none;
+    padding: .5rem .8rem;
+  }
+  .intro .intro-scroll.hidden,
+  .intro.portrait .intro-scroll.hidden { transform: translateY(8px); }
   .intro-scroll .scroll-bar { display: none; }
+  .intro-scroll span { font-size: 8px; letter-spacing: .12em; }
   body { cursor:auto; }
   #cur { display:none; }
 }
