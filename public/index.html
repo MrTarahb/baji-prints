@@ -116,7 +116,15 @@ nav {
   padding: 1.4rem 2rem;
   padding-top: calc(1.4rem + env(safe-area-inset-top, 0px));
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(17,17,16,0.60) 0%, rgba(17,17,16,0.18) 55%, transparent 100%);
+  /* Deep enough to hold text legible over bright/busy images (fur, foliage,
+     ICM blur), not just dark ones. Extends further down than before so the
+     full nav row — not just its top edge — sits on a darkened backing. */
+  background: linear-gradient(to bottom, rgba(10,10,9,0.72) 0%, rgba(10,10,9,0.5) 45%, rgba(10,10,9,0.18) 80%, transparent 100%);
+  /* Blurs the image directly behind the bar so high-frequency textures can't
+     defeat the gradient — reads as a normal frosted header, not a floating
+     chip, since it spans full width with no visible edge of its own. */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   opacity: 0;
   transform: translateY(-8px);
   transition: opacity .5s ease, transform .5s ease, padding .3s;
@@ -132,7 +140,7 @@ nav.visible {
   padding: .2rem;
   display: flex;
   align-items: center;
-  color: rgba(250,250,248,.65);
+  color: rgba(250,250,248,.85);
   transition: color .3s;
 }
 #theme-toggle:hover { color: rgba(250,250,248,.95); }
@@ -141,13 +149,13 @@ nav.on-light #theme-toggle:hover { color: rgba(17,17,16,.9); }
 /* In dark mode, on-light pages still have dark bg — use light icon colour */
 [data-theme="dark"] nav.on-light #theme-toggle,
 [data-theme="dark"] nav.on-light .nav-name,
-[data-theme="dark"] nav.on-light .nav-links a { color: rgba(240,239,236,.65); }
+[data-theme="dark"] nav.on-light .nav-links a { color: rgba(240,239,236,.85); }
 [data-theme="dark"] nav.on-light .nav-links a:hover,
 [data-theme="dark"] nav.on-light .nav-name:hover { color: var(--fg); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) nav.on-light #theme-toggle,
   :root:not([data-theme="light"]) nav.on-light .nav-name,
-  :root:not([data-theme="light"]) nav.on-light .nav-links a { color: rgba(240,239,236,.65); }
+  :root:not([data-theme="light"]) nav.on-light .nav-links a { color: rgba(240,239,236,.85); }
 }
 #horizon-sun, #horizon-sun-m {
   transition: transform 700ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
