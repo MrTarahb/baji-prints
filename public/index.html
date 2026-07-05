@@ -115,7 +115,7 @@ nav {
   justify-content: space-between;
   padding: 1.4rem 2rem;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(17,17,16,0.45) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(17,17,16,0.60) 0%, rgba(17,17,16,0.18) 55%, transparent 100%);
   opacity: 0;
   transform: translateY(-8px);
   transition: opacity .5s ease, transform .5s ease, padding .3s;
@@ -178,11 +178,11 @@ nav.on-light #theme-toggle:hover { color: rgba(17,17,16,.9); }
   font-size: 9px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: rgba(250,250,248,0.65);
+  color: rgba(250,250,248,0.85);
   text-decoration: none;
   cursor: none;
   transition: color .2s;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  text-shadow: 0 1px 5px rgba(0,0,0,0.45);
 }
 nav.on-light .nav-name,
 nav.on-light .nav-links a {
@@ -402,16 +402,25 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   pointer-events: none;
 }
 .intro-scroll span {
-  font-size: 8px;
-  letter-spacing: .18em;
+  font-size: 9px;
+  letter-spacing: .22em;
   text-transform: uppercase;
-  color: transparent;
-  -webkit-text-stroke: .5px rgba(255,255,255,0.65);
-  text-stroke: .5px rgba(255,255,255,0.65);
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+}
+.intro-scroll .scroll-chevron {
+  width: 16px; height: 16px;
+  margin-top: -.1rem;
+  animation: scrollBounce 1.8s ease-in-out infinite;
+}
+.intro-scroll .scroll-chevron svg { display: block; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.5)); }
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: .7; }
+  50% { transform: translateY(5px); opacity: 1; }
 }
 .scroll-bar {
   width: 1px; height: 32px;
-  background: linear-gradient(to bottom, rgba(250,250,248,.65), transparent);
+  background: linear-gradient(to bottom, rgba(250,250,248,.85), transparent);
   animation: pulse 2s 2s ease infinite;
 }
 
@@ -1140,6 +1149,40 @@ nav.on-light .nav-hamburger span,
 [data-theme="light"] .nav-hamburger span,
 :root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.75); }
 
+/* Persistent menu button — shown on the homepage hero (desktop + mobile) even
+   while the full nav bar is still hidden, so first-time visitors always have a
+   visible way into the site without needing to discover the scroll-reveal. It
+   lives outside <nav> so nav's opacity:0 on load doesn't hide it too. */
+.hero-menu-btn {
+  position: fixed;
+  top: 1.4rem; right: 2rem;
+  z-index: 501;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: .4rem;
+  cursor: none;
+  opacity: 0;
+  transition: opacity .4s ease;
+  pointer-events: none;
+}
+.hero-menu-btn.visible { opacity: 1; pointer-events: all; }
+.hero-menu-btn span {
+  display: block;
+  width: 22px;
+  height: 1.5px;
+  background: rgba(250,250,248,.9);
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  transition: background .2s;
+}
+[data-theme="light"] .hero-menu-btn span,
+:root:not([data-theme="dark"]) .hero-menu-btn span { background: rgba(17,17,16,.8); box-shadow: 0 1px 3px rgba(255,255,255,.3); }
+@media(max-width: 640px) {
+  .hero-menu-btn { top: 1.1rem; right: 1.25rem; }
+}
+
 #nav-mobile-menu {
   display: none;
   position: fixed;
@@ -1416,6 +1459,13 @@ nav.on-light .nav-hamburger span,
   </div>
 </nav>
 
+<!-- Persistent hero menu button — opens the same overlay as the mobile menu.
+     JS toggles .visible so it only appears on the homepage while the full nav
+     bar is hidden (i.e. before scroll), then hands over to the real nav. -->
+<button class="hero-menu-btn" id="hero-menu-btn" onclick="openMobileNav()" aria-label="Open menu">
+  <span></span><span></span><span></span>
+</button>
+
 <!-- MOBILE NAV MENU -->
 <div id="nav-mobile-menu">
   <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
@@ -1447,7 +1497,10 @@ nav.on-light .nav-hamburger span,
     </div>
     <div class="intro-scroll">
       <div class="scroll-bar"></div>
-      <span>scroll</span>
+      <span>scroll to explore</span>
+      <div class="scroll-chevron">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="rgba(255,255,255,0.9)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
     </div>
   </div>
 
@@ -2003,6 +2056,20 @@ function initScrollAnimation() {
 (function(){
   const nav = document.getElementById('nav');
   let lastY = 0;
+
+  // Shows the persistent hamburger only on the homepage while at the top (nav
+  // bar still hidden). On any sub-page, or once scrolled far enough that the
+  // real nav is visible, it hides so the two don't overlap.
+  function updateHeroMenuBtn() {
+    const btn = document.getElementById('hero-menu-btn');
+    if (!btn) return;
+    const onMain = !['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
+      .some(id => document.getElementById(id)?.classList.contains('active'));
+    const navHidden = !nav.classList.contains('visible');
+    btn.classList.toggle('visible', onMain && navHidden);
+  }
+  window.updateHeroMenuBtn = updateHeroMenuBtn;
+  updateHeroMenuBtn();
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
     // Hide scroll indicator once user starts scrolling
@@ -2021,6 +2088,9 @@ function initScrollAnimation() {
       if (!onSubPage) nav.classList.remove('visible');
     }
     nav.classList.toggle('scrolled', y > 80);
+    // Hero menu button: show only on the homepage while the full nav is hidden
+    // (top of hero). Once the nav bar fades in on scroll, hand off to it.
+    updateHeroMenuBtn();
     lastY = y;
   }, { passive: true });
 })();
@@ -2229,8 +2299,11 @@ function showPage(name){
     nav.classList.remove('on-light');
     nav.classList.add('visible');
     hamburgerSpans.forEach(s => s.style.background = '');
-    setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); }, 50);
+    setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); if (window.updateHeroMenuBtn) window.updateHeroMenuBtn(); }, 50);
   }
+  // Sync the persistent hero menu button to the new page
+  const heroBtn = document.getElementById('hero-menu-btn');
+  if (heroBtn) heroBtn.classList.toggle('visible', name === 'main' && window.scrollY <= 40);
   // Keep the URL in sync with whatever page is showing
   if (name === 'shop') {
     history.replaceState(null, '', '/shop');
