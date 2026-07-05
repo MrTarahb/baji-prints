@@ -994,6 +994,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .cart-item-title { font-size: 11px; color: var(--fg); }
 .cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
 .cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
+.cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
 .cart-item-qty { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
 .cart-qty-btn {
   font-family: var(--fm); font-size: 11px; color: var(--fg);
@@ -2957,6 +2958,7 @@ async function renderCart() {
           <span class="cart-qty-count">${group.count}</span>
           <button class="cart-qty-btn" onclick="incrementCartItem(${templateIndex})" aria-label="Increase quantity"${atMax ? ' disabled title="No more copies available"' : ''}>+</button>
         </div>
+        <button class="cart-item-remove" onclick="removeCartGroup('${group.indices.join(',')}')">Remove</button>
       </div>
       <div class="cart-item-price">${fmtCHF(group.price_chf * group.count)}</div>
     </div>
@@ -3308,6 +3310,22 @@ async function incrementCartItem(templateIndex) {
   if (!template) return;
   cart.push({ ...template });
   saveCart(); // also resets chPriceCache
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
+}
+
+// Removes an entire grouped row in one click, regardless of how many units
+// it holds — distinct from the "−" stepper, which only removes one unit at
+// a time. Indices arrive as a comma-joined string (onclick attributes can't
+// carry arrays directly) and must be spliced highest-first so removing one
+// index doesn't shift the position of the others still queued for removal.
+async function removeCartGroup(indicesStr) {
+  const indices = indicesStr.split(',').map(Number).sort((a, b) => b - a);
+  indices.forEach(i => cart.splice(i, 1));
+  saveCart();
   calculatedShippingPrice = 0;
   if (selectedDelivery && cart.length) {
     await recalcShipping();
