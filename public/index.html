@@ -1464,7 +1464,7 @@ nav.on-light .nav-hamburger span,
 <!-- Persistent hero menu button — opens the same overlay as the mobile menu.
      JS toggles .visible so it only appears on the homepage while the full nav
      bar is hidden (i.e. before scroll), then hands over to the real nav. -->
-<button class="hero-menu-btn" id="hero-menu-btn" onclick="openMobileNav()" aria-label="Open menu">
+<button class="hero-menu-btn" id="hero-menu-btn" onclick="heroMenuClick()" aria-label="Open menu">
   <span></span><span></span><span></span>
 </button>
 
@@ -2080,14 +2080,18 @@ function initScrollAnimation() {
 
     if (y > 40) {
       nav.classList.add('visible');
+      // Once the user has actually scrolled, the temporary pin from the hero
+      // button is no longer needed — normal scroll-driven behaviour takes over.
+      nav.classList.remove('nav-pinned');
     } else {
       // Only hide if we're on the main page — check every sub-page that exists,
       // not just about/contact, otherwise scrolling on shop/privacy/success
       // incorrectly hides the nav since this list was never kept in sync with
-      // every page showPage() actually knows about.
+      // every page showPage() actually knows about. Skip hiding if the nav was
+      // pinned open by the hero menu button (desktop reveal before any scroll).
       const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
         .some(id => document.getElementById(id)?.classList.contains('active'));
-      if (!onSubPage) nav.classList.remove('visible');
+      if (!onSubPage && !nav.classList.contains('nav-pinned')) nav.classList.remove('visible');
     }
     nav.classList.toggle('scrolled', y > 80);
     // Hero menu button: show only on the homepage while the full nav is hidden
@@ -2790,6 +2794,21 @@ let personalDeliveryZones = []; // loaded from API
 function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
 
 function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); chPriceCache = 0; updateCartBar(); }
+
+// Hero menu button behaves differently by width. On mobile (≤640px, where the
+// nav links are collapsed) it opens the full-screen overlay. On desktop the
+// links already live in the nav bar, so it simply reveals that bar instead of
+// showing a redundant mobile-style menu — then hides itself, handing off.
+function heroMenuClick() {
+  if (window.innerWidth <= 640) {
+    openMobileNav();
+  } else {
+    const nav = document.getElementById('nav');
+    nav.classList.add('visible', 'nav-pinned');
+    const btn = document.getElementById('hero-menu-btn');
+    if (btn) btn.classList.remove('visible');
+  }
+}
 
 function openMobileNav() {
   document.getElementById('nav-mobile-menu').classList.add('open');
