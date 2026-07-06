@@ -122,7 +122,12 @@ nav {
   background: linear-gradient(to bottom, rgba(17,17,16,0.35) 0%, transparent 100%);
   opacity: 0;
   transform: translateY(-8px);
-  transition: opacity .5s ease, transform .5s ease, padding .3s;
+  /* padding is intentionally NOT transitioned: padding-top depends on
+     env(safe-area-inset-top), which some mobile browsers recompute mid-scroll
+     as their toolbar collapses/expands. Animating that meant the nav could
+     visibly lag a beat behind the real safe area, which looked like it was
+     "half cut off" until an extra scroll nudge forced it to catch up. */
+  transition: opacity .5s ease, transform .5s ease;
 }
 nav.visible {
   opacity: 1;
