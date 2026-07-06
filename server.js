@@ -894,25 +894,34 @@ async function initDB() {
     );
   }
 
-  // Seed categories — same list that was previously hardcoded in both
-  // public/index.html and admin/index.html, in the same order, so existing
-  // prints' assigned category slugs keep resolving exactly as before.
-  const categoryDefaults = [
-    ['abstract-bnw',  'Abstract'],
-    ['macro',         'Macro'],
-    ['travel',        'Travel'],
-    ['portrait',      'Portrait'],
-    ['street',        'Street'],
-    ['street-lights', 'Street Lights'],
-    ['other',         'Other'],
-  ];
-  for (let i = 0; i < categoryDefaults.length; i++) {
-    const [slug, label] = categoryDefaults[i];
-    await pool.query(
-      `INSERT INTO categories (slug, label, sort_order)
-       VALUES ($1,$2,$3) ON CONFLICT (slug) DO NOTHING`,
-      [slug, label, i]
-    );
+  // Seed categories — but ONLY on a genuinely empty table (i.e. the very
+  // first time this ever runs). This used to run unconditionally on every
+  // server start; ON CONFLICT (slug) DO NOTHING only guards against
+  // duplicating a slug that still exists, so renaming or deleting a default
+  // category in admin (e.g. "Abstract" from abstract-bnw → abstract) freed
+  // up the old slug, and the next deploy quietly recreated a disconnected
+  // phantom "Abstract"/abstract-bnw row. Gating on an empty table means this
+  // fires once ever, and every admin change to categories afterward sticks
+  // permanently across restarts and deploys.
+  const { rows: existingCatCount } = await pool.query('SELECT COUNT(*)::int AS n FROM categories');
+  if (existingCatCount[0].n === 0) {
+    const categoryDefaults = [
+      ['abstract-bnw',  'Abstract'],
+      ['macro',         'Macro'],
+      ['travel',        'Travel'],
+      ['portrait',      'Portrait'],
+      ['street',        'Street'],
+      ['street-lights', 'Street Lights'],
+      ['other',         'Other'],
+    ];
+    for (let i = 0; i < categoryDefaults.length; i++) {
+      const [slug, label] = categoryDefaults[i];
+      await pool.query(
+        `INSERT INTO categories (slug, label, sort_order)
+         VALUES ($1,$2,$3) ON CONFLICT (slug) DO NOTHING`,
+        [slug, label, i]
+      );
+    }
   }
 
   console.log('DB initialised');
