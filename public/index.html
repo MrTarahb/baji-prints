@@ -314,6 +314,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .intro {
   position: relative;
   height: 100vh;
+  height: 100dvh; /* dynamic viewport height — matches the actually-visible area as the mobile toolbar collapses/expands, avoiding the 100vh overshoot that was dislodging the fixed nav during window scroll on the feed page */
   display: flex;
   flex-direction: column;
   align-items: center;
