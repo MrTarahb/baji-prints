@@ -2387,6 +2387,12 @@ function showPage(name){
 let allPrints = [];
 let allOrientations = [];
 let currentFilter = null; // set once real categories load — see loadCategories() below
+// True once the person has explicitly picked a specific category (not "all")
+// from the Work dropdown — distinct from the initial default landing state,
+// which keeps the main-page hero/name/subtitle treatment even though it's
+// pre-filtered to a specific category slug underneath. Only an explicit click
+// (via setFilter) flips this — the default landing never does.
+let categorySelected = false;
 
 // FILTER
 // Work dropdown — JS-driven so the gap between trigger and menu doesn't cause it to vanish
@@ -2479,10 +2485,13 @@ function buildDropdown() {
 
 function setFilter(filter) {
   currentFilter = filter;
+  categorySelected = (filter !== 'all');
   // Update active state on dropdown links
   document.querySelectorAll('#work-dropdown [data-filter]').forEach(a => {
     a.classList.toggle('active-filter', a.dataset.filter === filter);
   });
+  pickHeroForFilter(filter);
+  setHeroTextVisible(!categorySelected);
   renderFeed();
 }
 
@@ -2581,7 +2590,6 @@ function getOrientation(url) {
 
 async function buildFeed(prints) {
   const feed      = document.getElementById('feed');
-  const introImg  = document.getElementById('intro-img');
   const intro     = document.getElementById('intro');
   feed.innerHTML  = '';
 
@@ -2592,12 +2600,6 @@ async function buildFeed(prints) {
   }
 
   intro.style.display = '';
-
-  function applyHeroOrientation() {
-    const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
-    intro.classList.remove('landscape','portrait');
-    intro.classList.add(isPortrait ? 'portrait' : 'landscape');
-  }
 
   // Detect orientations first — needed for hero selection and column layout
   const feedPrints = prints.slice(0);
@@ -2610,26 +2612,83 @@ async function buildFeed(prints) {
   allOrientations = orientations;
   buildDropdown();
 
-  // Pick hero — exclude_from_hero aware, orientation aware
-  const eligible = feedPrints.filter(p => !p.exclude_from_hero);
-  const pool = eligible.length ? eligible : feedPrints;
-  const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
-  let heroPool;
-  if (isMobilePortrait) {
-    const portraits = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'portrait');
-    heroPool = portraits.length ? portraits : pool;
-  } else {
-    const landscapes = pool.filter((_, i) => orientations[feedPrints.indexOf(pool[i])] === 'landscape');
-    heroPool = landscapes.length ? landscapes : pool;
-  }
-  const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
-  const heroUrl = heroPick.image_url || heroPick.url || '';
-  introImg.onload = applyHeroOrientation;
-  introImg.src = cld(heroUrl, 2000);
-  if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
+  // Hero pick: main-page treatment (exclude_from_hero-aware, whole portfolio)
+  // since categorySelected starts false on every fresh load — the default
+  // landing view always gets the main-page hero even though it happens to be
+  // pre-filtered to a specific category slug underneath (see loadCategories()).
+  pickHeroForFilter(currentFilter);
 
   // Render feed — default to abstract
   renderFeed();
+}
+
+function applyHeroOrientation() {
+  const introImg = document.getElementById('intro-img');
+  const intro = document.getElementById('intro');
+  const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+  intro.classList.remove('landscape','portrait');
+  intro.classList.add(isPortrait ? 'portrait' : 'landscape');
+}
+
+// Picks and shows a hero image appropriate to the given filter.
+//
+// - "Main page" state (categorySelected === false — the initial default
+//   landing view, or after explicitly picking "All") picks from the WHOLE
+//   portfolio, respecting exclude_from_hero, exactly as before this feature.
+// - A specific, explicitly-chosen category instead picks a random image from
+//   THAT category's own prints — exclude_from_hero is intentionally NOT
+//   applied here, since that flag is scoped to the main-page hero only.
+//
+// Both branches share the same orientation-aware narrowing (portrait hero on
+// mobile-portrait viewports, landscape otherwise) so a per-category pick
+// never looks worse than the main hero used to.
+function pickHeroForFilter(filter) {
+  if (!allPrints.length) return;
+
+  let pool;
+  if (!categorySelected) {
+    const eligible = allPrints.filter(p => !p.exclude_from_hero);
+    pool = eligible.length ? eligible : allPrints;
+  } else {
+    pool = allPrints.filter(p => {
+      const cats = Array.isArray(p.categories) && p.categories.length
+        ? p.categories
+        : [(p.category || 'abstract-bnw')];
+      return cats.some(c => c.toLowerCase() === filter);
+    });
+    if (!pool.length) pool = allPrints; // defensive — dropdown shouldn't offer an empty category
+  }
+
+  const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
+  let heroPool;
+  if (isMobilePortrait) {
+    const portraits = pool.filter(p => allOrientations[allPrints.indexOf(p)] === 'portrait');
+    heroPool = portraits.length ? portraits : pool;
+  } else {
+    const landscapes = pool.filter(p => allOrientations[allPrints.indexOf(p)] === 'landscape');
+    heroPool = landscapes.length ? landscapes : pool;
+  }
+  if (!heroPool.length) return;
+
+  const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
+  const heroUrl = heroPick.image_url || heroPick.url || '';
+  const introImg = document.getElementById('intro-img');
+  introImg.onload = applyHeroOrientation;
+  introImg.src = cld(heroUrl, 2000);
+  if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
+}
+
+// Shows/hides the name + tagline over the hero. Toggled on the wrapper
+// (.intro-text) rather than each child individually, so it doesn't fight
+// with intro-title/intro-sub's own entrance animation (up/forwards) — the
+// wrapper has no animation of its own, so a plain opacity fade layers
+// cleanly on top without touching the children's animated state.
+function setHeroTextVisible(visible) {
+  const wrap = document.querySelector('.intro-text');
+  if (!wrap) return;
+  wrap.style.transition = 'opacity .35s ease';
+  wrap.style.opacity = visible ? '1' : '0';
+  wrap.style.pointerEvents = visible ? '' : 'none';
 }
 
 // INTERSECTION OBSERVER
