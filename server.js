@@ -554,6 +554,17 @@ async function initDB() {
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'abstract';
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS categories JSONB DEFAULT '["abstract-bnw"]'::jsonb;
 
+    -- ── CATEGORIES: admin-editable list backing both the public nav filter
+    -- and the per-print tagging checkboxes. Replaces what used to be a
+    -- hardcoded array duplicated in both public/index.html and admin/index.html.
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      label TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- ── SHOP: per-print sale settings ──────────────────────────────
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS for_sale BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS edition_type TEXT DEFAULT 'open'; -- 'open' or 'limited'
@@ -883,6 +894,27 @@ async function initDB() {
     );
   }
 
+  // Seed categories — same list that was previously hardcoded in both
+  // public/index.html and admin/index.html, in the same order, so existing
+  // prints' assigned category slugs keep resolving exactly as before.
+  const categoryDefaults = [
+    ['abstract-bnw',  'Abstract'],
+    ['macro',         'Macro'],
+    ['travel',        'Travel'],
+    ['portrait',      'Portrait'],
+    ['street',        'Street'],
+    ['street-lights', 'Street Lights'],
+    ['other',         'Other'],
+  ];
+  for (let i = 0; i < categoryDefaults.length; i++) {
+    const [slug, label] = categoryDefaults[i];
+    await pool.query(
+      `INSERT INTO categories (slug, label, sort_order)
+       VALUES ($1,$2,$3) ON CONFLICT (slug) DO NOTHING`,
+      [slug, label, i]
+    );
+  }
+
   console.log('DB initialised');
 }
 
@@ -907,6 +939,18 @@ app.get('/api/content', async (req, res) => {
 app.get('/api/prints', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, category, categories, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Single source of truth for category slugs/labels/order — used by the
+// public nav filter dropdown AND the admin per-print tagging checkboxes, so
+// the two can never drift out of sync the way two hardcoded arrays used to.
+app.get('/api/categories', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, slug, label, sort_order FROM categories ORDER BY sort_order ASC, id ASC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1353,6 +1397,110 @@ app.delete('/api/admin/prints/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── ADMIN CATEGORIES ──────────────────────────────────────────────────────────
+// Add a new category. Slug must be unique, lowercase, and use only
+// letters/numbers/hyphens — it's what gets stored inside each print's
+// categories JSONB array, so keeping it URL/filter-safe matters.
+app.post('/api/admin/categories', requireAuth, async (req, res) => {
+  const label = (req.body.label || '').trim();
+  let slug = (req.body.slug || label).trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!label) return res.status(400).json({ error: 'Label is required' });
+  if (!slug) return res.status(400).json({ error: 'Could not derive a valid slug from that label' });
+  try {
+    const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), -1) AS m FROM categories');
+    const { rows } = await pool.query(
+      'INSERT INTO categories (slug, label, sort_order) VALUES ($1,$2,$3) RETURNING *',
+      [slug, label, maxRows[0].m + 1]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(400).json({ error: `A category with slug "${slug}" already exists` });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Rename a category's label and/or slug. If the slug changes, every print
+// currently tagged with the old slug is cascaded to the new one — both the
+// categories JSONB array and the legacy single-value category column, so
+// nothing silently goes stale.
+app.put('/api/admin/categories/:id', requireAuth, async (req, res) => {
+  const label = (req.body.label || '').trim();
+  let slug = (req.body.slug || label).trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!label) return res.status(400).json({ error: 'Label is required' });
+  if (!slug) return res.status(400).json({ error: 'Could not derive a valid slug from that label' });
+  try {
+    const { rows: existing } = await pool.query('SELECT slug FROM categories WHERE id=$1', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
+    const oldSlug = existing[0].slug;
+
+    const { rows } = await pool.query(
+      'UPDATE categories SET slug=$1, label=$2 WHERE id=$3 RETURNING *',
+      [slug, label, req.params.id]
+    );
+
+    if (slug !== oldSlug) {
+      // Cascade the rename across every print that references the old slug —
+      // both the categories array (each matching element swapped) and the
+      // legacy category column (which is always cats[0], see PUT /prints/:id).
+      await pool.query(
+        `UPDATE prints SET categories = (
+           SELECT jsonb_agg(CASE WHEN elem = $1 THEN $2 ELSE elem END)
+           FROM jsonb_array_elements_text(categories) AS elem
+         ) WHERE categories @> to_jsonb($1::text)`,
+        [oldSlug, slug]
+      );
+      await pool.query('UPDATE prints SET category=$1 WHERE category=$2', [slug, oldSlug]);
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(400).json({ error: `A category with slug "${slug}" already exists` });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Remove a category — blocked if any print still references its slug, same
+// safety pattern used for workshop dates with existing bookings: rather than
+// silently untagging prints (which could leave one with zero categories) or
+// orphaning references, the admin is told exactly how many prints use it and
+// asked to re-tag them first.
+app.delete('/api/admin/categories/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows: existing } = await pool.query('SELECT slug, label FROM categories WHERE id=$1', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ error: 'Category not found' });
+    const { slug, label } = existing[0];
+
+    const { rows: usage } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM prints WHERE categories @> to_jsonb($1::text)',
+      [slug]
+    );
+    if (usage[0].n > 0) {
+      return res.status(400).json({
+        error: `"${label}" is still used by ${usage[0].n} print${usage[0].n === 1 ? '' : 's'} — remove that tag from ${usage[0].n === 1 ? 'it' : 'them'} first.`
+      });
+    }
+    await pool.query('DELETE FROM categories WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/categories/reorder', requireAuth, async (req, res) => {
+  const { order } = req.body; // array of category IDs in new order
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
+  try {
+    await Promise.all(order.map((id, i) =>
+      pool.query('UPDATE categories SET sort_order=$1 WHERE id=$2', [i, id])
+    ));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ── ADMIN SHOP ────────────────────────────────────────────────────────────────
 // Get full shop settings for one print (sale status, edition, sizes, delivery)

@@ -2407,17 +2407,19 @@ function closeWorkDropdown() {
   if (li) li.classList.remove('open');
 }
 
-// Ordered list of all categories we support, with display labels.
-// Only those actually present in allPrints will appear in the dropdown.
-const CATEGORY_ORDER = [
-  { filter: 'abstract',      label: 'Abstract' },
-  { filter: 'macro',         label: 'Macro' },
-  { filter: 'travel',        label: 'Travel' },
-  { filter: 'portrait',      label: 'Portrait' },
-  { filter: 'street',        label: 'Street' },
-  { filter: 'street-lights', label: 'Street Lights' },
-  { filter: 'other',         label: 'Other' },
-];
+// Ordered list of all categories we support, with display labels. Populated
+// from /api/categories (admin-editable) rather than hardcoded, so adding,
+// renaming, or removing a category never requires a code change. Only those
+// actually present in allPrints will appear in the dropdown.
+let CATEGORY_ORDER = [];
+async function loadCategories() {
+  try {
+    const cats = await fetch('/api/categories').then(r => r.json());
+    CATEGORY_ORDER = cats.map(c => ({ filter: c.slug, label: c.label }));
+  } catch (e) {
+    CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
+  }
+}
 
 function buildDropdown() {
   const inner = document.getElementById('work-dropdown-inner');
@@ -2429,11 +2431,7 @@ function buildDropdown() {
     const cats = Array.isArray(p.categories) && p.categories.length
       ? p.categories
       : [(p.category || 'abstract-bnw')];
-    cats.forEach(cat => {
-      const c = cat.toLowerCase();
-      if (c.includes('abstract')) presentFilters.add('abstract');
-      else presentFilters.add(c);
-    });
+    cats.forEach(cat => presentFilters.add(cat.toLowerCase()));
   });
 
   const makeLink = (filter, label, mobile) => {
@@ -2487,7 +2485,6 @@ function renderFeed() {
         const cats = Array.isArray(p.categories) && p.categories.length
           ? p.categories
           : [(p.category || 'abstract-bnw')];
-        if (currentFilter === 'abstract') return cats.some(c => c.toLowerCase().includes('abstract'));
         return cats.some(c => c.toLowerCase() === currentFilter);
       });
 
@@ -2637,7 +2634,10 @@ function observe(el) {
 // LOAD
 async function load() {
   try {
-    const prints = await fetch('/api/prints').then(r=>r.json());
+    const [prints] = await Promise.all([
+      fetch('/api/prints').then(r=>r.json()),
+      loadCategories(), // populates CATEGORY_ORDER before buildDropdown() runs inside buildFeed
+    ]);
     await buildFeed(prints);
     return true;
   } catch(e) {
@@ -2686,7 +2686,6 @@ function getLightboxList() {
     const cats = Array.isArray(p.categories) && p.categories.length
       ? p.categories
       : [(p.category || 'abstract-bnw')];
-    if (currentFilter === 'abstract') return cats.some(c => c.toLowerCase().includes('abstract'));
     return cats.some(c => c.toLowerCase() === currentFilter);
   });
 }

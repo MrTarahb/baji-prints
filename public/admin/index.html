@@ -513,6 +513,19 @@ textarea.field-input{resize:vertical;min-height:70px}
         </div>
       </div>
 
+      <!-- CATEGORIES -->
+      <div class="panel" id="panel-categories">
+        <h2 class="panel-title">Categories</h2>
+        <p class="panel-sub">Used to tag prints and power the "Work" filter dropdown on the site. Renaming updates every print already using it automatically. A category can't be deleted while any print still uses it — untag it from those prints first.</p>
+        <div id="categories-list"></div>
+        <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+          <p class="field-label" style="margin-bottom:.6rem">Add new category</p>
+          <input class="field-input" id="new-cat-label" placeholder="e.g. Night Street" style="margin-bottom:.5rem">
+          <button class="btn-order-action" onclick="addCategory()">Add category</button>
+          <span id="new-cat-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
+        </div>
+      </div>
+
       <!-- PRINTS -->
       <div class="panel" id="panel-prints">
         <h2 class="panel-title">Portfolio prints</h2>
@@ -909,6 +922,127 @@ function buildFields(containerId,fields){
   fields.forEach(([key,label,multi])=>c.appendChild(makeField(key,label,allContent[key]||'',multi)));
 }
 
+// CATEGORIES
+let categoriesCache = [];
+let categoriesSortable = null;
+
+async function loadCategoriesAdmin() {
+  try {
+    const cats = await fetch('/api/categories', {credentials:'include'}).then(r=>r.json());
+    categoriesCache = cats;
+    const list = document.getElementById('categories-list');
+    if (!list) return;
+    list.innerHTML = cats.length ? cats.map(c => `
+      <div class="cat-row" data-id="${c.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:.85rem 1rem;margin-bottom:.5rem">
+        <div style="display:flex;align-items:flex-start;gap:.75rem">
+          <div class="cat-drag-handle" title="Drag to reorder" style="cursor:grab;padding-top:1.5rem;color:var(--text-l);flex-shrink:0">⠿</div>
+          <div style="flex:1;display:flex;gap:.5rem;flex-wrap:wrap">
+            <div style="flex:1;min-width:120px">
+              <label class="field-label" style="font-size:.68rem">Label</label>
+              <input class="field-input" id="catlabel-${c.id}" value="${esc(c.label)}">
+            </div>
+            <div style="flex:1;min-width:120px">
+              <label class="field-label" style="font-size:.68rem">Slug</label>
+              <input class="field-input" id="catslug-${c.id}" value="${esc(c.slug)}" style="font-family:monospace;font-size:.78rem">
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.4rem;flex-shrink:0">
+            <button class="btn-order-action" onclick="saveCategory(${c.id},this)">Save</button>
+            <button class="btn-order-action" onclick="deleteCategory(${c.id},this)">Delete</button>
+          </div>
+        </div>
+        <div class="save-print-msg" id="catmsg-${c.id}"></div>
+      </div>
+    `).join('') : '<p style="font-size:.8rem;color:var(--text-l)">No categories yet — add one below.</p>';
+
+    if (categoriesSortable) categoriesSortable.destroy();
+    if (window.Sortable && cats.length > 1) {
+      categoriesSortable = new Sortable(list, {
+        animation: 200,
+        handle: '.cat-drag-handle',
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        delay: 80,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 4,
+        onEnd: saveCategoryOrder,
+      });
+    }
+  } catch(e) { console.error('loadCategoriesAdmin failed:', e); }
+}
+
+async function saveCategoryOrder() {
+  const list = document.getElementById('categories-list');
+  const ids = Array.from(list.children).map(row => parseInt(row.dataset.id)).filter(n => !isNaN(n));
+  try {
+    await fetch('/api/admin/categories/reorder', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ order: ids })
+    });
+  } catch(e) { console.error('Category reorder failed:', e); }
+}
+
+async function saveCategory(id, btn) {
+  const label = document.getElementById('catlabel-'+id).value.trim();
+  const slug = document.getElementById('catslug-'+id).value.trim();
+  const msg = document.getElementById('catmsg-'+id);
+  if (!label) { msg.style.color = 'var(--pink)'; msg.textContent = 'Label required.'; return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/admin/categories/${id}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ label, slug })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg.style.color = 'var(--pink)'; msg.textContent = data.error || 'Error.';
+      btn.textContent = 'Save'; btn.disabled = false;
+      return;
+    }
+    msg.style.color = ''; msg.textContent = '';
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 1500);
+    await loadCategoriesAdmin();
+    await loadPrints(); // a renamed slug/label needs to reflect in the print checkboxes too
+  } catch(e) { btn.textContent = 'Error'; btn.disabled = false; }
+}
+
+async function deleteCategory(id, btn) {
+  const cat = categoriesCache.find(c => c.id === id);
+  if (!confirm(`Delete category "${cat ? cat.label : id}"?`)) return;
+  const msg = document.getElementById('catmsg-'+id);
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    const res = await fetch(`/api/admin/categories/${id}`, { method:'DELETE', credentials:'include' });
+    const data = await res.json();
+    if (!res.ok) {
+      if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = data.error || 'Error.'; }
+      btn.textContent = 'Delete'; btn.disabled = false;
+      return;
+    }
+    await loadCategoriesAdmin();
+  } catch(e) { btn.textContent = 'Delete'; btn.disabled = false; }
+}
+
+async function addCategory() {
+  const label = document.getElementById('new-cat-label').value.trim();
+  const msg = document.getElementById('new-cat-msg');
+  if (!label) { msg.style.color = 'var(--pink)'; msg.textContent = 'Label required.'; return; }
+  msg.style.color = ''; msg.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/admin/categories', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ label })
+    });
+    const data = await res.json();
+    if (!res.ok) { msg.style.color = 'var(--pink)'; msg.textContent = data.error || 'Error.'; return; }
+    document.getElementById('new-cat-label').value = '';
+    msg.textContent = 'Added ✓';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+    await loadCategoriesAdmin();
+  } catch(e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Error.'; }
+}
+
 // PRINTS
 let sortableInstance = null;
 
@@ -925,19 +1059,13 @@ async function loadPrints(){
       const activeCats = Array.isArray(p.categories) && p.categories.length
         ? p.categories
         : [((p.category || 'abstract-bnw') === 'abstract-colour' ? 'abstract-bnw' : (p.category || 'abstract-bnw'))];
-      const ALL_CATS = [
-        ['abstract-bnw', 'Abstract'],
-        ['macro',        'Macro'],
-        ['travel',       'Travel'],
-        ['portrait',     'Portrait'],
-        ['street',       'Street'],
-        ['street-lights','Street Lights'],
-        ['other',        'Other'],
-      ];
-      const catChecks = ALL_CATS.map(([v,label]) =>
+      // Category slugs/labels come from the admin-editable list (see Categories
+      // panel above), not a hardcoded array — keeps this in sync automatically
+      // whenever a category is added, renamed, or removed.
+      const catChecks = categoriesCache.map(({slug: v, label}) =>
         `<label style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--text-m);cursor:pointer;margin-right:.6rem">
           <input type="checkbox" class="pc-${p.id}" value="${v}" ${activeCats.includes(v)?'checked':''} style="cursor:pointer">
-          ${label}
+          ${esc(label)}
         </label>`
       ).join('');
       card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
@@ -1755,6 +1883,7 @@ async function loadAll(){
 
   await loadStats();
   await loadMessages();
+  await loadCategoriesAdmin();
   await loadPrints();
   await loadPapers();
   await loadShopPrints();
