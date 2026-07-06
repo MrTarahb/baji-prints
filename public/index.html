@@ -2660,13 +2660,20 @@ function pickHeroForFilter(filter) {
   }
 
   const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
-  let heroPool;
-  if (isMobilePortrait) {
-    const portraits = pool.filter(p => allOrientations[allPrints.indexOf(p)] === 'portrait');
-    heroPool = portraits.length ? portraits : pool;
-  } else {
-    const landscapes = pool.filter(p => allOrientations[allPrints.indexOf(p)] === 'landscape');
-    heroPool = landscapes.length ? landscapes : pool;
+  const requiredOrientation = isMobilePortrait ? 'portrait' : 'landscape';
+
+  // Strict rule: desktop never shows a portrait hero, mobile-portrait never
+  // shows a landscape one. This used to fall back to "whatever's in the pool"
+  // when no matching-orientation image was found there, which could actually
+  // violate the rule (e.g. a category made up entirely of portrait shots
+  // would still have shown one on desktop). Now, if the current pool (a
+  // specific category, or the exclude_from_hero-aware main pool) has none of
+  // the required orientation, the search widens to the full portfolio before
+  // giving up — it only shows nothing (leaving whatever hero was already
+  // displayed) if literally no image of that orientation exists anywhere.
+  let heroPool = pool.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+  if (!heroPool.length) {
+    heroPool = allPrints.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
   }
   if (!heroPool.length) return;
 
