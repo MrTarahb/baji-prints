@@ -2491,7 +2491,6 @@ function setFilter(filter) {
     a.classList.toggle('active-filter', a.dataset.filter === filter);
   });
   pickHeroForFilter(filter);
-  setHeroTextVisible(!categorySelected);
   renderFeed();
 }
 
@@ -2683,19 +2682,6 @@ function pickHeroForFilter(filter) {
   introImg.onload = applyHeroOrientation;
   introImg.src = cld(heroUrl, 2000);
   if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
-}
-
-// Shows/hides the name + tagline over the hero. Toggled on the wrapper
-// (.intro-text) rather than each child individually, so it doesn't fight
-// with intro-title/intro-sub's own entrance animation (up/forwards) — the
-// wrapper has no animation of its own, so a plain opacity fade layers
-// cleanly on top without touching the children's animated state.
-function setHeroTextVisible(visible) {
-  const wrap = document.querySelector('.intro-text');
-  if (!wrap) return;
-  wrap.style.transition = 'opacity .35s ease';
-  wrap.style.opacity = visible ? '1' : '0';
-  wrap.style.pointerEvents = visible ? '' : 'none';
 }
 
 // INTERSECTION OBSERVER
