@@ -1430,6 +1430,23 @@ app.post('/api/admin/categories', requireAuth, async (req, res) => {
   }
 });
 
+// NOTE: this literal-path route MUST stay registered before the '/:id' route
+// below — Express matches top-down, so if '/:id' came first a PUT to
+// '/reorder' would bind id="reorder" and never reach here (the same ordering
+// the prints reorder/‌:id pair relies on).
+app.put('/api/admin/categories/reorder', requireAuth, async (req, res) => {
+  const { order } = req.body; // array of category IDs in new order
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
+  try {
+    await Promise.all(order.map((id, i) =>
+      pool.query('UPDATE categories SET sort_order=$1 WHERE id=$2', [i, id])
+    ));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Rename a category's label and/or slug. If the slug changes, every print
 // currently tagged with the old slug is cascaded to the new one — both the
 // categories JSONB array and the legacy single-value category column, so
@@ -1491,19 +1508,6 @@ app.delete('/api/admin/categories/:id', requireAuth, async (req, res) => {
       });
     }
     await pool.query('DELETE FROM categories WHERE id=$1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.put('/api/admin/categories/reorder', requireAuth, async (req, res) => {
-  const { order } = req.body; // array of category IDs in new order
-  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
-  try {
-    await Promise.all(order.map((id, i) =>
-      pool.query('UPDATE categories SET sort_order=$1 WHERE id=$2', [i, id])
-    ));
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -2461,7 +2461,7 @@ function buildDropdown() {
     return a;
   };
 
-  const presentOrdered = CATEGORY_ORDER.filter(c => presentFilters.has(c.filter));
+  const presentOrdered = CATEGORY_ORDER.filter(c => presentFilters.has(c.filter.toLowerCase()));
 
   // Desktop dropdown
   if (inner) {
