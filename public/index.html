@@ -18,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
 
 :root {
   --white:   #FAFAF8;
@@ -82,7 +82,6 @@ body {
   font-family: var(--fm);
   font-size: 11px;
   letter-spacing: .04em;
-  overflow-x: hidden;
   cursor: none;
 }
 input, textarea, select, button, a, label, [contenteditable] { cursor: none !important; }
