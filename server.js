@@ -561,6 +561,7 @@ async function initDB() {
       id SERIAL PRIMARY KEY,
       slug TEXT UNIQUE NOT NULL,
       label TEXT NOT NULL,
+      description TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -959,7 +960,7 @@ app.get('/api/prints', async (req, res) => {
 // the two can never drift out of sync the way two hardcoded arrays used to.
 app.get('/api/categories', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, slug, label, sort_order FROM categories ORDER BY sort_order ASC, id ASC');
+    const { rows } = await pool.query('SELECT id, slug, label, description, sort_order FROM categories ORDER BY sort_order ASC, id ASC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1415,13 +1416,14 @@ app.post('/api/admin/categories', requireAuth, async (req, res) => {
   const label = (req.body.label || '').trim();
   let slug = (req.body.slug || label).trim().toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const description = (req.body.description || '').trim() || null;
   if (!label) return res.status(400).json({ error: 'Label is required' });
   if (!slug) return res.status(400).json({ error: 'Could not derive a valid slug from that label' });
   try {
     const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), -1) AS m FROM categories');
     const { rows } = await pool.query(
-      'INSERT INTO categories (slug, label, sort_order) VALUES ($1,$2,$3) RETURNING *',
-      [slug, label, maxRows[0].m + 1]
+      'INSERT INTO categories (slug, label, description, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
+      [slug, label, description, maxRows[0].m + 1]
     );
     res.json(rows[0]);
   } catch (e) {
@@ -1455,6 +1457,7 @@ app.put('/api/admin/categories/:id', requireAuth, async (req, res) => {
   const label = (req.body.label || '').trim();
   let slug = (req.body.slug || label).trim().toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const description = (req.body.description || '').trim() || null;
   if (!label) return res.status(400).json({ error: 'Label is required' });
   if (!slug) return res.status(400).json({ error: 'Could not derive a valid slug from that label' });
   try {
@@ -1463,8 +1466,8 @@ app.put('/api/admin/categories/:id', requireAuth, async (req, res) => {
     const oldSlug = existing[0].slug;
 
     const { rows } = await pool.query(
-      'UPDATE categories SET slug=$1, label=$2 WHERE id=$3 RETURNING *',
-      [slug, label, req.params.id]
+      'UPDATE categories SET slug=$1, label=$2, description=$3 WHERE id=$4 RETURNING *',
+      [slug, label, description, req.params.id]
     );
 
     if (slug !== oldSlug) {

@@ -1355,6 +1355,19 @@ nav.on-light .nav-hamburger span,
   line-height: 1.9;
   margin-bottom: 1rem;
 }
+.category-desc {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 3rem 2rem 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: var(--fg-m);
+  line-height: 1.9;
+}
+@media(max-width: 640px) {
+  .category-desc { padding: 2.25rem 1.5rem 0; font-size: 11.5px; }
+}
 .about-body p:last-child { margin-bottom: 0; }
 .about-body strong { color: var(--fg); font-weight: 400; }
 .about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
@@ -1530,6 +1543,11 @@ nav.on-light .nav-hamburger span,
   </div>
 
   </div><!-- /.intro -->
+
+  <!-- Category description — admin-editable, shown only while browsing a
+       specific category (not on the main/default view), and only if that
+       category actually has one set. JS toggles display, starts hidden. -->
+  <p class="category-desc" id="category-desc" style="display:none"></p>
 
   <!-- FEED — built by JS -->
   <div class="feed" id="feed"></div>
@@ -2422,7 +2440,7 @@ let CATEGORY_ORDER = [];
 async function loadCategories() {
   try {
     const cats = await fetch('/api/categories').then(r => r.json());
-    CATEGORY_ORDER = cats.map(c => ({ filter: c.slug, label: c.label }));
+    CATEGORY_ORDER = cats.map(c => ({ filter: c.slug, label: c.label, description: c.description || '' }));
   } catch (e) {
     CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
   }
@@ -2491,6 +2509,7 @@ function setFilter(filter) {
     a.classList.toggle('active-filter', a.dataset.filter === filter);
   });
   pickHeroForFilter(filter);
+  updateCategoryDescription();
   renderFeed();
 }
 
@@ -2641,6 +2660,25 @@ function applyHeroOrientation() {
 // Both branches share the same orientation-aware narrowing (portrait hero on
 // mobile-portrait viewports, landscape otherwise) so a per-category pick
 // never looks worse than the main hero used to.
+// Shows the admin-written blurb for the currently-selected category, if it
+// has one. Only shown while actually browsing a specific category (not on
+// the main/default view, matching the same categorySelected rule the hero
+// swap uses) — and only if that category's description isn't empty. No
+// description set means the element is hidden entirely, not an empty gap.
+function updateCategoryDescription() {
+  const el = document.getElementById('category-desc');
+  if (!el) return;
+  const cat = categorySelected ? CATEGORY_ORDER.find(c => c.filter === currentFilter) : null;
+  const desc = cat && cat.description ? cat.description.trim() : '';
+  if (!desc) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  el.textContent = desc;
+  el.style.display = '';
+}
+
 function pickHeroForFilter(filter) {
   if (!allPrints.length) return;
 

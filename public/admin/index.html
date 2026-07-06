@@ -952,6 +952,10 @@ async function loadCategoriesAdmin() {
             <button class="btn-order-action" onclick="deleteCategory(${c.id},this)">Delete</button>
           </div>
         </div>
+        <div style="margin-top:.5rem;margin-left:2.25rem">
+          <label class="field-label" style="font-size:.68rem">Description shown on the site while browsing this category (optional — leave blank to show nothing)</label>
+          <textarea class="field-input" id="catdesc-${c.id}" rows="2" style="resize:vertical;font-family:inherit;line-height:1.5">${esc(c.description || '')}</textarea>
+        </div>
         <div class="save-print-msg" id="catmsg-${c.id}"></div>
       </div>
     `).join('') : '<p style="font-size:.8rem;color:var(--text-l)">No categories yet — add one below.</p>';
@@ -986,13 +990,15 @@ async function saveCategoryOrder() {
 async function saveCategory(id, btn) {
   const label = document.getElementById('catlabel-'+id).value.trim();
   const slug = document.getElementById('catslug-'+id).value.trim();
+  const descEl = document.getElementById('catdesc-'+id);
+  const description = descEl ? descEl.value.trim() : '';
   const msg = document.getElementById('catmsg-'+id);
   if (!label) { msg.style.color = 'var(--pink)'; msg.textContent = 'Label required.'; return; }
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const res = await fetch(`/api/admin/categories/${id}`, {
       method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ label, slug })
+      body: JSON.stringify({ label, slug, description })
     });
     const data = await res.json();
     if (!res.ok) {
