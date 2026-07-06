@@ -2385,7 +2385,7 @@ function showPage(name){
 // GLOBAL STATE
 let allPrints = [];
 let allOrientations = [];
-let currentFilter = 'abstract-bnw';
+let currentFilter = null; // set once real categories load — see loadCategories() below
 
 // FILTER
 // Work dropdown — JS-driven so the gap between trigger and menu doesn't cause it to vanish
@@ -2419,6 +2419,13 @@ async function loadCategories() {
   } catch (e) {
     CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
   }
+  // Default landing filter is "whatever's first," not a hardcoded slug — a
+  // hardcoded string here is exactly what broke last time: renaming a
+  // category's slug in admin silently orphaned the default, since prints get
+  // cascaded to the new slug but a fixed string here never would. Only set
+  // this once, on first load — later reloads (e.g. navigating back to the
+  // main page) shouldn't override whatever filter the person already chose.
+  if (currentFilter === null) currentFilter = CATEGORY_ORDER[0]?.filter || 'all';
 }
 
 function buildDropdown() {
