@@ -2440,7 +2440,9 @@ let CATEGORY_ORDER = [];
 async function loadCategories() {
   try {
     const cats = await fetch('/api/categories').then(r => r.json());
-    CATEGORY_ORDER = cats.map(c => ({ filter: c.slug, label: c.label, description: c.description || '' }));
+    CATEGORY_ORDER = Array.isArray(cats)
+      ? cats.map(c => ({ filter: c.slug, label: c.label, description: c.description || '' }))
+      : [];
   } catch (e) {
     CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
   }

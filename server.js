@@ -565,6 +565,11 @@ async function initDB() {
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    -- CREATE TABLE IF NOT EXISTS is a no-op when the table already exists, so
+    -- a column added to the CREATE above never reaches a live DB that already
+    -- has the table. This explicit ALTER is what actually adds the description
+    -- column to existing installations (same pattern as every other column).
+    ALTER TABLE categories ADD COLUMN IF NOT EXISTS description TEXT;
 
     -- ── SHOP: per-print sale settings ──────────────────────────────
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS for_sale BOOLEAN DEFAULT FALSE;

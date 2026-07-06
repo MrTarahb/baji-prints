@@ -930,10 +930,13 @@ let categoriesSortable = null;
 async function loadCategoriesAdmin() {
   try {
     const cats = await fetch('/api/categories', {credentials:'include'}).then(r=>r.json());
-    categoriesCache = cats;
+    // Guard against a non-array (e.g. an {error} body from a 500) — otherwise
+    // categoriesCache.map() in loadPrints() would throw and blank the prints
+    // panel too, turning one failed fetch into a fully broken admin page.
+    categoriesCache = Array.isArray(cats) ? cats : [];
     const list = document.getElementById('categories-list');
     if (!list) return;
-    list.innerHTML = cats.length ? cats.map(c => `
+    list.innerHTML = categoriesCache.length ? categoriesCache.map(c => `
       <div class="cat-row" data-id="${c.id}" style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:.85rem 1rem;margin-bottom:.5rem">
         <div style="display:flex;align-items:flex-start;gap:.75rem">
           <div class="cat-drag-handle" title="Drag to reorder" style="cursor:grab;padding-top:1.5rem;color:var(--text-l);flex-shrink:0">⠿</div>
@@ -961,7 +964,7 @@ async function loadCategoriesAdmin() {
     `).join('') : '<p style="font-size:.8rem;color:var(--text-l)">No categories yet — add one below.</p>';
 
     if (categoriesSortable) categoriesSortable.destroy();
-    if (window.Sortable && cats.length > 1) {
+    if (window.Sortable && categoriesCache.length > 1) {
       categoriesSortable = new Sortable(list, {
         animation: 200,
         handle: '.cat-drag-handle',
