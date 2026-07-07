@@ -2584,8 +2584,6 @@ function renderFeed() {
   // re-measures correctly — especially important when returning from the shop
   // where main-content was obscured by a fixed overlay during the last render.
   requestAnimationFrame(() => {
-    // Reset scroll to top first so ScrollTrigger measures from a clean state
-    window.scrollTo(0, 0);
     const introImg = document.getElementById('intro-img');
     const introEl = document.getElementById('intro');
     if (introImg && introEl && introImg.complete && introImg.naturalWidth > 0) {
