@@ -2693,12 +2693,18 @@ function pickHeroForFilter(filter) {
     const eligible = allPrints.filter(p => !p.exclude_from_hero);
     pool = eligible.length ? eligible : allPrints;
   } else {
-    pool = allPrints.filter(p => {
+    const catPool = allPrints.filter(p => {
       const cats = Array.isArray(p.categories) && p.categories.length
         ? p.categories
         : [(p.category || 'abstract-bnw')];
       return cats.some(c => c.toLowerCase() === filter);
     });
+    // Separate from exclude_from_hero (main-page only) — some photos read
+    // fine in the feed but don't work blown up full-bleed as a category
+    // hero specifically, hence its own flag. Same graceful-fallback pattern
+    // as the main pool: only apply the exclusion if it doesn't empty things out.
+    const eligible = catPool.filter(p => !p.exclude_from_category_hero);
+    pool = eligible.length ? eligible : catPool;
     if (!pool.length) pool = allPrints; // defensive — dropdown shouldn't offer an empty category
   }
 

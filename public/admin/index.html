@@ -1065,6 +1065,7 @@ async function loadPrints(){
     prints.forEach((p,i)=>{
       const card=document.createElement('div');card.className='print-card';card.dataset.id=p.id;
       const excluded = p.exclude_from_hero ? 'checked' : '';
+      const excludedFromCatHero = p.exclude_from_category_hero ? 'checked' : '';
       // Support both legacy single category and new multi-category array
       const activeCats = Array.isArray(p.categories) && p.categories.length
         ? p.categories
@@ -1078,7 +1079,7 @@ async function loadPrints(){
           ${esc(label)}
         </label>`
       ).join('');
-      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="phc-${p.id}" ${excludedFromCatHero} style="cursor:pointer"><label for="phc-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from category hero (still eligible for the main-page hero — just won't be picked as the hero when someone browses its category)</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
 
@@ -1119,11 +1120,12 @@ async function savePrint(id,btn){
   if(!title){msg.style.color='var(--pink)';msg.textContent='Title required.';return;}
   btn.textContent='Saving...';btn.disabled=true;
   const exclude = document.getElementById('ph-'+id)?.checked || false;
+  const excludeFromCatHero = document.getElementById('phc-'+id)?.checked || false;
   // Collect all checked category checkboxes
   const categories = Array.from(document.querySelectorAll(`.pc-${id}:checked`)).map(cb => cb.value);
   if (!categories.length) categories.push('abstract-bnw'); // always have at least one
   try{
-    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,exclude_from_hero:exclude,categories})});
+    const res=await fetch('/api/admin/prints/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({title,description:desc,exclude_from_hero:exclude,exclude_from_category_hero:excludeFromCatHero,categories})});
     if(res.ok){btn.textContent='Saved ✓';msg.textContent='';setTimeout(()=>{btn.textContent='Save';btn.disabled=false;},2000);}
     else{msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
   }catch(e){msg.textContent='Error.';btn.textContent='Save';btn.disabled=false;}
