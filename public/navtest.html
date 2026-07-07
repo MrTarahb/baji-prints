@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Nav pin test v4 (GSAP)</title>
+<title>Nav pin test v6 (portrait reflow)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <style>
@@ -18,18 +18,20 @@
   }
   nav.visible { opacity: 1; }
   .intro {
-    position: relative; height: 100dvh;
-    background: linear-gradient(135deg, #333, #888);
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 2rem; overflow: hidden;
+    position: relative; height: auto; overflow: visible;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
+  .intro-bg { position: relative; overflow: visible; }
+  .intro-bg img { width: 100%; height: auto; display: block; }
   .feed { padding: 4vw; }
   .block { height: 60vh; background: #eee; margin-bottom: 2vw; display:flex; align-items:center; justify-content:center; }
 </style>
 </head>
 <body>
-  <nav><span>LOGO v5-reflow</span><span>MENU</span></nav>
-  <div class="intro" id="intro">HERO (scroll down)</div>
+  <nav><span>LOGO v6-portrait</span><span>MENU</span></nav>
+  <div class="intro" id="intro">
+    <div class="intro-bg"><img id="hero-img" alt=""></div>
+  </div>
   <div class="feed">
     <div class="block">block 1</div>
     <div class="block">block 2</div>
@@ -41,21 +43,12 @@
     window.addEventListener('scroll', () => {
       nav.classList.toggle('visible', window.scrollY > 40);
     }, { passive: true });
-
     gsap.registerPlugin(ScrollTrigger);
-    gsap.to('#intro', {
-      scale: 0.96, opacity: 0, ease: 'none',
-      scrollTrigger: { trigger: '#intro', start: 'bottom bottom', end: 'bottom top', scrub: 1 }
-    });
-
-    // Simulate the portrait-hero reflow: hero grows from 100dvh to a taller
-    // height AFTER load, exactly like applyHeroOrientation swapping to
-    // .portrait { height:auto }. This is the post-load reflow the earlier
-    // tests lacked.
     setTimeout(() => {
-      document.getElementById('intro').style.height = '160vh';
-      if (window.ScrollTrigger) ScrollTrigger.refresh();
-    }, 1200);
+      const img = document.getElementById('hero-img');
+      img.onload = () => { if (window.ScrollTrigger) ScrollTrigger.refresh(); };
+      img.src = 'https://picsum.photos/800/1200?random=1';
+    }, 900);
   </script>
 </body>
 </html>

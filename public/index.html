@@ -348,6 +348,12 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .intro.portrait {
   height: auto;
   overflow: visible;
+  /* Reserve viewport height up front. Without this the hero is height:auto
+     driven entirely by the portrait image, which has ~0 height until it
+     loads then snaps to full height — a large post-load reflow at the very
+     top of the page that dislodged the fixed nav mid-scroll on Android
+     Chrome. min-height holds the space so the load causes no jump. */
+  min-height: 100svh;
 }
 .intro.portrait .intro-bg {
   position: relative;
@@ -356,7 +362,9 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 .intro.portrait .intro-bg img {
   height: auto;
-  object-fit: unset;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
 }
 .intro.portrait .intro-overlay {
   inset: auto;
