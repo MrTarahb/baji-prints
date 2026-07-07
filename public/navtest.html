@@ -28,7 +28,7 @@
 </style>
 </head>
 <body>
-  <nav><span>LOGO v4-GSAP</span><span>MENU</span></nav>
+  <nav><span>LOGO v5-reflow</span><span>MENU</span></nav>
   <div class="intro" id="intro">HERO (scroll down)</div>
   <div class="feed">
     <div class="block">block 1</div>
@@ -42,12 +42,20 @@
       nav.classList.toggle('visible', window.scrollY > 40);
     }, { passive: true });
 
-    // Replicate the site's hero scrub animation exactly
     gsap.registerPlugin(ScrollTrigger);
     gsap.to('#intro', {
       scale: 0.96, opacity: 0, ease: 'none',
       scrollTrigger: { trigger: '#intro', start: 'bottom bottom', end: 'bottom top', scrub: 1 }
     });
+
+    // Simulate the portrait-hero reflow: hero grows from 100dvh to a taller
+    // height AFTER load, exactly like applyHeroOrientation swapping to
+    // .portrait { height:auto }. This is the post-load reflow the earlier
+    // tests lacked.
+    setTimeout(() => {
+      document.getElementById('intro').style.height = '160vh';
+      if (window.ScrollTrigger) ScrollTrigger.refresh();
+    }, 1200);
   </script>
 </body>
 </html>
