@@ -492,22 +492,24 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   align-items: flex-start;
 }
 
+.feed-col-item .img-wrap {
+  max-height: 85vh;
+}
 .feed-col-item .img-wrap img {
   width: 100%;
-  height: auto;
-  max-height: 85vh;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 .feed-col-item.portrait .img-wrap {
-  display: inline-block;
+  display: block;
   position: relative;
   max-height: 85vh;
 }
 .feed-col-item.portrait .img-wrap img {
-  max-height: 85vh;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 
@@ -2556,14 +2558,21 @@ function renderFeed() {
 
   filtered.forEach((p, i) => {
     const globalIdx = allPrints.indexOf(p);
-    const ori = allOrientations[globalIdx] || 'landscape';
+    const oriData = allOrientations[globalIdx] || { orientation: 'landscape', ratio: 1.5 };
+    const ori = oriData.orientation;
+    const ratio = oriData.ratio || 1.5;
     const isLeft = i % 2 === 0;
     const imgUrl   = p.image_url || p.url || '';
     const imgTitle = p.title || '';
 
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
-    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
+    // aspect-ratio reserves the correct box height BEFORE the lazy image
+    // loads. Without it, each img has 0 height until it loads then pops to
+    // full size — a continuous stream of layout shifts as you scroll, which
+    // on Android Chrome dislodged the fixed nav mid-scroll. Reserving space
+    // means the page height is stable and the nav stays pinned.
+    item.innerHTML = `<div class="img-wrap" style="aspect-ratio:${ratio.toFixed(4)}" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
       <img src="${cld(imgUrl, 1200)}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
     </div>`;
@@ -2608,8 +2617,11 @@ function cld(url, w) {
 function getOrientation(url) {
   return new Promise(resolve => {
     const img = new Image();
-    img.onload = () => resolve(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
-    img.onerror = () => resolve('landscape');
+    img.onload = () => resolve({
+      orientation: img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait',
+      ratio: img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1,
+    });
+    img.onerror = () => resolve({ orientation: 'landscape', ratio: 1.5 });
     img.src = cld(url, 50);
   });
 }
@@ -2717,9 +2729,9 @@ function pickHeroForFilter(filter) {
   // the required orientation, the search widens to the full portfolio before
   // giving up — it only shows nothing (leaving whatever hero was already
   // displayed) if literally no image of that orientation exists anywhere.
-  let heroPool = pool.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+  let heroPool = pool.filter(p => (allOrientations[allPrints.indexOf(p)]?.orientation) === requiredOrientation);
   if (!heroPool.length) {
-    heroPool = allPrints.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+    heroPool = allPrints.filter(p => (allOrientations[allPrints.indexOf(p)]?.orientation) === requiredOrientation);
   }
   if (!heroPool.length) return;
 
