@@ -120,17 +120,18 @@ nav {
      behind it per-pixel, so no heavy backing is needed on the hero. */
   background: linear-gradient(to bottom, rgba(17,17,16,0.35) 0%, transparent 100%);
   opacity: 0;
-  transform: translateY(-8px);
-  /* padding is intentionally NOT transitioned: padding-top depends on
-     env(safe-area-inset-top), which some mobile browsers recompute mid-scroll
-     as their toolbar collapses/expands. Animating that meant the nav could
-     visibly lag a beat behind the real safe area, which looked like it was
-     "half cut off" until an extra scroll nudge forced it to catch up. */
-  transition: opacity .5s ease, transform .5s ease;
+  /* NB: do NOT use transform here for the hide/reveal. A transform (other than
+     none) makes a position:fixed element establish its own containing block —
+     i.e. it stops being fixed to the viewport and scrolls with the page. On
+     the feed page that meant during the first scroll moment (before .visible
+     is added at y>40) the nav briefly scrolled away and "jumped" to a
+     half-scrolled spot, then snapped back once transform:none kicked in. Using
+     opacity + a tiny top-offset shift instead keeps transform permanently none,
+     so the nav is genuinely viewport-fixed at every instant. */
+  transition: opacity .5s ease;
 }
 nav.visible {
   opacity: 1;
-  transform: none;
   pointer-events: all;
 }
 #theme-toggle {
@@ -218,20 +219,20 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
   :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a:hover { color: var(--black); }
 }
 
-/* Over-the-hero legibility: while the nav sits over the hero image (main page,
-   before scrolling onto content), its text uses mix-blend-mode:difference —
-   the same per-pixel inversion the custom cursor uses. White text over a dark
-   area renders white, over a light area renders dark, so it stays readable on
-   ANY image with no gradient, blur, or box needed. The class is toggled off
-   the moment you scroll onto content or open a sub-page, where the normal
-   theme-aware colours (above) take over. Overrides theme rules via specificity
-   + !important since it must win regardless of light/dark mode on the hero. */
+/* Over-the-hero legibility. NOTE: this deliberately does NOT use
+   mix-blend-mode. On Android Chrome, a mix-blend-mode anywhere inside a
+   position:fixed subtree causes the fixed element to lose its viewport
+   pinning mid-scroll (it jumps to a wrong offset and doesn't recover until
+   reload) — that was a real, reproduced bug. Instead we use a strong layered
+   text-shadow: a tight dark halo for legibility over light areas of the
+   image, plus a soft wider one, which keeps white text readable over any
+   hero photo without the blend-mode side effect. Applied while over the hero;
+   removed once scrolled onto content / on sub-pages, where theme colours win. */
 nav.nav-blend .nav-name,
 nav.nav-blend .nav-links a,
 nav.nav-blend #theme-toggle {
   color: #fff !important;
-  mix-blend-mode: difference;
-  text-shadow: none !important;
+  text-shadow: 0 0 4px rgba(0,0,0,0.55), 0 1px 10px rgba(0,0,0,0.45) !important;
   -webkit-text-stroke: 0 !important;
 }
 nav.nav-blend .nav-links a:hover,
@@ -1203,10 +1204,11 @@ nav.on-light .nav-hamburger span,
   width: 22px;
   height: 1.5px;
   background: #fff;
-  /* Same fix as the nav text: inverts per-pixel against whatever's behind it,
-     so it's always legible over any hero image regardless of site theme.
-     No theme-conditional override needed — blend mode handles both cases. */
-  mix-blend-mode: difference;
+  /* Solid white bars with a dark drop-shadow rather than mix-blend-mode —
+     blend mode inside this position:fixed button broke pinning on Android
+     Chrome (see nav-blend note). The shadow keeps them visible over light
+     areas of the hero. */
+  box-shadow: 0 0 3px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.4);
   transition: opacity .2s;
 }
 @media(max-width: 640px) {
