@@ -3803,6 +3803,26 @@ if(!isNoTrack()){
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+
+  // Tap the HUD area (or wait 3s) to scan for what's actually overflowing.
+  function findOverflow(){
+    const vw = document.documentElement.clientWidth;
+    const bad = [];
+    document.querySelectorAll('*').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right > vw + 1 || r.left < -1) {
+        bad.push({
+          tag: el.tagName.toLowerCase() + (el.id ? '#'+el.id : '') + (el.className && typeof el.className === 'string' ? '.'+el.className.trim().split(/\s+/).join('.') : ''),
+          right: Math.round(r.right), left: Math.round(r.left), w: Math.round(r.width)
+        });
+      }
+    });
+    bad.sort((a,b) => b.right - a.right);
+    const top = bad.slice(0, 6).map(b => `${b.right}px [${b.left}..${b.right} w${b.w}] ${b.tag}`.slice(0,90)).join('\n');
+    alert('VIEWPORT ' + vw + 'px — overflowing elements (widest first):\n\n' + (top || 'none found right now'));
+  }
+  setTimeout(findOverflow, 3000);
+  document.addEventListener('click', findOverflow);
 })();
 </script>
 </body>
