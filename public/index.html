@@ -348,12 +348,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .intro.portrait {
   height: auto;
   overflow: visible;
-  /* Reserve viewport height up front. Without this the hero is height:auto
-     driven entirely by the portrait image, which has ~0 height until it
-     loads then snaps to full height — a large post-load reflow at the very
-     top of the page that dislodged the fixed nav mid-scroll on Android
-     Chrome. min-height holds the space so the load causes no jump. */
-  min-height: 100svh;
 }
 .intro.portrait .intro-bg {
   position: relative;
@@ -362,9 +356,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 .intro.portrait .intro-bg img {
   height: auto;
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  object-fit: cover;
+  object-fit: unset;
 }
 .intro.portrait .intro-overlay {
   inset: auto;
@@ -500,24 +492,22 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   align-items: flex-start;
 }
 
-.feed-col-item .img-wrap {
-  max-height: 85vh;
-}
 .feed-col-item .img-wrap img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  max-height: 85vh;
+  object-fit: contain;
   display: block;
 }
 .feed-col-item.portrait .img-wrap {
-  display: block;
+  display: inline-block;
   position: relative;
   max-height: 85vh;
 }
 .feed-col-item.portrait .img-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-height: 85vh;
+  width: auto;
+  max-width: 100%;
   display: block;
 }
 
@@ -2566,21 +2556,15 @@ function renderFeed() {
 
   filtered.forEach((p, i) => {
     const globalIdx = allPrints.indexOf(p);
-    const oriData = allOrientations[globalIdx] || { orientation: 'landscape', ratio: 1.5 };
-    const ori = oriData.orientation;
-    const ratio = oriData.ratio || 1.5;
+    const oriData = allOrientations[globalIdx] || { orientation: 'landscape' };
+    const ori = oriData.orientation || 'landscape';
     const isLeft = i % 2 === 0;
     const imgUrl   = p.image_url || p.url || '';
     const imgTitle = p.title || '';
 
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
-    // aspect-ratio reserves the correct box height BEFORE the lazy image
-    // loads. Without it, each img has 0 height until it loads then pops to
-    // full size — a continuous stream of layout shifts as you scroll, which
-    // on Android Chrome dislodged the fixed nav mid-scroll. Reserving space
-    // means the page height is stable and the nav stays pinned.
-    item.innerHTML = `<div class="img-wrap" style="aspect-ratio:${ratio.toFixed(4)}" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
+    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
       <img src="${cld(imgUrl, 1200)}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
     </div>`;
