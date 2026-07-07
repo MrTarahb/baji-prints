@@ -229,13 +229,13 @@ nav.on-light .nav-links a:hover { color: var(--fg); }
    hero photo without the blend-mode side effect. Applied while over the hero;
    removed once scrolled onto content / on sub-pages, where theme colours win. */
 nav.nav-blend .nav-name,
-nav.nav-blend .nav-links a,
+nav.nav-blend .nav-links > li > a,
 nav.nav-blend #theme-toggle {
   color: #fff !important;
   text-shadow: 0 0 4px rgba(0,0,0,0.55), 0 1px 10px rgba(0,0,0,0.45) !important;
   -webkit-text-stroke: 0 !important;
 }
-nav.nav-blend .nav-links a:hover,
+nav.nav-blend .nav-links > li > a:hover,
 nav.nav-blend .nav-name:hover { color: #bbb !important; }
 
 /* Work dropdown */
@@ -315,7 +315,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .intro {
   position: relative;
   height: 100vh;
-  height: 100dvh; /* dynamic viewport height — matches the actually-visible area as the mobile toolbar collapses/expands, avoiding the 100vh overshoot that was dislodging the fixed nav during window scroll on the feed page */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2556,8 +2555,7 @@ function renderFeed() {
 
   filtered.forEach((p, i) => {
     const globalIdx = allPrints.indexOf(p);
-    const oriData = allOrientations[globalIdx] || { orientation: 'landscape' };
-    const ori = oriData.orientation || 'landscape';
+    const ori = allOrientations[globalIdx] || 'landscape';
     const isLeft = i % 2 === 0;
     const imgUrl   = p.image_url || p.url || '';
     const imgTitle = p.title || '';
@@ -2607,11 +2605,8 @@ function cld(url, w) {
 function getOrientation(url) {
   return new Promise(resolve => {
     const img = new Image();
-    img.onload = () => resolve({
-      orientation: img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait',
-      ratio: img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1,
-    });
-    img.onerror = () => resolve({ orientation: 'landscape', ratio: 1.5 });
+    img.onload = () => resolve(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
+    img.onerror = () => resolve('landscape');
     img.src = cld(url, 50);
   });
 }
@@ -2719,9 +2714,9 @@ function pickHeroForFilter(filter) {
   // the required orientation, the search widens to the full portfolio before
   // giving up — it only shows nothing (leaving whatever hero was already
   // displayed) if literally no image of that orientation exists anywhere.
-  let heroPool = pool.filter(p => (allOrientations[allPrints.indexOf(p)]?.orientation) === requiredOrientation);
+  let heroPool = pool.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
   if (!heroPool.length) {
-    heroPool = allPrints.filter(p => (allOrientations[allPrints.indexOf(p)]?.orientation) === requiredOrientation);
+    heroPool = allPrints.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
   }
   if (!heroPool.length) return;
 
