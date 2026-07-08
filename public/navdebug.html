@@ -1,0 +1,3824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="google-site-verification" content="dJRaT1Zz7PfHYdqg-v2IZTs34XtXn-ll4lFaNN4mdFQ">
+<title id="meta-title">Bharat Bhatia — Fine Art Photographer, Zürich</title>
+<meta name="description" id="meta-desc" content="Fine art photographer and printer based in Zürich. Abstract, ICM and macro photography.">
+<meta property="og:title" id="meta-og-title" content="Bharat Bhatia — Fine Art Photographer, Zürich">
+<meta property="og:description" id="meta-og-desc" content="Fine art photographer and printer based in Zürich. Abstract, ICM and macro photography.">
+<meta property="og:image" id="meta-og-image" content="https://res.cloudinary.com/dqsl63ax7/image/upload/v1777886744/baji-prints/zazpsby8txguspgnfhis.jpg">
+<meta property="og:url" content="https://bharatbhatia.photography">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://bharatbhatia.photography">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
+
+:root {
+  --white:   #FAFAF8;
+  --black:   #111110;
+  --gray:    #999896;
+  --pink:    #C8907A;
+  --pink-d:  #A87060;
+  --fm: 'DM Mono', monospace;
+  --fi: 'Playfair Display', Georgia, serif;
+
+  /* Light mode tokens */
+  --bg:        #FAFAF8;
+  --bg-2:      #F0EFEC;
+  --fg:        #111110;
+  --fg-m:      rgba(17,17,16,.6);
+  --fg-l:      rgba(17,17,16,.35);
+  --border:    rgba(17,17,16,.1);
+  --surface:   rgba(17,17,16,.04);
+  --input-bg:  transparent;
+  --btn-bg:    #111110;
+  --btn-color: #FAFAF8;
+  --overlay-bg:rgba(250,250,248,.95);
+}
+
+/* Dark mode tokens */
+[data-theme="dark"] {
+  --bg:        #0E0E0C;
+  --bg-2:      #1A1A18;
+  --fg:        #F0EFEC;
+  --fg-m:      rgba(240,239,236,.72);
+  --fg-l:      rgba(240,239,236,.42);
+  --border:    rgba(240,239,236,.1);
+  --surface:   rgba(240,239,236,.05);
+  --input-bg:  rgba(240,239,236,.04);
+  --btn-bg:    #F0EFEC;
+  --btn-color: #0E0E0C;
+  --overlay-bg:rgba(14,14,12,.96);
+}
+
+/* System preference — auto */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0E0E0C;
+    --bg-2:      #1A1A18;
+    --fg:        #F0EFEC;
+    --fg-m:      rgba(240,239,236,.72);
+    --fg-l:      rgba(240,239,236,.42);
+    --border:    rgba(240,239,236,.1);
+    --surface:   rgba(240,239,236,.05);
+    --input-bg:  rgba(240,239,236,.04);
+    --btn-bg:    #F0EFEC;
+    --btn-color: #0E0E0C;
+    --overlay-bg:rgba(14,14,12,.96);
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  transition: background .4s, color .4s;
+  font-family: var(--fm);
+  font-size: 11px;
+  letter-spacing: .04em;
+  cursor: none;
+}
+input, textarea, select, button, a, label, [contenteditable] { cursor: none !important; }
+
+/* CURSOR */
+#cur {
+  position: fixed;
+  width: 10px; height: 10px;
+  background: white;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: width .2s, height .2s;
+  mix-blend-mode: difference;
+}
+#cur.big {
+  width: 48px; height: 48px;
+  background: white;
+  mix-blend-mode: difference;
+}
+
+/* NAV — hidden on load, fades in on scroll */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.4rem 2rem;
+  padding-top: calc(1.4rem + env(safe-area-inset-top, 0px));
+  pointer-events: none;
+  /* Faint top gradient only — the real legibility comes from the nav text
+     using mix-blend-mode (see .nav-blend), which inverts against whatever is
+     behind it per-pixel, so no heavy backing is needed on the hero. */
+  background: linear-gradient(to bottom, rgba(17,17,16,0.35) 0%, transparent 100%);
+  opacity: 0;
+  /* NB: do NOT use transform here for the hide/reveal. A transform (other than
+     none) makes a position:fixed element establish its own containing block —
+     i.e. it stops being fixed to the viewport and scrolls with the page. On
+     the feed page that meant during the first scroll moment (before .visible
+     is added at y>40) the nav briefly scrolled away and "jumped" to a
+     half-scrolled spot, then snapped back once transform:none kicked in. Using
+     opacity + a tiny top-offset shift instead keeps transform permanently none,
+     so the nav is genuinely viewport-fixed at every instant. */
+  transition: opacity .5s ease;
+}
+nav.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+#theme-toggle {
+  background: none;
+  border: none;
+  padding: .2rem;
+  display: flex;
+  align-items: center;
+  color: rgba(250,250,248,.85);
+  transition: color .3s;
+}
+#theme-toggle:hover { color: rgba(250,250,248,.95); }
+nav.on-light #theme-toggle { color: rgba(17,17,16,.45); }
+nav.on-light #theme-toggle:hover { color: rgba(17,17,16,.9); }
+/* In dark mode, on-light pages still have dark bg — use light icon colour */
+[data-theme="dark"] nav.on-light #theme-toggle,
+[data-theme="dark"] nav.on-light .nav-name,
+[data-theme="dark"] nav.on-light .nav-links a { color: rgba(240,239,236,.85); }
+[data-theme="dark"] nav.on-light .nav-links a:hover,
+[data-theme="dark"] nav.on-light .nav-name:hover { color: var(--fg); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) nav.on-light #theme-toggle,
+  :root:not([data-theme="light"]) nav.on-light .nav-name,
+  :root:not([data-theme="light"]) nav.on-light .nav-links a { color: rgba(240,239,236,.85); }
+}
+#horizon-sun, #horizon-sun-m {
+  transition: transform 700ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+.horizon-svg.is-dark #horizon-sun,
+.horizon-svg.is-dark #horizon-sun-m {
+  transform: translateY(52%);
+}
+.nav-name {
+  font-family: var(--fi);
+  font-size: 13px;
+  font-style: italic;
+  color: rgba(250,250,248,0.92);
+  letter-spacing: .01em;
+  pointer-events: all;
+  text-decoration: none;
+  cursor: none;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+.nav-links {
+  display: flex;
+  gap: 1.75rem;
+  list-style: none;
+  pointer-events: all;
+}
+.nav-links a {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,0.85);
+  text-decoration: none;
+  cursor: none;
+  transition: color .2s;
+  text-shadow: 0 1px 5px rgba(0,0,0,0.45);
+}
+nav.on-light .nav-name,
+nav.on-light .nav-links a {
+  color: var(--fg-m);
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+  text-stroke: 0;
+}
+nav.on-light .nav-name { color: var(--fg); }
+nav.on-light .nav-links a:hover { color: var(--fg); }
+
+/* Light mode: darken nav text so it reads over gradient and against white cursor */
+[data-theme="light"] nav:not(.on-light) .nav-name,
+[data-theme="light"] nav:not(.on-light) .nav-links a {
+  color: rgba(17,17,16,0.82);
+  text-shadow: 0 1px 6px rgba(255,255,255,0.4);
+}
+[data-theme="light"] nav:not(.on-light) .nav-links a:hover { color: var(--black); }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) nav:not(.on-light) .nav-name,
+  :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a {
+    color: rgba(17,17,16,0.82);
+    text-shadow: 0 1px 6px rgba(255,255,255,0.4);
+  }
+  :root:not([data-theme="dark"]) nav:not(.on-light) .nav-links a:hover { color: var(--black); }
+}
+
+/* Over-the-hero legibility. NOTE: this deliberately does NOT use
+   mix-blend-mode. On Android Chrome, a mix-blend-mode anywhere inside a
+   position:fixed subtree causes the fixed element to lose its viewport
+   pinning mid-scroll (it jumps to a wrong offset and doesn't recover until
+   reload) — that was a real, reproduced bug. Instead we use a strong layered
+   text-shadow: a tight dark halo for legibility over light areas of the
+   image, plus a soft wider one, which keeps white text readable over any
+   hero photo without the blend-mode side effect. Applied while over the hero;
+   removed once scrolled onto content / on sub-pages, where theme colours win. */
+nav.nav-blend .nav-name,
+nav.nav-blend .nav-links > li > a,
+nav.nav-blend #theme-toggle {
+  color: #fff !important;
+  text-shadow: 0 0 4px rgba(0,0,0,0.55), 0 1px 10px rgba(0,0,0,0.45) !important;
+  -webkit-text-stroke: 0 !important;
+}
+nav.nav-blend .nav-links > li > a:hover,
+nav.nav-blend .nav-name:hover { color: #bbb !important; }
+
+/* Work dropdown */
+.nav-dropdown {
+  position: relative;
+}
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-top: .75rem; /* bridge the gap with padding, not margin, so hover doesn't break */
+  z-index: 600;
+}
+.nav-dropdown-menu-inner {
+  background: rgba(10,10,9,0.92);
+  border: 1px solid rgba(250,250,248,.12);
+  border-radius: 3px;
+  padding: .5rem 0;
+  min-width: 140px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.nav-dropdown-menu-inner {
+  background: rgba(10,10,9,0.94);
+  border: 1px solid rgba(250,250,248,.12);
+  border-radius: 3px;
+  padding: .5rem 0;
+  min-width: 140px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+[data-theme="light"] .nav-dropdown-menu-inner,
+:root:not([data-theme="dark"]) .nav-dropdown-menu-inner {
+  background: #FFFFFF;
+  border-color: rgba(17,17,16,.12);
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+}
+.nav-dropdown.open .nav-dropdown-menu { display: block; }
+.nav-dropdown-menu a {
+  display: block;
+  padding: .4rem 1rem;
+  font-size: 8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.6);
+  text-decoration: none;
+  cursor: none;
+  white-space: nowrap;
+  transition: color .15s;
+  text-shadow: none;
+}
+[data-theme="light"] .nav-dropdown-menu a,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a { color: rgba(17,17,16,.55); }
+.nav-dropdown-menu a:hover { color: rgba(250,250,248,.95); }
+[data-theme="light"] .nav-dropdown-menu a:hover,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a:hover { color: rgba(17,17,16,.95); }
+.nav-dropdown-menu a.active-filter { color: rgba(250,250,248,.95); }
+[data-theme="light"] .nav-dropdown-menu a.active-filter,
+:root:not([data-theme="dark"]) .nav-dropdown-menu a.active-filter { color: rgba(17,17,16,.95); }
+.nav-dropdown-menu .dropdown-divider {
+  height: 1px;
+  background: rgba(250,250,248,.1);
+  margin: .35rem 0;
+}
+[data-theme="light"] .nav-dropdown-menu .dropdown-divider,
+:root:not([data-theme="dark"]) .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1); }
+nav.on-light .nav-dropdown-menu-inner { background: #FFFFFF; border-color: rgba(17,17,16,.12); }
+nav.on-light .nav-dropdown-menu a { color: rgba(17,17,16,.55); }
+nav.on-light .nav-dropdown-menu a:hover,
+nav.on-light .nav-dropdown-menu a.active-filter { color: rgba(17,17,16,.95); }
+nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1); }
+
+/* INTRO */
+.intro {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.intro-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.intro-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  filter: grayscale(0.25) brightness(0.72);
+}
+.intro-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom,
+    rgba(17,17,16,0.18) 0%,
+    rgba(17,17,16,0.0) 40%,
+    rgba(17,17,16,0.22) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+/* Portrait: let image show at full height, no crop */
+.intro.portrait {
+  height: auto;
+  overflow: visible;
+}
+.intro.portrait .intro-bg {
+  position: relative;
+  inset: auto;
+  overflow: visible;
+}
+.intro.portrait .intro-bg img {
+  height: auto;
+  object-fit: unset;
+}
+.intro.portrait .intro-overlay {
+  inset: auto;
+  bottom: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, rgba(17,17,16,0.55));
+}
+.intro.portrait .intro-text {
+  position: absolute;
+  bottom: 2.5rem; left: 2rem;
+  text-align: left;
+}
+.intro.portrait .intro-scroll {
+  position: absolute;
+  bottom: 1.5rem; right: 2rem;
+  left: auto; transform: none;
+}
+/* Portrait in sticky wrap — constrain to viewport */
+.intro-sticky-wrap .intro.portrait {
+  height: 100vh;
+  overflow: hidden;
+}
+.intro-sticky-wrap .intro.portrait .intro-bg img {
+  height: 100%;
+  object-fit: cover;
+}
+.intro-text {
+  position: relative; z-index: 2;
+  text-align: center;
+}
+.intro-title {
+  font-family: var(--fi);
+  font-size: clamp(2.8rem, 6vw, 6rem);
+  font-style: italic;
+  font-weight: 400;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255,255,255,0.9);
+  text-stroke: 1px rgba(255,255,255,0.9);
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin-bottom: .75rem;
+  opacity: 0;
+  animation: up 1.2s .3s ease forwards;
+}
+.intro-sub {
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: .5px rgba(255,255,255,0.7);
+  text-stroke: .5px rgba(255,255,255,0.7);
+  opacity: 0;
+  animation: up .8s .9s ease forwards;
+}
+.intro-scroll {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .55rem;
+  opacity: 0;
+  animation: fadeIn 1s 1.6s ease forwards;
+  z-index: 2;
+  transition: opacity .5s ease, transform .5s ease;
+}
+.intro-scroll.hidden {
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(8px);
+  pointer-events: none;
+}
+.intro-scroll span {
+  font-size: 9.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+}
+.intro-scroll .scroll-chevron {
+  width: 18px; height: 18px;
+  margin-top: -.05rem;
+  animation: scrollBounce 1.6s ease-in-out infinite;
+}
+.intro-scroll .scroll-chevron svg { display: block; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.6)); }
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: .8; }
+  50% { transform: translateY(6px); opacity: 1; }
+}
+.scroll-bar {
+  width: 1.5px; height: 30px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.95), transparent);
+  animation: pulse 2s 2s ease infinite;
+}
+
+/* First feed item — starts slightly below, GSAP brings it in */
+.feed-item-first {
+  position: relative;
+  z-index: 20;
+  opacity: 0;
+}
+
+/* FILTER BAR */
+/* FEED — two column */
+.feed { padding: 0; }
+
+.feed-cols {
+  display: flex;
+  gap: 4vw;
+  padding: 4vw 5vw 6vw;
+  align-items: flex-start;
+  /* Guard: clip any transient horizontal overflow from item reveal animations
+     so it can never make the document wider than the viewport (which detaches
+     the fixed nav on Android Chrome). Safe here — the nav lives outside this
+     subtree, so this doesn't affect its fixed positioning. */
+  overflow-x: clip;
+}
+
+.feed-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4vw;
+}
+
+/* Slight right column offset for editorial feel */
+.feed-col:last-child {
+  padding-top: 3vw;
+}
+
+.feed-col-item {
+  opacity: 0; /* GSAP animates to 1 */
+}
+.feed-col-item.portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.feed-col-item .img-wrap img {
+  width: 100%;
+  height: auto;
+  max-height: 85vh;
+  object-fit: contain;
+  display: block;
+}
+.feed-col-item.portrait .img-wrap {
+  display: inline-block;
+  position: relative;
+  max-height: 85vh;
+}
+.feed-col-item.portrait .img-wrap img {
+  max-height: 85vh;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
+/* First item — full width hero entry */
+.feed-item-first {
+  grid-column: 1 / -1;
+  opacity: 0;
+  margin-bottom: 6vw;
+}
+.feed-item-first .img-wrap img {
+  width: 100%;
+  max-height: 90vh;
+  object-fit: cover;
+  display: block;
+}
+
+/* Image hover */
+.img-wrap {
+  position: relative;
+  overflow: hidden;
+  display: block;
+}
+.img-wrap img {
+  transition: transform .6s ease;
+  display: block; width: 100%;
+}
+.img-wrap:hover img { transform: scale(1.02); }
+
+.img-label {
+  position: absolute;
+  bottom: .75rem; left: .75rem;
+  font-size: 7.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.92);
+  background: rgba(0,0,0,0.45);
+  padding: .22rem .55rem;
+  border-radius: 2px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  /* Ensure label sits on the actual image, not the container */
+  z-index: 2;
+}
+.img-wrap:hover .img-label { opacity: 1; transform: translateY(0); }
+
+/* Gap between images */
+.gap-sm { height: 2px; background: var(--bg); }
+.gap-md { height: 6vw; }
+.gap-lg { height: 10vw; }
+
+/* FOOTER */
+.site-footer {
+  padding: 4rem 2rem 3rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 8vw;
+}
+.footer-left {}
+.footer-name {
+  font-family: var(--fi);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--fg);
+  display: block;
+  margin-bottom: .4rem;
+}
+.footer-loc {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+.footer-contact {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+.footer-contact a {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pink);
+  text-decoration: none;
+  cursor: none;
+}
+
+@media(max-width: 640px) {
+  .site-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
+    padding: 3rem 1.5rem 2.5rem;
+  }
+  .footer-contact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .85rem;
+  }
+}
+
+/* KEYFRAMES */
+@keyframes up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.9} }
+
+/* LIGHTBOX */
+#lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5rem 2rem 3rem;
+  background: rgba(10,10,9,0);
+  opacity: 0;
+  pointer-events: none;
+  transition: background .4s ease, opacity .4s ease;
+  overflow-y: auto;
+}
+#lightbox.open {
+  background: rgba(10,10,9,0.92);
+  opacity: 1;
+  pointer-events: all;
+}
+#lightbox img {
+  max-width: 100%;
+  max-height: calc(100vh - 10rem);
+  object-fit: contain;
+  display: block;
+  opacity: 1;
+  border-radius: 1px;
+  cursor: none;
+}
+#lightbox.open img {
+  opacity: 1;
+}
+#lightbox-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+  max-width: 100%;
+  width: 100%;
+}
+#lightbox-close {
+  position: absolute;
+  top: 1.5rem; right: 2rem;
+  font-family: var(--fm);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.5);
+  cursor: none;
+  background: none;
+  border: none;
+  padding: .5rem;
+  transition: color .2s;
+}
+#lightbox-close:hover { color: rgba(250,250,248,.9); }
+@media(max-width: 640px) {
+  #lightbox-close { display: none; }
+}
+#lb-prev, #lb-next {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(250,250,248,.35);
+  font-size: 1.5rem;
+  padding: 1rem;
+  cursor: none;
+  transition: color .2s;
+  display: none;
+  align-items: center;
+  z-index: 1001;
+}
+#lb-prev { left: .5rem; }
+#lb-next { right: .5rem; }
+@media(max-width: 640px) {
+  #lb-prev, #lb-next { display: none !important; }
+}
+#lb-prev:hover, #lb-next:hover { color: rgba(250,250,248,.9); }
+#lightbox-caption {
+  font-family: var(--fm);
+  font-size: 8px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: .5px rgba(255,255,255,0.75);
+  text-stroke: .5px rgba(255,255,255,0.75);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#lightbox-desc-toggle {
+  font-family: var(--fm);
+  font-size: 8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(250,250,248,.45);
+  background: none;
+  border: none;
+  cursor: none;
+  padding: 0;
+  display: none;
+  transition: color .2s;
+  margin-top: .15rem;
+}
+#lightbox-desc-toggle:hover { color: rgba(250,250,248,.85); }
+#lightbox-desc-toggle.has-desc { display: block; }
+/* Description sits below the image in normal flow — lightbox scrolls to reveal it,
+   so it never overlaps the photo */
+#lightbox-desc {
+  display: none;
+  width: 100%;
+  max-width: 680px;
+  margin: 1.5rem auto 0;
+  padding: 1.5rem 2rem 2rem;
+  background: rgba(10,10,9,0.6);
+  border-radius: 4px;
+  position: relative;
+}
+#lightbox-desc.open { display: block; }
+#lightbox-desc > p {
+  font-family: var(--fi);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.85;
+  color: rgba(250,250,248,.9);
+  text-align: left;
+  white-space: pre-wrap;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.sub-page-footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--border);
+}
+#contact-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#contact-page .inner { max-width: 600px; margin: 0 auto; }
+#contact-page.active { display: block; }
+#main-content.hidden { display: none; }
+
+#privacy-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#privacy-page .inner { max-width: 600px; margin: 0 auto; }
+#privacy-page.active { display: block; }
+
+#terms-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#terms-page .inner { max-width: 600px; margin: 0 auto; }
+#terms-page.active { display: block; }
+
+#impressum-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#impressum-page .inner { max-width: 600px; margin: 0 auto; }
+#impressum-page.active { display: block; }
+
+#workshop-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#workshop-page .inner { max-width: 680px; margin: 0 auto; }
+#workshop-page.active { display: block; }
+.ws-banner {
+  font-family: var(--fm); font-size: 10px; letter-spacing: .02em;
+  color: var(--pink-d); background: rgba(200,144,122,.1);
+  border: 1px solid rgba(200,144,122,.3); border-radius: 3px;
+  padding: .75rem 1rem; margin-bottom: 1.75rem; line-height: 1.6;
+}
+.ws-section-title { font-family: var(--fm); font-size: 8px; letter-spacing: .16em; text-transform: uppercase; color: var(--fg-l); margin: 0 0 1rem; }
+.ws-sched-row { display: flex; gap: 1rem; padding: .45rem 0; border-bottom: 1px solid var(--border); font-size: 11px; line-height: 1.7; }
+.ws-sched-row:last-child { border-bottom: none; }
+.ws-sched-time { font-family: var(--fm); color: var(--fg-l); flex-shrink: 0; width: 46px; letter-spacing: .04em; }
+.ws-sched-text { color: var(--fg-m); }
+.ws-list { list-style: none; padding: 0; margin: 0; }
+.ws-list li { font-size: 11px; color: var(--fg-m); line-height: 1.8; padding-left: 1.1rem; position: relative; }
+.ws-list li::before { content: '·'; position: absolute; left: .3rem; color: var(--fg-l); }
+.ws-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.ws-gallery img { width: 100%; height: auto; display: block; cursor: none; }
+.ws-date-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 1px solid var(--border); border-radius: 2px; padding: .9rem 1.1rem; margin-bottom: .6rem; }
+.ws-date-label { font-size: 12px; color: var(--fg); }
+.ws-date-spots { font-family: var(--fm); font-size: 9px; letter-spacing: .06em; color: var(--fg-l); margin-top: .25rem; }
+.ws-date-right { display: flex; align-items: center; gap: .9rem; flex-shrink: 0; }
+.ws-date-price { font-family: var(--fm); font-size: 11px; color: var(--fg); letter-spacing: .04em; }
+.ws-book-btn { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; padding: .55rem .9rem; background: var(--fg); color: var(--bg); border: none; border-radius: 2px; cursor: none; }
+.ws-book-btn[disabled] { opacity: .45; }
+.ws-no-dates { font-size: 11px; color: var(--fg-l); }
+@media(max-width:640px){
+  .ws-date-card { flex-direction: column; align-items: flex-start; }
+  .ws-gallery { grid-template-columns: 1fr; }
+}
+
+#faq-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#faq-page .inner { max-width: 680px; margin: 0 auto; }
+#faq-page.active { display: block; }
+
+/* SHOP PAGE */
+#shop-page, #shop-success-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 5rem;
+}
+#shop-page .inner, #shop-success-page .inner { max-width: 900px; margin: 0 auto; }
+#shop-page.active, #shop-success-page.active { display: block; }
+
+.shop-heading {
+  font-family: var(--fi);
+  font-size: clamp(2.5rem,5vw,4.5rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: .95;
+  letter-spacing: -.03em;
+  color: var(--fg);
+  margin-bottom: .75rem;
+}
+.shop-sub {
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.9;
+  margin-bottom: 1.25rem;
+}
+.shop-sub:last-of-type { margin-bottom: 2.5rem; }
+
+.shop-grid {
+  display: flex;
+  gap: 2.5vw;
+  align-items: flex-start;
+  margin-bottom: 3rem;
+}
+.shop-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5vw;
+}
+.shop-col:last-child { padding-top: 2.5vw; }
+.shop-card {
+  cursor: none;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity .7s ease, transform .7s ease;
+}
+.shop-card.visible { opacity: 1; transform: translateY(0); }
+.shop-card-img-wrap {
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-2);
+  margin-bottom: .65rem;
+  position: relative;
+}
+.shop-card-img-wrap img {
+  width: 100%; height: auto; display: block;
+  transition: transform .5s ease;
+}
+.shop-card:hover .shop-card-img-wrap img { transform: scale(1.04); }
+.shop-card-img-wrap.landscape img { width: 100%; height: auto; }
+.shop-card-title { font-size: 11px; color: var(--fg); margin-bottom: .15rem; }
+.shop-card-price { font-family: var(--fm); font-size: 9px; color: var(--fg-l); letter-spacing: .04em; }
+.shop-card-soldout {
+  position: absolute; top: .6rem; left: .6rem;
+  font-family: var(--fm); font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
+  background: var(--fg); color: var(--bg); padding: .2rem .5rem; border-radius: 2px;
+}
+.shop-card-limited {
+  position: absolute; bottom: .6rem; left: .6rem;
+  font-family: var(--fm); font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
+  background: rgba(255,255,255,0.85); color: #111;
+  border: none;
+  padding: .2rem .5rem; border-radius: 2px;
+  z-index: 2;
+}
+.shop-card-img-wrap img { position: relative; z-index: 1; }
+.shop-empty { padding: 4rem 0; text-align: center; color: var(--fg-l); font-style: italic; font-size: 11px; }
+
+/* PRODUCT DETAIL OVERLAY */
+#shop-detail {
+  display: none;
+  position: fixed; inset: 0; z-index: 150;
+  background: var(--bg);
+  overflow-y: auto;
+  padding: 6rem 2rem 4rem;
+}
+#shop-detail.open { display: block; }
+.shop-detail-inner {
+  max-width: 900px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+}
+.shop-detail-img { width: 100%; aspect-ratio: 1 / 1.414; object-fit: cover; background: var(--bg-2); }
+.shop-detail-img.landscape { aspect-ratio: 1.414 / 1; }
+.shop-detail-title { font-family: var(--fi); font-size: 1.8rem; font-style: italic; color: var(--fg); margin-bottom: .5rem; }
+.shop-detail-desc { font-size: 11px; color: var(--fg-m); line-height: 1.8; margin-bottom: 1.5rem; }
+.shop-detail-note {
+  font-family: var(--fi);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
+  padding: .75rem 1rem;
+  border-left: 2px solid var(--border);
+  white-space: pre-wrap;
+}
+.shop-size-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .85rem 1rem; border: 1px solid var(--border); margin-bottom: .5rem;
+  cursor: none; transition: border-color .2s;
+}
+.shop-size-option.selected { border-color: var(--fg); }
+.shop-size-option.disabled { opacity: .35; cursor: default; }
+.shop-size-name { font-size: 11px; color: var(--fg); }
+.shop-size-meta { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
+.shop-size-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
+.btn-add-cart {
+  width: 100%; background: var(--btn-bg); color: var(--btn-color);
+  border: none; padding: .85rem; margin-top: 1rem;
+  font-family: var(--fb,'DM Sans',sans-serif); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+  cursor: none; transition: opacity .2s;
+}
+.btn-add-cart:disabled { opacity: .4; cursor: default; }
+.shop-detail-close { display: none; }
+.cart-continue-link {
+  display: block;
+  font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fg-l); background: none; border: none; cursor: none; padding: 0;
+  margin-bottom: 1.5rem;
+}
+.cart-continue-link:hover { color: var(--fg); }
+
+/* CART */
+.shop-cart-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
+  background: var(--fg); color: var(--bg);
+  padding: .85rem 2rem;
+  display: none;
+  align-items: center; justify-content: space-between;
+  transition: background .4s, color .4s;
+}
+.shop-cart-bar.visible { display: flex; }
+.shop-cart-bar-info { font-size: 10px; letter-spacing: .04em; }
+.shop-cart-bar-btn {
+  font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  background: none; border: 1px solid var(--bg); color: var(--bg);
+  padding: .4rem 1rem; cursor: none; transition: opacity .2s;
+}
+.shop-cart-bar-btn:hover { opacity: .7; }
+
+#cart-page {
+  display: none;
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  padding: 8rem 2rem 5rem;
+}
+#cart-page.active { display: block; }
+#cart-page .inner { max-width: 600px; margin: 0 auto; }
+.cart-item {
+  display: grid; grid-template-columns: 70px 1fr auto; gap: 1rem; align-items: center;
+  padding: 1rem 0; border-bottom: 1px solid var(--border);
+}
+.cart-item-img-wrap { width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cart-item img { max-width: 70px; max-height: 70px; object-fit: contain; display: block; }
+.cart-item-title { font-size: 11px; color: var(--fg); }
+.cart-item-size { font-family: var(--fm); font-size: 9px; color: var(--fg-l); margin-top: .15rem; }
+.cart-item-price { font-family: var(--fm); font-size: 10px; color: var(--fg); }
+.cart-item-remove { font-family: var(--fm); font-size: 8px; color: var(--fg-l); background:none; border:none; cursor:none; text-decoration:underline; margin-top:.3rem; padding:0; }
+.cart-item-qty { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
+.cart-qty-btn {
+  font-family: var(--fm); font-size: 11px; color: var(--fg);
+  background: none; border: 1px solid var(--border); border-radius: 2px;
+  width: 20px; height: 20px; line-height: 1; padding: 0; cursor: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s, opacity .15s;
+}
+.cart-qty-btn:hover:not(:disabled) { border-color: var(--fg-m); }
+.cart-qty-btn:disabled { opacity: .3; }
+.cart-qty-count { font-family: var(--fm); font-size: 10px; color: var(--fg); min-width: 1.2ch; text-align: center; }
+.cart-item-note { font-size: 9px; color: var(--fg-l); font-style: italic; margin-top: .2rem; line-height: 1.5; }
+
+/* Country picker */
+.country-picker { position: relative; max-width: 280px; }
+.country-picker-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .6rem .85rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--fg-m);
+  cursor: none;
+  text-align: left;
+  transition: border-color .2s, color .2s;
+}
+.country-picker-btn:hover { border-color: var(--fg-m); color: var(--fg); }
+.country-picker-btn svg { opacity: .4; transition: transform .2s; }
+.country-picker.open .country-picker-btn svg { transform: rotate(180deg); }
+.country-picker-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+}
+.country-picker.open .country-picker-menu { display: block; }
+.country-picker-group {
+  font-family: var(--fm);
+  font-size: 7.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  padding: .6rem .85rem .3rem;
+}
+.country-picker-option {
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--fg-m);
+  padding: .45rem .85rem;
+  cursor: none;
+  transition: background .1s, color .1s;
+}
+.country-picker-option:hover { background: var(--bg-2); color: var(--fg); }
+.country-picker-option.selected { color: var(--fg); }
+.country-picker-option.filtered-out { display: none; }
+.country-picker-group.filtered-out { display: none; }
+.country-picker-search-wrap {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: .5rem .5rem .4rem;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.country-picker-search {
+  width: 100%;
+  font-family: var(--fm);
+  font-size: 10px;
+  letter-spacing: .03em;
+  color: var(--fg);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: .4rem .6rem;
+  outline: none;
+}
+.country-picker-search::placeholder { color: var(--fg-l); }
+.country-picker-search:focus { border-color: var(--fg-m); }
+.country-picker-empty {
+  font-family: var(--fm);
+  font-size: 10px;
+  color: var(--fg-l);
+  padding: .7rem .85rem;
+}
+.shop-customer-note-wrap { margin-bottom: 1rem; }
+.shop-customer-note-label { display: block; font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin-bottom: .4rem; }
+.shop-customer-note { width: 100%; font-family: var(--fm); font-size: 11px; color: var(--fg); background: var(--bg-2); border: 1px solid var(--border); border-radius: 2px; padding: .6rem .75rem; resize: vertical; line-height: 1.6; }
+.cart-delivery-title { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-l); margin: 2rem 0 .85rem; }
+.cart-delivery-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .85rem 1rem; border: 1px solid var(--border); margin-bottom: .5rem; cursor: none;
+}
+.cart-delivery-option.selected { border-color: var(--fg); }
+.cart-delivery-option.disabled { opacity: .3; cursor: default; }
+.cart-total-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: 1.25rem; margin-top: .5rem; border-top: 1px solid var(--border);
+  font-family: var(--fi); font-style: italic; font-size: 1.3rem; color: var(--fg);
+}
+.cart-empty { padding: 3rem 0; text-align: center; color: var(--fg-l); font-style: italic; font-size: 11px; }
+
+/* SUCCESS PAGE */
+.success-icon { font-family: var(--fi); font-size: 2.5rem; font-style: italic; color: var(--fg); margin-bottom: 1rem; }
+.success-detail { font-size: 11px; color: var(--fg-m); line-height: 1.9; margin-bottom: 2rem; }
+.success-order-line { display: flex; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--fg-m); }
+
+@media(max-width: 768px) {
+  .shop-detail-inner { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+
+/* Mobile nav — collapses to hamburger below 640px */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: .4rem;
+  cursor: none;
+}
+.nav-hamburger span {
+  display: block;
+  width: 20px;
+  height: 1.5px;
+  background: rgba(250,250,248,.8);
+  transition: background .2s;
+}
+nav.on-light .nav-hamburger span,
+[data-theme="light"] .nav-hamburger span,
+:root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.75); }
+
+/* Persistent menu button — shown on the homepage hero (desktop + mobile) even
+   while the full nav bar is still hidden, so first-time visitors always have a
+   visible way into the site without needing to discover the scroll-reveal. It
+   lives outside <nav> so nav's opacity:0 on load doesn't hide it too. */
+.hero-menu-btn {
+  position: fixed;
+  top: 1.4rem; right: 2rem;
+  top: calc(1.4rem + env(safe-area-inset-top, 0px));
+  z-index: 501;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: .4rem;
+  cursor: none;
+  opacity: 0;
+  transition: opacity .4s ease;
+  pointer-events: none;
+}
+.hero-menu-btn.visible { opacity: 1; pointer-events: all; }
+.hero-menu-btn span {
+  display: block;
+  width: 22px;
+  height: 1.5px;
+  background: #fff;
+  /* Solid white bars with a dark drop-shadow rather than mix-blend-mode —
+     blend mode inside this position:fixed button broke pinning on Android
+     Chrome (see nav-blend note). The shadow keeps them visible over light
+     areas of the hero. */
+  box-shadow: 0 0 3px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.4);
+  transition: opacity .2s;
+}
+@media(max-width: 640px) {
+  .hero-menu-btn { top: 1.1rem; right: 1.25rem; top: calc(1.1rem + env(safe-area-inset-top, 0px)); }
+}
+
+#nav-mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 510;
+  background: var(--bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+}
+#nav-mobile-menu.open { display: flex; }
+#nav-mobile-menu > a {
+  font-family: var(--fi);
+  font-style: italic;
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  color: var(--fg);
+  text-decoration: none;
+  letter-spacing: -.01em;
+  cursor: none;
+}
+#nav-mobile-close {
+  position: absolute;
+  top: 1.25rem; right: 1.25rem;
+  background: none; border: none;
+  font-family: var(--fm); font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--fg-m); cursor: none; padding: .75rem;
+  z-index: 2;
+}
+#nav-mobile-theme {
+  background: none; border: none;
+  color: var(--fg-m); padding: .5rem;
+  display: flex; align-items: center;
+  margin-top: .5rem;
+}
+#nav-mobile-work-sub {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: .85rem;
+  margin-top: -.5rem;
+}
+#nav-mobile-work-sub.open { display: flex; }
+#nav-mobile-work-sub a {
+  font-size: 1rem;
+  color: var(--fg-m);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-family: var(--fm);
+  font-style: normal;
+  cursor: none;
+}
+
+@media(max-width: 640px) {
+  nav { padding: 1.1rem 1.25rem; padding-top: calc(1.1rem + env(safe-area-inset-top, 0px)); }
+  .nav-hamburger { display: flex; }
+  .nav-links { display: none; }
+  nav > div > #theme-toggle { display: none; }
+  nav > div { gap: .75rem; }
+}
+
+.contact-heading {
+  font-family: var(--fi);
+  font-size: clamp(2.5rem,5vw,4.5rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: .95;
+  letter-spacing: -.03em;
+  color: var(--fg);
+  margin-bottom: 2.5rem;
+}
+.form-group { margin-bottom: .9rem; }
+.form-group label {
+  display: block;
+  font-size: 8.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: .35rem;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: .65rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  font-family: var(--fm);
+  font-size: 11px;
+  letter-spacing: .03em;
+  color: var(--fg);
+  background: transparent;
+  outline: none;
+  transition: border-color .18s;
+  appearance: none;
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder { color: var(--fg-l); }
+.form-group select option { background: var(--bg); }
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--fg); }
+.form-group textarea { resize: vertical; min-height: 100px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.btn-send {
+  width: 100%; background: var(--btn-bg); color: var(--btn-color);
+  border: none; padding: .8rem;
+  font-family: var(--fm); font-size: 9px; letter-spacing: .14em;
+  text-transform: uppercase; cursor: none;
+  transition: background .2s; margin-top: .25rem;
+  border-radius: 1px;
+}
+.btn-send:hover { background: var(--fg-m); }
+.btn-send:disabled { opacity: .45; cursor: default; }
+.form-msg { font-size: 9px; letter-spacing: .06em; margin-top: .4rem; min-height: 1rem; color: var(--gray); }
+
+/* ABOUT PAGE */
+#about-page {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  transition: background .4s;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8rem 2rem 4rem;
+}
+#about-page .inner { max-width: 680px; margin: 0 auto; }
+#about-page.active { display: block; }
+.about-heading {
+  font-family: var(--fi);
+  font-size: clamp(2.5rem,5vw,4.5rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: .95;
+  letter-spacing: -.03em;
+  color: var(--fg);
+  margin-bottom: 2.5rem;
+}
+.about-body p {
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: var(--fg-m);
+  line-height: 1.9;
+  margin-bottom: 1rem;
+}
+.category-desc {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 3rem 2rem 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: var(--fg-m);
+  line-height: 1.9;
+}
+@media(max-width: 640px) {
+  .category-desc { padding: 2.25rem 1.5rem 0; font-size: 11.5px; }
+}
+.about-body p:last-child { margin-bottom: 0; }
+.about-body strong { color: var(--fg); font-weight: 400; }
+.about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
+.about-spec {
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  line-height: 1.8;
+}
+
+/* FAQ */
+.faq-section { margin-bottom: 2.5rem; }
+.faq-heading {
+  font-family: var(--fm);
+  font-size: 8px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--fg-l);
+  margin-bottom: .75rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-q {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  outline: none;
+  padding: .9rem 1.5rem .9rem 0;
+  font-family: var(--fm);
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: var(--fg);
+  cursor: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  transition: color .2s;
+}
+.faq-q:hover { color: var(--fg-m); }
+.faq-q::after {
+  content: '+';
+  font-family: var(--fm);
+  font-size: 18px;
+  font-weight: 200;
+  color: var(--fg-l);
+  flex-shrink: 0;
+  line-height: 1;
+  transition: transform .25s ease, color .2s;
+}
+.faq-q.open { color: var(--fg); }
+.faq-q.open::after { transform: rotate(45deg); color: var(--fg-m); }
+.faq-a {
+  display: none;
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--fg-m);
+  line-height: 1.9;
+  padding: 0 2rem 1.1rem 0;
+  letter-spacing: .01em;
+}
+.faq-a.open { display: block; }
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .feed-cols { flex-direction: column; padding: 4vw 4vw 8vw; gap: 6vw; }
+  .feed-col:last-child { margin-top: 0; }
+  .feed-col { gap: 6vw; }
+  .shop-grid { flex-direction: column; gap: 6vw; }
+  /* Dissolve the two columns so cards stack as direct children of .shop-grid,
+     sorted by their flex order (= admin sort order) instead of column-by-column */
+  .shop-col { display: contents; }
+  .intro-title { font-size:clamp(2rem,8vw,4rem); }
+}
+@media(max-width:480px){
+  nav { padding:1.1rem 1.25rem; }
+  .feed-cols { padding: 4vw 4vw 8vw; }
+  .form-row { grid-template-columns:1fr; }
+  .intro-scroll { display: none; }
+  body { cursor:auto; }
+  #cur { display:none; }
+}
+</style>
+</head>
+<body>
+
+<script>
+// NAVDEBUG v2 — hunt the residual overflow. Flags:
+//   ?clamp=1  → hard-clamp html+body+nav to viewport width (proves the cure)
+//   ?nav100=1 → constrain ONLY the nav to width:100% (tests if nav itself is the width)
+window.__NAVDEBUG = true;
+window.__Q = new URLSearchParams(location.search);
+(function(){
+  let css = '';
+  if (window.__Q.has('clamp')) {
+    css += 'html,body{max-width:100vw!important;overflow-x:clip!important}';
+    css += '#nav{max-width:100vw!important;width:100%!important;box-sizing:border-box!important}';
+    css += '#main-content{max-width:100vw!important;overflow-x:clip!important}';
+  }
+  if (window.__Q.has('nav100')) {
+    css += '#nav{max-width:100vw!important;width:100%!important;box-sizing:border-box!important;left:0!important;right:0!important}';
+  }
+  if (css) { const s=document.createElement('style'); s.textContent=css; document.head.appendChild(s); }
+})();
+</script>
+
+<div id="cur"></div>
+
+<nav id="nav">
+  <a class="nav-name" onclick="showPage('main')" id="c-nav_name">Bharat Bhatia</a>
+  <div style="display:flex;align-items:center;gap:1.75rem">
+    <ul class="nav-links">
+      <li class="nav-dropdown">
+        <a onclick="showPage('main');setFilter('all')" id="c-nav_work">Work</a>
+        <div class="nav-dropdown-menu" id="work-dropdown">
+          <div class="nav-dropdown-menu-inner" id="work-dropdown-inner">
+            <!-- populated dynamically from allPrints categories -->
+          </div>
+        </div>
+      </li>
+      <li><a onclick="showPage('about')" id="c-nav_about">About</a></li>
+      <li><a onclick="showPage('shop')" id="c-nav_shop">Shop</a></li>
+      <li><a onclick="showPage('cart')" id="nav-cart-link">Cart<span id="nav-cart-count"></span></a></li>
+      <li><a onclick="showPage('contact')" id="c-nav_contact">Contact</a></li>
+    </ul>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg class="horizon-svg" width="22" height="22" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <defs>
+          <clipPath id="horizon-clip">
+            <path d="M0 0h32v29h-32z"/>
+          </clipPath>
+        </defs>
+        <!-- horizon line -->
+        <path d="M30.7 29.9H1.3c-.7 0-1.3.5-1.3 1.1 0 .6.6 1 1.3 1h29.3c.7 0 1.3-.5 1.3-1.1.1-.5-.5-1-1.2-1z"/>
+        <!-- sun/star -->
+        <g clip-path="url(#horizon-clip)">
+          <path id="horizon-sun" d="M16 8.8c-3.4 0-6.1 2.8-6.1 6.1s2.7 6.3 6.1 6.3 6.1-2.8 6.1-6.1-2.7-6.3-6.1-6.3zm13.3 11L26 15l3.3-4.8c.3-.5.1-1.1-.5-1.2l-5.7-1-1-5.7c-.1-.6-.8-.8-1.2-.5L16 5.1l-4.8-3.3c-.5-.4-1.2-.1-1.3.4L8.9 8 3.2 9c-.6.1-.8.8-.5 1.2L6 15l-3.3 4.8c-.3.5-.1 1.1.5 1.2l5.7 1 1 5.7c.1.6.8.8 1.2.5L16 25l4.8 3.3c.5.3 1.1.1 1.2-.5l1-5.7 5.7-1c.7-.1.9-.8.6-1.3zM16 22.5A7.6 7.6 0 0 1 8.3 15c0-4.2 3.5-7.5 7.7-7.5s7.7 3.4 7.7 7.5c0 4.2-3.4 7.5-7.7 7.5z"/>
+        </g>
+      </svg>
+    </button>
+    <button class="nav-hamburger" id="nav-hamburger" onclick="openMobileNav()" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Persistent hero menu button — opens the same overlay as the mobile menu.
+     JS toggles .visible so it only appears on the homepage while the full nav
+     bar is hidden (i.e. before scroll), then hands over to the real nav. -->
+<button class="hero-menu-btn" id="hero-menu-btn" onclick="heroMenuClick()" aria-label="Open menu">
+  <span></span><span></span><span></span>
+</button>
+
+<!-- MOBILE NAV MENU -->
+<div id="nav-mobile-menu">
+  <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
+  <a onclick="toggleMobileWork()">Work</a>
+  <div id="nav-mobile-work-sub">
+    <!-- populated dynamically from allPrints, same as desktop dropdown -->
+  </div>
+  <a onclick="showPage('about');closeMobileNav()">About</a>
+  <a onclick="showPage('shop');closeMobileNav()">Shop</a>
+  <a onclick="showPage('cart');closeMobileNav()">Cart<span id="nav-mobile-cart-count"></span></a>
+  <a onclick="showPage('contact');closeMobileNav()">Contact</a>
+  <button id="nav-mobile-theme" onclick="toggleTheme()" aria-label="Toggle dark mode">
+    <svg class="horizon-svg" width="20" height="20" viewBox="0 0 32 32" fill="currentColor"><defs><clipPath id="mc"><path d="M0 0h32v29h-32z"/></clipPath></defs><path d="M30.7 29.9H1.3c-.7 0-1.3.5-1.3 1.1 0 .6.6 1 1.3 1h29.3c.7 0 1.3-.5 1.3-1.1.1-.5-.5-1-1.2-1z"/><g clip-path="url(#mc)"><path id="horizon-sun-m" d="M16 8.8c-3.4 0-6.1 2.8-6.1 6.1s2.7 6.3 6.1 6.3 6.1-2.8 6.1-6.1-2.7-6.3-6.1-6.3zm13.3 11L26 15l3.3-4.8c.3-.5.1-1.1-.5-1.2l-5.7-1-1-5.7c-.1-.6-.8-.8-1.2-.5L16 5.1l-4.8-3.3c-.5-.4-1.2-.1-1.3.4L8.9 8 3.2 9c-.6.1-.8.8-.5 1.2L6 15l-3.3 4.8c-.3.5-.1 1.1.5 1.2l5.7 1 1 5.7c.1.6.8.8 1.2.5L16 25l4.8 3.3c.5.3 1.1.1 1.2-.5l1-5.7 5.7-1c.7-.1.9-.8.6-1.3zM16 22.5A7.6 7.6 0 0 1 8.3 15c0-4.2 3.5-7.5 7.7-7.5s7.7 3.4 7.7 7.5c0 4.2-3.4 7.5-7.7 7.5z"/></g></svg>
+  </button>
+</div>
+
+<!-- MAIN FEED -->
+<div id="main-content">
+
+  <!-- HERO -->
+  <div class="intro landscape" id="intro">
+    <div class="intro-bg">
+      <img id="intro-img" src="" alt="Bharat Bhatia">
+    </div>
+    <div class="intro-overlay"></div>
+    <div class="intro-text">
+      <h1 class="intro-title" id="c-hero_name">Bharat Bhatia</h1>
+      <p class="intro-sub" id="c-hero_sub">Zürich · Fine art print</p>
+    </div>
+    <div class="intro-scroll">
+      <div class="scroll-bar"></div>
+      <span>scroll to explore</span>
+      <div class="scroll-chevron">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="rgba(255,255,255,0.9)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /.intro -->
+
+  <!-- Category description — admin-editable, shown only while browsing a
+       specific category (not on the main/default view), and only if that
+       category actually has one set. JS toggles display, starts hidden. -->
+  <p class="category-desc" id="category-desc" style="display:none"></p>
+
+  <!-- FEED — built by JS -->
+  <div class="feed" id="feed"></div>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <span class="footer-name" id="c-footer_name">Bharat Bhatia</span>
+      <span class="footer-loc" id="c-footer_loc">Zürich · Fine art print</span>
+    </div>
+    <div class="footer-contact">
+      <a id="c-footer_ig_link" href="https://instagram.com/bajidigital" target="_blank" rel="noopener">@bajidigital</a>
+      <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
+      <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
+      <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
+      <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ABOUT PAGE -->
+<div id="about-page">
+  <div class="inner">
+    <h1 class="about-heading" id="c-about_heading">About.</h1>
+    <img id="about-photo" src="" alt="Bharat Bhatia" style="display:none;width:100px;height:100px;object-fit:cover;border-radius:50%;margin-bottom:2rem;border:1px solid var(--border)">
+    <div class="about-body">
+      <p id="c-about_p1">I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.</p>
+      <p id="c-about_p2">I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.</p>
+      <p id="c-about_p3">Based in Wiedikon, Zürich. I work from a small atelier with a fully colour-calibrated setup on an Epson SC-P900 — up to A2, across a range of fine art papers.</p>
+      <p id="c-about_p4" style="display:none"></p>
+      <div class="about-divider"></div>
+      <p class="about-spec" id="c-atelier_spec">Epson SC-P900 · 10-channel pigment ink · Up to A2 · Photo Rag Pearl · Mono Silk Warmtone · Photo Rag Satin & more</p>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT PAGE -->
+<div id="contact-page">
+  <div class="inner">
+    <h1 class="contact-heading" id="c-contact_title">Say hello.</h1>
+  <div class="form-row">
+    <div class="form-group"><label>Name</label><input type="text" id="f-name" placeholder="Anna Müller"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="f-email" placeholder="anna@example.com"></div>
+  </div>
+  <div class="form-group">
+    <label>What's on your mind?</label>
+    <select id="f-interest">
+      <option value="">Select...</option>
+      <option>Printing my work</option>
+      <option>Collaboration</option>
+      <option>Just saying hello</option>
+      <option>Something else</option>
+    </select>
+  </div>
+  <div class="form-group"><label>Message</label><textarea id="f-message" placeholder="Tell me what you're thinking..."></textarea></div>
+  <button class="btn-send" id="btn-submit">Send message</button>
+  <p class="form-msg" id="form-msg"></p>
+  </div><!-- /.inner -->
+</div>
+
+<!-- PRIVACY POLICY PAGE -->
+<div id="privacy-page">
+  <div class="inner">
+    <h1 class="about-heading">Privacy policy.</h1>
+    <div class="about-body">
+      <p>This page explains what information is collected on bharatbhatia.photography, why, and how it's handled. Last updated June 2026.</p>
+
+      <p><strong>Contact form.</strong> If you fill in the contact form, I collect your name, email address, the category you select, and any message you write. This is stored so I can reply to you and is never shared with third parties. It's used only to respond to your enquiry.</p>
+
+      <p><strong>Site analytics.</strong> When you visit this site, I log the page visited, the time, and the referring site (e.g. Instagram, Google) if your browser provides one. This is anonymous — no cookies, no IP address storage, no tracking across other websites. It's used only to understand roughly how many people visit and where from.</p>
+
+      <p><strong>Admin session.</strong> A single session cookie is used only when I log into the admin panel to manage the site. It is never set for regular visitors.</p>
+
+      <p><strong>Orders and payments.</strong> If you purchase a print, payment is processed entirely by Stripe — I never see or store your card details. Stripe's own privacy policy governs that data. I store your name, shipping address, and order details only to fulfil and ship your order.</p>
+
+      <p><strong>Images.</strong> Photographs are hosted via Cloudinary, a third-party image hosting service. No personal data is attached to images.</p>
+
+      <p><strong>Your rights.</strong> You can ask me to delete any data I hold about you — message me via the contact form or email directly. I don't sell or share your data with advertisers, ever.</p>
+
+      <div class="about-divider"></div>
+      <p class="about-spec">Questions about this policy can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- TERMS OF SALE / LEGAL NOTICE -->
+<div id="terms-page">
+  <div class="inner">
+    <h1 class="about-heading">Terms of sale.</h1>
+    <div class="about-body">
+      <p>These terms apply to any print purchased through bharatbhatia.photography. Last updated June 2026.</p>
+
+      <p><strong>Who you're buying from.</strong> Bharat Bhatia, operating as an individual print atelier based in Wiedikon, Zürich, Switzerland. For any question, get in touch via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a> or email directly.</p>
+
+      <p><strong>The contract.</strong> Placing an order and completing payment forms a binding sale, as is standard under Swiss law. You'll receive an order confirmation by email once payment is confirmed, along with a separate formal receipt from Stripe, our payment processor.</p>
+
+      <p><strong>Pricing and payment.</strong> All prices are shown in Swiss francs (CHF) and include everything except the delivery fee, which is calculated and shown separately at checkout based on your chosen delivery method and print size. Payment is handled securely by Stripe; card details are never seen or stored by me.</p>
+
+      <p><strong>Delivery.</strong> Swiss law doesn't set a maximum delivery period, but I aim to print, package, and ship every order within a reasonable time after payment, generally within one to two weeks unless otherwise noted. You'll get a confirmation email once your order ships. A4 prints are sent flat in a protective mailer; A3 and A2 prints are shipped rolled in a postal tube. Personal delivery (Zürich area) is arranged directly with you.</p>
+
+      <p><strong>Returns.</strong> I want you to be genuinely happy with your print. You may return any print within <strong>30 days</strong> of delivery, for any reason, no questions asked. This applies to orders shipped within Switzerland and the EU alike. To start a return, just get in touch with your order reference. You're responsible for the cost of return shipping; once the print arrives back in good condition, I'll refund the full purchase price (excluding the original delivery fee).</p>
+
+      <p>If you're an EU-based customer, this 30-day policy is more generous than the 14-day right of withdrawal required by EU law, so you're fully covered either way.</p>
+
+      <p><strong>Damaged or faulty prints.</strong> If your print arrives damaged or there's a defect, contact me within a reasonable time of receiving it. In these cases, the standard 30-day return applies and I'll also cover the return shipping cost. Swiss law additionally provides a two-year statutory warranty against defects on new goods, which applies regardless of the return window above.</p>
+
+      <p><strong>Limited editions.</strong> Where a print is sold as a limited edition, the edition size and your print's position within it are recorded at the time of sale and will not be exceeded.</p>
+
+      <p><strong>Liability.</strong> I take care in packaging every print to prevent damage in transit. If a parcel is visibly damaged on arrival, please document it (photos help) and contact me promptly so we can sort it out together.</p>
+
+      <p><strong>Governing law.</strong> These terms are governed by Swiss law. Any dispute will be handled under the jurisdiction of the courts of Zürich, Switzerland, without prejudice to any mandatory consumer protections that apply in your own country of residence.</p>
+
+      <div class="about-divider"></div>
+      <p class="about-spec">This page is a good-faith summary, not formal legal advice. Questions about an order can be sent via the <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact page</a>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- IMPRESSUM -->
+<div id="impressum-page">
+  <div class="inner">
+    <h1 class="about-heading">Impressum.</h1>
+    <div class="about-body">
+
+      <p class="about-spec" style="margin-bottom:2rem">Legal disclosure as required by Swiss law (UWG Art. 3 Abs. 1 lit. s).</p>
+
+      <p><strong>Responsible for this website</strong></p>
+      <p id="c-impressum_name">Bharat Bhatia</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Address</strong></p>
+      <p id="c-impressum_address" style="white-space:pre-line">Atelier Bhatia<br>Quellenstrasse 25<br>8005 Zürich<br>Switzerland</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Contact</strong></p>
+      <p>Email: <a id="c-impressum_email_link" href="mailto:support@bharatbhatia.photography" style="color:var(--pink-d)" id="c-impressum_email">support@bharatbhatia.photography</a></p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>VAT</strong></p>
+      <p id="c-impressum_vat">Not VAT registered. Annual turnover below the Swiss CHF 100,000 threshold.</p>
+
+      <div class="about-divider"></div>
+
+      <p><strong>Disclaimer</strong></p>
+      <p id="c-impressum_disclaimer">All prints are produced and sold by Bharat Bhatia as an individual. All images on this site are copyright Bharat Bhatia. Reproduction without written permission is prohibited.</p>
+
+    </div>
+  </div>
+</div>
+
+<!-- WORKSHOP PAGE — hidden: no nav/footer link, reachable via /workshops -->
+<div id="workshop-page">
+  <div class="inner">
+    <div id="workshop-banner" class="ws-banner" style="display:none"></div>
+    <h1 class="about-heading" id="c-workshop_heading">Workshop.</h1>
+    <div class="about-body">
+      <p class="about-spec" id="c-workshop_sub" style="margin-bottom:2rem">Photo to print · A full day of abstract photography in Zürich, ending with your own A2 fine art print.</p>
+      <p id="c-workshop_intro"></p>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">The day</h2>
+      <div id="workshop-schedule"></div>
+
+      <div id="workshop-gallery-section" style="display:none">
+        <div class="about-divider"></div>
+        <h2 class="ws-section-title">In action</h2>
+        <div class="ws-gallery" id="workshop-gallery"></div>
+      </div>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">What's included</h2>
+      <ul class="ws-list" id="workshop-included"></ul>
+
+      <h2 class="ws-section-title" style="margin-top:1.75rem">What to bring</h2>
+      <ul class="ws-list" id="workshop-bring"></ul>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">Good to know</h2>
+      <p id="c-workshop_weather"></p>
+      <p id="c-workshop_min"></p>
+
+      <div class="about-divider"></div>
+      <h2 class="ws-section-title">Dates &amp; booking</h2>
+      <p id="c-workshop_price_note" style="margin-bottom:1.25rem"></p>
+      <div id="workshop-dates"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ PAGE -->
+<div id="faq-page">
+  <div class="inner">
+    <h1 class="about-heading">FAQ.</h1>
+    <div class="about-body">
+
+      <p class="about-spec" style="margin-bottom:2rem">Answers to the most common questions. Something missing? <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">Get in touch</a>.</p>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Prints &amp; paper</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What paper are the prints made on?</button>
+          <div class="faq-a" id="c-faq_paper">Each print is produced on museum-grade fine art paper — the specific paper for each image is noted in the shop. I use archival papers such as Hahnemühle Photo Rag and similar. The paper choice is made per image to best complement the photograph.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What sizes are available?</button>
+          <div class="faq-a" id="c-faq_sizes">Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Are the prints signed?</button>
+          <div class="faq-a" id="c-faq_signed">Yes. All prints are signed by hand. Limited edition prints are also numbered.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What is a limited edition print?</button>
+          <div class="faq-a" id="c-faq_limited">A limited edition means only a fixed number of that print will ever be produced in that size. The edition size is shown in the shop. Once the edition sells out, no more copies of that print in that size will be made. Your edition number is recorded at the time of purchase.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Are your limited editions honoured across different platforms?</button>
+          <div class="faq-a" id="c-faq_limited_platforms">Some limited editions are also offered through other platforms, such as Artfinder. The edition size is shared across all of them — if a print has an edition of 50, that's 50 total, not 50 per platform. Every sale, wherever it happens, is recorded against the same running number, so the edition limit is always honoured and no print is ever oversold. A print may also be available as an open edition on this site even if a limited edition of it is listed elsewhere — the two are always clearly distinguished, and only the limited version is signed, numbered, and capped.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Will prints have a margin&nbsp;/&nbsp;passepartout?</button>
+          <div class="faq-a" id="c-faq_margin">Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you'd prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I'll accommodate it.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Ordering &amp; payment</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How do I order?</button>
+          <div class="faq-a" id="c-faq_how_order">Browse the shop, select a print and size, add it to your cart, choose a delivery method, and proceed to checkout. Payment is handled securely by Stripe — your card details are never seen or stored by me.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What payment methods do you accept?</button>
+          <div class="faq-a" id="c-faq_payment">Credit and debit cards (Visa, Mastercard, Amex) and TWINT for Swiss customers. All payments are processed securely via Stripe.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Can I order a print that isn't in the shop?</button>
+          <div class="faq-a" id="c-faq_custom_print">Yes — if you've seen a photo in my portfolio that isn't currently available as a print, just <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">get in touch</a> and I'll arrange it for you.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Shipping</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How are prints shipped?</button>
+          <div class="faq-a" id="c-faq_packaging">A4 prints are sent flat in a rigid protective mailer. A3 and A2 prints are shipped rolled in a sturdy postal tube. All prints are carefully packaged to arrive in perfect condition.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How long does delivery take?</button>
+          <div class="faq-a" id="c-faq_delivery_time">I aim to print and dispatch every order within one to two weeks of payment. Swiss delivery typically takes 2–4 working days after dispatch; EU and international delivery takes longer depending on destination. You'll receive a confirmation email when your order ships.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you ship internationally?</button>
+          <div class="faq-a" id="c-faq_intl">Yes — I ship to EU countries and a range of other destinations worldwide. Shipping cost is calculated at checkout based on your country and the size of your order. For destinations not listed at checkout, <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">contact me</a> for a quote.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How much does shipping cost?</button>
+          <div class="faq-a" id="c-faq_shipping_cost">Shipping is calculated automatically at checkout based on your delivery method, destination, and the size and weight of your prints. Swiss standard shipping starts from CHF 2 for A4 and CHF 9 for A3/A2. EU rates vary by weight — shown at checkout once you select your country.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Personal delivery</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What is personal delivery?</button>
+          <div class="faq-a" id="c-faq_personal_what">Personal delivery means I bring the print to you in person — no postal service, no tube. It's the most careful way to receive a large fine art print, and it gives us a chance to meet and make sure you're happy with the piece.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Which areas are covered?</button>
+          <div class="faq-a" id="c-faq_personal_where">Personal delivery is available across Switzerland and Liechtenstein. After placing your order, I'll contact you directly to arrange a time and location that works for you.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">How does personal delivery work in practice?</button>
+          <div class="faq-a" id="c-faq_personal_how">Once your order is confirmed and the print is ready, I'll reach out by email to coordinate. We arrange a meeting point — your home, your office, or anywhere convenient. I bring the print in person, flat or rolled depending on size, and you can inspect it on the spot before I leave.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Returns &amp; quality</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">What if my print arrives damaged?</button>
+          <div class="faq-a" id="c-faq_damaged">If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I'll arrange a replacement or full refund, including return shipping costs, at no charge to you.</div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you accept returns?</button>
+          <div class="faq-a" id="c-faq_returns">Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I'll refund the full purchase price. See the <a href="#" onclick="showPage('terms');return false;" style="color:var(--pink-d)">terms of sale</a> for full details.</div>
+        </div>
+      </div>
+
+      <div class="faq-section">
+        <h2 class="faq-heading">Framing</h2>
+
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggleFaq(this)">Do you offer framing?</button>
+          <div class="faq-a" id="c-faq_framing">Not yet — but it's coming. I'm in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. <a href="#" onclick="showPage('contact');return false;" style="color:var(--pink-d)">Get in touch</a> if you'd like to know more or be notified when it launches.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SHOP PAGE -->
+<div id="shop-page">
+  <div class="inner">
+    <h1 class="shop-heading" id="c-shop_heading">Shop.</h1>
+    <p class="shop-sub" id="c-shop_intro">Fine art prints from the atelier. Each one printed by hand on museum-grade paper. Shipped rolled in a tube (A3/A2) or flat-mailed (A4) — or pick up in person in Zürich.</p>
+    <p class="shop-sub" id="c-shop_p2" style="display:none"></p>
+    <p class="shop-sub" id="c-shop_p3" style="display:none"></p>
+    <div class="shop-grid" id="shop-grid">
+      <div class="shop-empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT DETAIL -->
+<div id="shop-detail">
+  <button class="shop-detail-close" onclick="closeShopDetail()">Close ✕</button>
+  <div class="shop-detail-inner" id="shop-detail-inner"></div>
+</div>
+
+<!-- CART -->
+<!-- CART PAGE -->
+<div id="cart-page">
+  <div class="inner">
+    <h1 class="shop-heading" id="c-shop_cart_heading">Your cart.</h1>
+    <button class="cart-continue-link" onclick="showPage('shop')">← Continue browsing</button>
+    <div id="cart-items"></div>
+    <div id="cart-delivery-section" style="display:none">
+      <p class="cart-delivery-title">Delivery</p>
+      <div id="cart-delivery-options"></div>
+      <div id="cart-country-wrap" style="display:none;margin-top:.85rem">
+        <label class="cart-delivery-title" style="display:block;margin-bottom:.4rem">Destination country</label>
+        <div class="country-picker" id="country-picker">
+          <button type="button" class="country-picker-btn" id="country-picker-btn" onclick="toggleCountryPicker()">
+            <span id="country-picker-label">Select a country…</span>
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div class="country-picker-menu" id="country-picker-menu">
+            <div class="country-picker-search-wrap">
+              <input type="text" id="country-picker-search" class="country-picker-search"
+                placeholder="Search countries…" autocomplete="off"
+                oninput="filterCountryPicker(this.value)"
+                onclick="event.stopPropagation()"
+                onkeydown="onCountrySearchKeydown(event)">
+            </div>
+            <div id="country-picker-empty" class="country-picker-empty" style="display:none">No matching country.</div>
+            <div class="country-picker-group">EU&nbsp;&amp;&nbsp;EEA</div>
+            <div class="country-picker-option" data-value="AT" onclick="selectCountry('AT','Austria')">Austria</div>
+            <div class="country-picker-option" data-value="BE" onclick="selectCountry('BE','Belgium')">Belgium</div>
+            <div class="country-picker-option" data-value="BG" onclick="selectCountry('BG','Bulgaria')">Bulgaria</div>
+            <div class="country-picker-option" data-value="HR" onclick="selectCountry('HR','Croatia')">Croatia</div>
+            <div class="country-picker-option" data-value="CY" onclick="selectCountry('CY','Cyprus')">Cyprus</div>
+            <div class="country-picker-option" data-value="CZ" onclick="selectCountry('CZ','Czech Republic')">Czech Republic</div>
+            <div class="country-picker-option" data-value="DK" onclick="selectCountry('DK','Denmark')">Denmark</div>
+            <div class="country-picker-option" data-value="EE" onclick="selectCountry('EE','Estonia')">Estonia</div>
+            <div class="country-picker-option" data-value="FI" onclick="selectCountry('FI','Finland')">Finland</div>
+            <div class="country-picker-option" data-value="FR" onclick="selectCountry('FR','France')">France</div>
+            <div class="country-picker-option" data-value="DE" onclick="selectCountry('DE','Germany')">Germany</div>
+            <div class="country-picker-option" data-value="GR" onclick="selectCountry('GR','Greece')">Greece</div>
+            <div class="country-picker-option" data-value="HU" onclick="selectCountry('HU','Hungary')">Hungary</div>
+            <div class="country-picker-option" data-value="IE" onclick="selectCountry('IE','Ireland')">Ireland</div>
+            <div class="country-picker-option" data-value="IT" onclick="selectCountry('IT','Italy')">Italy</div>
+            <div class="country-picker-option" data-value="LV" onclick="selectCountry('LV','Latvia')">Latvia</div>
+            <div class="country-picker-option" data-value="LT" onclick="selectCountry('LT','Lithuania')">Lithuania</div>
+            <div class="country-picker-option" data-value="LU" onclick="selectCountry('LU','Luxembourg')">Luxembourg</div>
+            <div class="country-picker-option" data-value="MT" onclick="selectCountry('MT','Malta')">Malta</div>
+            <div class="country-picker-option" data-value="NL" onclick="selectCountry('NL','Netherlands')">Netherlands</div>
+            <div class="country-picker-option" data-value="PL" onclick="selectCountry('PL','Poland')">Poland</div>
+            <div class="country-picker-option" data-value="PT" onclick="selectCountry('PT','Portugal')">Portugal</div>
+            <div class="country-picker-option" data-value="RO" onclick="selectCountry('RO','Romania')">Romania</div>
+            <div class="country-picker-option" data-value="SK" onclick="selectCountry('SK','Slovakia')">Slovakia</div>
+            <div class="country-picker-option" data-value="SI" onclick="selectCountry('SI','Slovenia')">Slovenia</div>
+            <div class="country-picker-option" data-value="ES" onclick="selectCountry('ES','Spain')">Spain</div>
+            <div class="country-picker-option" data-value="SE" onclick="selectCountry('SE','Sweden')">Sweden</div>
+            <div class="country-picker-option" data-value="GB" onclick="selectCountry('GB','United Kingdom')">United Kingdom</div>
+            <div class="country-picker-option" data-value="IS" onclick="selectCountry('IS','Iceland')">Iceland</div>
+            <div class="country-picker-option" data-value="NO" onclick="selectCountry('NO','Norway')">Norway</div>
+            <div class="country-picker-group">Rest of World</div>
+            <div class="country-picker-option" data-value="US" onclick="selectCountry('US','United States')">United States</div>
+            <div class="country-picker-option" data-value="CA" onclick="selectCountry('CA','Canada')">Canada</div>
+            <div class="country-picker-option" data-value="AU" onclick="selectCountry('AU','Australia')">Australia</div>
+            <div class="country-picker-option" data-value="JP" onclick="selectCountry('JP','Japan')">Japan</div>
+            <div class="country-picker-option" data-value="SG" onclick="selectCountry('SG','Singapore')">Singapore</div>
+            <div class="country-picker-option" data-value="NZ" onclick="selectCountry('NZ','New Zealand')">New Zealand</div>
+            <div class="country-picker-option" data-value="ZA" onclick="selectCountry('ZA','South Africa')">South Africa</div>
+            <div class="country-picker-option" data-value="BR" onclick="selectCountry('BR','Brazil')">Brazil</div>
+            <div class="country-picker-option" data-value="MX" onclick="selectCountry('MX','Mexico')">Mexico</div>
+            <div class="country-picker-option" data-value="AE" onclick="selectCountry('AE','UAE')">UAE</div>
+            <div class="country-picker-option" data-value="SA" onclick="selectCountry('SA','Saudi Arabia')">Saudi Arabia</div>
+            <div class="country-picker-option" data-value="OTHER" onclick="selectCountry('OTHER','Other')">Other</div>
+          </div>
+        </div>
+      </div>
+      <div id="cart-quote-msg" style="display:none;margin-top:.75rem;font-size:11px;color:var(--fg-m);line-height:1.7"></div>
+      <div id="cart-shipping-debug" style="display:none;margin-top:1rem;padding:.75rem;background:rgba(255,200,0,.08);border:1px solid rgba(255,200,0,.25);border-radius:2px;font-family:monospace;font-size:10px;line-height:1.7;color:var(--fg-m)"></div>
+    </div>
+    <div class="cart-total-row" id="cart-total-row" style="display:none">
+      <span>Total</span><span id="cart-total-amount"></span>
+    </div>
+    <label id="terms-accept-row" style="display:none;align-items:flex-start;gap:.55rem;margin-top:1.25rem;cursor:none;font-size:11px;color:var(--fg-m);line-height:1.6">
+      <input type="checkbox" id="accept-terms" onchange="document.getElementById('btn-checkout').disabled = !this.checked || !selectedDelivery" style="margin-top:.2rem;cursor:none">
+      <span>I've read and agree to the <a href="#" onclick="event.preventDefault();showPage('terms')" style="color:var(--pink-d)">terms of sale</a>, including the 30-day return policy.</span>
+    </label>
+    <button class="btn-add-cart" id="btn-checkout" onclick="goToCheckout()" style="margin-top:1rem" disabled>Select a delivery option</button>
+    <p class="form-msg" id="checkout-msg" style="margin-top:.65rem"></p>
+  </div>
+</div>
+
+<!-- SHOP SUCCESS PAGE -->
+<div id="shop-success-page">
+  <div class="inner">
+    <h1 class="shop-heading" id="c-shop_success_heading">Thank you.</h1>
+    <p class="shop-sub" id="success-message">Your order has been received. A confirmation will be sent to your email shortly.</p>
+    <div id="success-order-details"></div>
+    <button class="btn-add-cart" style="max-width:240px;margin-top:2rem" onclick="showPage('main')" id="c-shop_continue_btn">Continue browsing</button>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox">
+  <button id="lightbox-close" onclick="closeLightbox()">Close ✕</button>
+  <button id="lb-prev" onclick="navigateLightbox(-1)" aria-label="Previous photo">&#8592;</button>
+  <button id="lb-next" onclick="navigateLightbox(1)" aria-label="Next photo">&#8594;</button>
+  <div id="lightbox-inner">
+    <img id="lightbox-img" src="" alt="">
+    <span id="lightbox-caption"></span>
+    <button id="lightbox-desc-toggle" onclick="toggleLightboxDesc()">Read the story</button>
+    <div id="lightbox-desc">
+      <p id="lightbox-desc-text"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+// SCROLL ANIMATION
+function initScrollAnimation() {
+  const intro = document.getElementById('intro');
+  if (!intro || typeof gsap === 'undefined') return;
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Kill any existing ScrollTriggers before creating new ones —
+  // stale scroll state from a previous page causes the hero to appear
+  // already-faded even when the page is at the top.
+  ScrollTrigger.getAll().forEach(st => st.kill());
+
+  // Hero fades as you scroll past it
+  gsap.to(intro, {
+    scale: 0.96,
+    opacity: 0,
+    ease: 'none',
+    scrollTrigger: {
+      trigger: intro,
+      start: 'bottom bottom',
+      end: 'bottom top',
+      scrub: 1,
+    }
+  });
+
+  // Each portfolio item flies in individually — vertical only. A horizontal
+  // x-offset reveal (previously x:±30) pushed right-column items past the
+  // viewport's right edge during the animation, making the document wider
+  // than the screen. On Android Chrome that horizontal overflow detached the
+  // fixed nav from the visual viewport, so it appeared to "slide" on scroll.
+  // A pure y-axis fade-in gives the same reveal with zero horizontal overflow.
+  document.querySelectorAll('.feed-col-item').forEach((item, i) => {
+    gsap.fromTo(item,
+      { y: 50, opacity: 0 },
+      {
+        y: 0,
+        opacity: 1,
+        duration: 0.9,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: item,
+          start: 'top 88%',
+          toggleActions: 'play none none none',
+        },
+        delay: 0,
+      }
+    );
+  });
+}
+
+// THEME
+(function(){
+  const root = document.documentElement;
+  const btn  = document.getElementById('theme-toggle');
+  // Check stored preference, else use system
+  const stored = localStorage.getItem('theme');
+  if (stored) root.setAttribute('data-theme', stored);
+
+  function isDark() {
+    const t = root.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function updateIcon() {
+    document.querySelectorAll('.horizon-svg').forEach(svg => {
+      svg.classList.toggle('is-dark', isDark());
+    });
+  }
+
+  window.toggleTheme = function() {
+    const dark = isDark();
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('theme', dark ? 'light' : 'dark');
+    updateIcon();
+    // Re-apply hamburger color for the new theme if on a sub-page
+    const nav = document.getElementById('nav');
+    if (nav && nav.classList.contains('on-light')) {
+      const nowDark = !dark; // theme just flipped
+      nav.querySelectorAll('.nav-hamburger span').forEach(s => {
+        s.style.background = nowDark ? 'rgba(250,250,248,.8)' : 'rgba(17,17,16,.75)';
+      });
+    }
+  };
+
+  // Listen for system changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateIcon);
+  updateIcon();
+})();
+
+// NAV — show on scroll, hide at very top
+(function(){
+  const nav = document.getElementById('nav');
+  let lastY = 0;
+
+  // Shows the persistent hamburger only on the homepage while at the top (nav
+  // bar still hidden). On any sub-page, or once scrolled far enough that the
+  // real nav is visible, it hides so the two don't overlap.
+  function updateHeroMenuBtn() {
+    const btn = document.getElementById('hero-menu-btn');
+    if (!btn) return;
+    const onMain = !['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
+      .some(id => document.getElementById(id)?.classList.contains('active'));
+    const navHidden = !nav.classList.contains('visible');
+    btn.classList.toggle('visible', onMain && navHidden);
+  }
+  window.updateHeroMenuBtn = updateHeroMenuBtn;
+  updateHeroMenuBtn();
+
+  // Toggles mix-blend-mode text on the nav. It should be on only while the nav
+  // actually overlaps the hero image on the main page — that's where a fixed
+  // colour can't stay legible. The hero fills the viewport, so "still over the
+  // hero" ≈ scrolled less than one viewport height. On sub-pages, or once
+  // scrolled onto the feed below the hero, blend comes off and the normal
+  // theme-aware colours apply. Also off when nav.on-light (light sub-page bg).
+  function updateNavBlend() {
+    const onMain = !['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
+      .some(id => document.getElementById(id)?.classList.contains('active'));
+    const overHero = window.scrollY < (window.innerHeight - 90);
+    nav.classList.toggle('nav-blend', onMain && overHero && !nav.classList.contains('on-light'));
+  }
+  window.updateNavBlend = updateNavBlend;
+  updateNavBlend();
+  window.addEventListener('resize', updateNavBlend, { passive: true });
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    // Hide scroll indicator once user starts scrolling
+    const scrollHint = document.querySelector('.intro-scroll');
+    if (scrollHint) scrollHint.classList.toggle('hidden', y > 30);
+
+    if (y > 40) {
+      nav.classList.add('visible');
+      // Once the user has actually scrolled, the temporary pin from the hero
+      // button is no longer needed — normal scroll-driven behaviour takes over.
+      nav.classList.remove('nav-pinned');
+    } else {
+      // Only hide if we're on the main page — check every sub-page that exists,
+      // not just about/contact, otherwise scrolling on shop/privacy/success
+      // incorrectly hides the nav since this list was never kept in sync with
+      // every page showPage() actually knows about. Skip hiding if the nav was
+      // pinned open by the hero menu button (desktop reveal before any scroll).
+      const onSubPage = ['about-page','contact-page','privacy-page','terms-page','faq-page','impressum-page','workshop-page','shop-page','shop-success-page','cart-page']
+        .some(id => document.getElementById(id)?.classList.contains('active'));
+      if (!onSubPage && !nav.classList.contains('nav-pinned')) nav.classList.remove('visible');
+    }
+    nav.classList.toggle('scrolled', y > 80);
+    // Hero menu button: show only on the homepage while the full nav is hidden
+    // (top of hero). Once the nav bar fades in on scroll, hand off to it.
+    updateHeroMenuBtn();
+    updateNavBlend();
+    lastY = y;
+  }, { passive: true });
+})();
+
+// CURSOR
+const cur = document.getElementById('cur');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
+
+// Big-cursor hover, via event delegation on document rather than binding
+// listeners to a one-time querySelectorAll snapshot. That snapshot only ever
+// covered elements already in the DOM at page-load — anything added later
+// (the footer injected into sub-pages, feed images, shop cards, cart rows,
+// etc.) silently never got the effect. Delegation means any current or
+// future element matching CUR_TARGETS gets it automatically, no re-binding
+// needed anywhere. mouseover/mouseout are used (not mouseenter/mouseleave,
+// which don't bubble) with a tracked "currently matched" element so hovering
+// nested children inside the same target doesn't flicker the effect off/on.
+const CUR_TARGETS = 'a,button,.img-wrap,#lightbox';
+let curHoverEl = null;
+document.addEventListener('mouseover', e => {
+  const match = e.target.closest(CUR_TARGETS);
+  if (!match || match === curHoverEl) return;
+  if (match.closest('nav') && !document.querySelector('nav').classList.contains('visible')) return;
+  curHoverEl = match;
+  cur.classList.add('big');
+});
+document.addEventListener('mouseout', e => {
+  if (!curHoverEl) return;
+  // relatedTarget is where the pointer is going; if it's still inside the
+  // matched element, this is just moving between its children — ignore.
+  if (e.relatedTarget && curHoverEl.contains(e.relatedTarget)) return;
+  curHoverEl = null;
+  cur.classList.remove('big');
+});
+
+// CONTENT — load and apply to all pages
+async function loadContent() {
+  // Inject footer into sub-pages (all except cart and shop-success)
+  const subPageFooterHTML = `<footer class="site-footer sub-page-footer">
+    <div class="footer-left">
+      <span class="footer-name" id="c-footer_name">Bharat Bhatia</span>
+      <span class="footer-loc" id="c-footer_loc">Zürich · Fine art print</span>
+    </div>
+    <div class="footer-contact">
+      <a href="https://instagram.com/bajidigital" target="_blank" rel="noopener" id="c-footer_ig_link">@bajidigital</a>
+      <a onclick="showPage('faq')" style="opacity:.55">FAQ</a>
+      <a onclick="showPage('impressum')" style="opacity:.55">Impressum</a>
+      <a onclick="showPage('terms')" style="opacity:.55">Terms of sale</a>
+      <a onclick="showPage('privacy')" style="opacity:.55">Privacy</a>
+    </div>
+  </footer>`;
+  ['about-page','contact-page','faq-page','impressum-page','privacy-page','terms-page','workshop-page','shop-page','cart-page'].forEach(id => {
+    const page = document.getElementById(id);
+    if (page && !page.querySelector('.sub-page-footer')) {
+      page.insertAdjacentHTML('beforeend', subPageFooterHTML);
+    }
+  });
+  try {
+    const d = await fetch('/api/content').then(r=>r.json());
+    Object.entries(d).forEach(([k,v]) => {
+      document.querySelectorAll('[id="c-'+k+'"]').forEach(el => {
+        if (v) {
+          el.textContent = v;
+          el.style.display = ''; // reveal optional paragraphs if they have content
+        }
+      });
+    });
+    // SEO meta tags
+    if (d.seo_title) {
+      document.title = d.seo_title;
+      const t = document.getElementById('meta-title'); if(t) t.textContent = d.seo_title;
+      const ot = document.getElementById('meta-og-title'); if(ot) ot.setAttribute('content', d.seo_title);
+    }
+    if (d.seo_desc) {
+      const md = document.getElementById('meta-desc'); if(md) md.setAttribute('content', d.seo_desc);
+      const od = document.getElementById('meta-og-desc'); if(od) od.setAttribute('content', d.seo_desc);
+    }
+    if (d.seo_image) {
+      const mi = document.getElementById('meta-og-image'); if(mi) mi.setAttribute('content', d.seo_image);
+    }
+    // About photo — only show if one has been uploaded
+    if (d.about_photo_url) {
+      const img = document.getElementById('about-photo');
+      if (img) { img.src = d.about_photo_url; img.style.display = 'block'; }
+    }
+    // Shipping debug panel toggle
+    window._shippingDebugEnabled = d.shipping_debug === 'true';
+    // Show optional about paragraphs only when they have content
+    const p4 = document.getElementById('c-about_p4');
+    if (p4 && d.about_p4) p4.style.display = 'block';
+    // Update Impressum email mailto link
+    if (d.impressum_email) {
+      const link = document.getElementById('c-impressum_email_link');
+      if (link) { link.href = 'mailto:' + d.impressum_email; link.textContent = d.impressum_email; }
+    }
+
+    // Workshop page — banner toggle plus multiline content built into structure
+    const wsBanner = document.getElementById('workshop-banner');
+    if (wsBanner) {
+      if (d.workshop_banner_enabled !== 'false' && d.workshop_banner_text) {
+        wsBanner.textContent = d.workshop_banner_text;
+        wsBanner.style.display = 'block';
+      } else {
+        wsBanner.style.display = 'none';
+      }
+    }
+    const wsSched = document.getElementById('workshop-schedule');
+    if (wsSched && d.workshop_schedule) {
+      wsSched.innerHTML = d.workshop_schedule.split('\n').filter(l => l.trim()).map(line => {
+        // "09:00 — text" → time column + text; lines without a leading time render full-width
+        const m = line.match(/^\s*([0-2]?\d[:.]\d\d)\s*[—–-]+\s*(.*)$/);
+        const time = m ? m[1] : '';
+        const text = m ? m[2] : line.trim();
+        return `<div class="ws-sched-row"><span class="ws-sched-time">${esc(time)}</span><span class="ws-sched-text">${esc(text)}</span></div>`;
+      }).join('');
+    }
+    const wsFillList = (id, value) => {
+      const el = document.getElementById(id);
+      if (el && value) el.innerHTML = value.split('\n').filter(l => l.trim()).map(l => `<li>${esc(l.trim())}</li>`).join('');
+    };
+    wsFillList('workshop-included', d.workshop_included);
+    wsFillList('workshop-bring', d.workshop_bring);
+
+    // FAQ — hide items where *_enabled is explicitly 'false'
+    document.querySelectorAll('[id^="c-faq_"]').forEach(el => {
+      const key = el.id.replace('c-', '');
+      const enabledKey = key + '_enabled';
+      if (d[enabledKey] === 'false') {
+        // Hide the whole .faq-item ancestor
+        const item = el.closest('.faq-item');
+        if (item) item.style.display = 'none';
+      }
+    });
+
+    // IG link — update href and label separately
+    if (d.footer_ig) {
+      const igEl = document.getElementById('c-footer_ig_link');
+      if (igEl) {
+        const handle = d.footer_ig.replace('@','').trim();
+        igEl.href = 'https://instagram.com/' + handle;
+        igEl.textContent = '@' + handle;
+      }
+    }
+  } catch(e) {}
+}
+
+// PAGE ROUTING
+function showPage(name){
+  // Close mobile nav if open
+  const mobileMenu = document.getElementById('nav-mobile-menu');
+  if (mobileMenu && mobileMenu.classList.contains('open')) closeMobileNav();
+  document.getElementById('main-content').classList.toggle('hidden', name!=='main');
+  const aboutEl = document.getElementById('about-page');
+  const contactEl = document.getElementById('contact-page');
+  const privacyEl = document.getElementById('privacy-page');
+  const termsEl = document.getElementById('terms-page');
+  const faqEl = document.getElementById('faq-page');
+  const impressumEl = document.getElementById('impressum-page');
+  const workshopEl = document.getElementById('workshop-page');
+  const shopEl = document.getElementById('shop-page');
+  const shopSuccessEl = document.getElementById('shop-success-page');
+  const cartEl = document.getElementById('cart-page');
+  aboutEl.classList.toggle('active', name==='about');
+  contactEl.classList.toggle('active', name==='contact');
+  privacyEl.classList.toggle('active', name==='privacy');
+  termsEl.classList.toggle('active', name==='terms');
+  faqEl.classList.toggle('active', name==='faq');
+  impressumEl.classList.toggle('active', name==='impressum');
+  workshopEl.classList.toggle('active', name==='workshop');
+  shopEl.classList.toggle('active', name==='shop');
+  shopSuccessEl.classList.toggle('active', name==='shop-success');
+  cartEl.classList.toggle('active', name==='cart');
+  if (name === 'about') aboutEl.scrollTop = 0;
+  if (name === 'contact') contactEl.scrollTop = 0;
+  if (name === 'privacy') privacyEl.scrollTop = 0;
+  if (name === 'terms') termsEl.scrollTop = 0;
+  if (name === 'faq') faqEl.scrollTop = 0;
+  if (name === 'impressum') impressumEl.scrollTop = 0;
+  if (name === 'workshop') { workshopEl.scrollTop = 0; loadWorkshopData(); }
+  if (name === 'shop') { shopEl.scrollTop = 0; loadShopProducts(); }
+  if (name === 'shop-success') shopSuccessEl.scrollTop = 0;
+  if (name === 'cart') {
+    cartEl.scrollTop = 0;
+    if (selectedDelivery) {
+      recalcShipping().then(() => renderCart());
+    } else {
+      renderCart();
+    }
+  }
+  if (name === 'main') {
+    document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+    if (!mainFeedBuilt) {
+      load().then(success => { if (success) mainFeedBuilt = true; });
+    } else {
+      // Main content was hidden (display:none) — anything measured while hidden
+      // (hero image sizing, GSAP ScrollTrigger positions) needs to be redone now
+      // that it's visible again.
+      requestAnimationFrame(() => {
+        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+        const introImg = document.getElementById('intro-img');
+        const intro = document.getElementById('intro');
+        if (introImg && intro && introImg.complete && introImg.naturalWidth > 0) {
+          const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+          intro.classList.remove('landscape','portrait');
+          intro.classList.add(isPortrait ? 'portrait' : 'landscape');
+          introImg.classList.add('loaded');
+        }
+      });
+    }
+  }
+  // Nav: always visible on sub-pages; on main, show immediately if we're at
+  // the top right after a page switch (e.g. returning from the shop), then
+  // hand off to the normal scroll-driven behaviour.
+  const nav = document.getElementById('nav');
+  const hamburgerSpans = nav.querySelectorAll('.nav-hamburger span');
+  const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' ||
+    (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (name !== 'main') {
+    nav.classList.add('visible', 'on-light');
+    nav.classList.remove('scrolled');
+    // Use dark bars on light backgrounds, light bars on dark backgrounds
+    hamburgerSpans.forEach(s => s.style.background = isDarkMode ? 'rgba(250,250,248,.8)' : 'rgba(17,17,16,.75)');
+  } else {
+    nav.classList.remove('on-light');
+    nav.classList.add('visible');
+    hamburgerSpans.forEach(s => s.style.background = '');
+    setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); if (window.updateHeroMenuBtn) window.updateHeroMenuBtn(); }, 50);
+  }
+  // Sync the persistent hero menu button to the new page
+  const heroBtn = document.getElementById('hero-menu-btn');
+  if (heroBtn) heroBtn.classList.toggle('visible', name === 'main' && window.scrollY <= 40);
+  if (window.updateNavBlend) window.updateNavBlend();
+  // Keep the URL in sync with whatever page is showing
+  const pathForPage = {
+    shop: '/shop', cart: '/cart', workshop: '/workshops',
+    about: '/about', contact: '/contact', faq: '/faq',
+    impressum: '/impressum', privacy: '/privacy', terms: '/terms',
+    main: '/',
+  };
+  if (name === 'shop-success') {
+    history.replaceState(null, '', location.pathname + location.search);
+  } else if (pathForPage[name] && !window.__NAVDEBUG) {
+    history.replaceState(null, '', pathForPage[name]);
+  }
+}
+
+// GLOBAL STATE
+let allPrints = [];
+let allOrientations = [];
+let currentFilter = null; // set once real categories load — see loadCategories() below
+// True once the person has explicitly picked a specific category (not "all")
+// from the Work dropdown — distinct from the initial default landing state,
+// which keeps the main-page hero/name/subtitle treatment even though it's
+// pre-filtered to a specific category slug underneath. Only an explicit click
+// (via setFilter) flips this — the default landing never does.
+let categorySelected = false;
+
+// FILTER
+// Work dropdown — JS-driven so the gap between trigger and menu doesn't cause it to vanish
+(function() {
+  const li = document.querySelector('.nav-dropdown');
+  if (!li) return;
+  let closeTimer;
+  li.addEventListener('mouseenter', () => {
+    clearTimeout(closeTimer);
+    li.classList.add('open');
+  });
+  li.addEventListener('mouseleave', () => {
+    // Small delay before closing so a brief cursor exit doesn't snap it shut
+    closeTimer = setTimeout(() => li.classList.remove('open'), 120);
+  });
+})();
+function closeWorkDropdown() {
+  const li = document.querySelector('.nav-dropdown');
+  if (li) li.classList.remove('open');
+}
+
+// Ordered list of all categories we support, with display labels. Populated
+// from /api/categories (admin-editable) rather than hardcoded, so adding,
+// renaming, or removing a category never requires a code change. Only those
+// actually present in allPrints will appear in the dropdown.
+let CATEGORY_ORDER = [];
+async function loadCategories() {
+  try {
+    const cats = await fetch('/api/categories').then(r => r.json());
+    CATEGORY_ORDER = Array.isArray(cats)
+      ? cats.map(c => ({ filter: c.slug, label: c.label, description: c.description || '' }))
+      : [];
+  } catch (e) {
+    CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
+  }
+  // Default landing filter is "whatever's first," not a hardcoded slug — a
+  // hardcoded string here is exactly what broke last time: renaming a
+  // category's slug in admin silently orphaned the default, since prints get
+  // cascaded to the new slug but a fixed string here never would. Only set
+  // this once, on first load — later reloads (e.g. navigating back to the
+  // main page) shouldn't override whatever filter the person already chose.
+  if (currentFilter === null) currentFilter = CATEGORY_ORDER[0]?.filter || 'all';
+}
+
+function buildDropdown() {
+  const inner = document.getElementById('work-dropdown-inner');
+  const mobileInner = document.getElementById('nav-mobile-work-sub');
+
+  // Collect categories present in allPrints — check both new array and legacy string
+  const presentFilters = new Set();
+  allPrints.forEach(p => {
+    const cats = Array.isArray(p.categories) && p.categories.length
+      ? p.categories
+      : [(p.category || 'abstract-bnw')];
+    cats.forEach(cat => presentFilters.add(cat.toLowerCase()));
+  });
+
+  const makeLink = (filter, label, mobile) => {
+    const a = document.createElement('a');
+    a.dataset.filter = filter;
+    a.textContent = label;
+    if (mobile) {
+      a.onclick = () => { showPage('main'); setFilter(filter); closeMobileNav(); };
+    } else {
+      a.onclick = () => { showPage('main'); setFilter(filter); closeWorkDropdown(); };
+      if (filter === currentFilter) a.classList.add('active-filter');
+    }
+    return a;
+  };
+
+  const presentOrdered = CATEGORY_ORDER.filter(c => presentFilters.has(c.filter.toLowerCase()));
+
+  // Desktop dropdown
+  if (inner) {
+    inner.innerHTML = '';
+    inner.appendChild(makeLink('all', 'All', false));
+    if (presentOrdered.length) {
+      const divider = document.createElement('div');
+      divider.className = 'dropdown-divider';
+      inner.appendChild(divider);
+      presentOrdered.forEach(c => inner.appendChild(makeLink(c.filter, c.label, false)));
+    }
+  }
+
+  // Mobile submenu — same categories, no divider needed
+  if (mobileInner) {
+    mobileInner.innerHTML = '';
+    mobileInner.appendChild(makeLink('all', 'All', true));
+    presentOrdered.forEach(c => mobileInner.appendChild(makeLink(c.filter, c.label, true)));
+  }
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  categorySelected = (filter !== 'all');
+  // Update active state on dropdown links
+  document.querySelectorAll('#work-dropdown [data-filter]').forEach(a => {
+    a.classList.toggle('active-filter', a.dataset.filter === filter);
+  });
+  pickHeroForFilter(filter);
+  updateCategoryDescription();
+  renderFeed();
+}
+
+function renderFeed() {
+  const filtered = currentFilter === 'all'
+    ? allPrints
+    : allPrints.filter(p => {
+        const cats = Array.isArray(p.categories) && p.categories.length
+          ? p.categories
+          : [(p.category || 'abstract-bnw')];
+        return cats.some(c => c.toLowerCase() === currentFilter);
+      });
+
+  // Rebuild columns
+  const feed = document.getElementById('feed');
+  const intro = document.getElementById('intro');
+  feed.innerHTML = '';
+  if (!filtered.length) {
+    if (intro) intro.style.display = 'none';
+    feed.innerHTML = '<div style="padding:10vw 5vw;font-family:var(--fm);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-l)">No photos in this category yet.</div>';
+    return;
+  }
+  if (intro) intro.style.display = '';
+
+  const colsWrap = document.createElement('div');
+  colsWrap.className = 'feed-cols';
+  feed.appendChild(colsWrap);
+
+  const colLeft  = document.createElement('div');
+  const colRight = document.createElement('div');
+  colLeft.className  = 'feed-col';
+  colRight.className = 'feed-col';
+  colsWrap.appendChild(colLeft);
+  colsWrap.appendChild(colRight);
+
+  filtered.forEach((p, i) => {
+    const globalIdx = allPrints.indexOf(p);
+    const ori = allOrientations[globalIdx] || 'landscape';
+    const isLeft = i % 2 === 0;
+    const imgUrl   = p.image_url || p.url || '';
+    const imgTitle = p.title || '';
+
+    const item = document.createElement('div');
+    item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
+    item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
+      <img src="${cld(imgUrl, 1200)}" alt="${imgTitle}" loading="lazy">
+      <span class="img-label">${imgTitle}</span>
+    </div>`;
+
+    (isLeft ? colLeft : colRight).appendChild(item);
+  });
+
+  // After rebuilding the feed, refresh ScrollTrigger so the hero animation
+  // re-measures correctly — especially important when returning from the shop
+  // where main-content was obscured by a fixed overlay during the last render.
+  requestAnimationFrame(() => {
+    const introImg = document.getElementById('intro-img');
+    const introEl = document.getElementById('intro');
+    if (introImg && introEl && introImg.complete && introImg.naturalWidth > 0) {
+      const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+      introEl.classList.remove('landscape', 'portrait');
+      introEl.classList.add(isPortrait ? 'portrait' : 'landscape');
+      introImg.classList.add('loaded');
+      introEl.style.display = '';
+      // Reset hero opacity/scale that may have been set by a stale GSAP scrub
+      gsap.set(introEl, { scale: 1, opacity: 1 });
+    }
+    initScrollAnimation();
+  });
+
+  // Re-init GSAP animations
+  setTimeout(initScrollAnimation, 80);
+}
+
+// Cloudinary transform helper — asks the CDN for a resized derivative
+// (f_auto = WebP/AVIF where supported, q_auto = automatic quality) instead of
+// shipping the full-resolution original into small layout slots.
+function cld(url, w) {
+  if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
+  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+}
+
+// Detect image orientation then build feed — a w_50 thumb answers
+// width-vs-height identically to the multi-MB original.
+function getOrientation(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
+    img.onerror = () => resolve('landscape');
+    img.src = cld(url, 50);
+  });
+}
+
+
+async function buildFeed(prints) {
+  const feed      = document.getElementById('feed');
+  const intro     = document.getElementById('intro');
+  feed.innerHTML  = '';
+
+  if (!prints.length) {
+    intro.style.display = 'none';
+    feed.innerHTML = '<div style="padding:20vh 2rem;text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(17,17,16,.3)">Work coming soon.</div>';
+    return;
+  }
+
+  intro.style.display = '';
+
+  // Detect orientations first — needed for hero selection and column layout
+  const feedPrints = prints.slice(0);
+  const orientations = await Promise.all(
+    feedPrints.map(p => getOrientation(p.image_url || p.url || ''))
+  );
+
+  // Store globally for filter
+  allPrints = feedPrints;
+  allOrientations = orientations;
+  buildDropdown();
+
+  // Hero pick: main-page treatment (exclude_from_hero-aware, whole portfolio)
+  // since categorySelected starts false on every fresh load — the default
+  // landing view always gets the main-page hero even though it happens to be
+  // pre-filtered to a specific category slug underneath (see loadCategories()).
+  pickHeroForFilter(currentFilter);
+
+  // Render feed — default to abstract
+  renderFeed();
+}
+
+function applyHeroOrientation() {
+  const introImg = document.getElementById('intro-img');
+  const intro = document.getElementById('intro');
+  const isPortrait = introImg.naturalHeight > introImg.naturalWidth;
+  intro.classList.remove('landscape','portrait');
+  intro.classList.add(isPortrait ? 'portrait' : 'landscape');
+}
+
+// Picks and shows a hero image appropriate to the given filter.
+//
+// - "Main page" state (categorySelected === false — the initial default
+//   landing view, or after explicitly picking "All") picks from the WHOLE
+//   portfolio, respecting exclude_from_hero, exactly as before this feature.
+// - A specific, explicitly-chosen category instead picks a random image from
+//   THAT category's own prints — exclude_from_hero is intentionally NOT
+//   applied here, since that flag is scoped to the main-page hero only.
+//
+// Both branches share the same orientation-aware narrowing (portrait hero on
+// mobile-portrait viewports, landscape otherwise) so a per-category pick
+// never looks worse than the main hero used to.
+// Shows the admin-written blurb for the currently-selected category, if it
+// has one. Only shown while actually browsing a specific category (not on
+// the main/default view, matching the same categorySelected rule the hero
+// swap uses) — and only if that category's description isn't empty. No
+// description set means the element is hidden entirely, not an empty gap.
+function updateCategoryDescription() {
+  const el = document.getElementById('category-desc');
+  if (!el) return;
+  const cat = categorySelected ? CATEGORY_ORDER.find(c => c.filter === currentFilter) : null;
+  const desc = cat && cat.description ? cat.description.trim() : '';
+  if (!desc) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  el.textContent = desc;
+  el.style.display = '';
+}
+
+function pickHeroForFilter(filter) {
+  if (!allPrints.length) return;
+
+  let pool;
+  if (!categorySelected) {
+    const eligible = allPrints.filter(p => !p.exclude_from_hero);
+    pool = eligible.length ? eligible : allPrints;
+  } else {
+    const catPool = allPrints.filter(p => {
+      const cats = Array.isArray(p.categories) && p.categories.length
+        ? p.categories
+        : [(p.category || 'abstract-bnw')];
+      return cats.some(c => c.toLowerCase() === filter);
+    });
+    // Separate from exclude_from_hero (main-page only) — some photos read
+    // fine in the feed but don't work blown up full-bleed as a category
+    // hero specifically, hence its own flag. Same graceful-fallback pattern
+    // as the main pool: only apply the exclusion if it doesn't empty things out.
+    const eligible = catPool.filter(p => !p.exclude_from_category_hero);
+    pool = eligible.length ? eligible : catPool;
+    if (!pool.length) pool = allPrints; // defensive — dropdown shouldn't offer an empty category
+  }
+
+  const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
+  const requiredOrientation = isMobilePortrait ? 'portrait' : 'landscape';
+
+  // Strict rule: desktop never shows a portrait hero, mobile-portrait never
+  // shows a landscape one. This used to fall back to "whatever's in the pool"
+  // when no matching-orientation image was found there, which could actually
+  // violate the rule (e.g. a category made up entirely of portrait shots
+  // would still have shown one on desktop). Now, if the current pool (a
+  // specific category, or the exclude_from_hero-aware main pool) has none of
+  // the required orientation, the search widens to the full portfolio before
+  // giving up — it only shows nothing (leaving whatever hero was already
+  // displayed) if literally no image of that orientation exists anywhere.
+  let heroPool = pool.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+  if (!heroPool.length) {
+    heroPool = allPrints.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+  }
+  if (!heroPool.length) return;
+
+  const heroPick = heroPool[Math.floor(Math.random() * heroPool.length)];
+  const heroUrl = heroPick.image_url || heroPick.url || '';
+  const introImg = document.getElementById('intro-img');
+  introImg.onload = applyHeroOrientation;
+  introImg.src = cld(heroUrl, 2000);
+  if (introImg.complete && introImg.naturalWidth > 0) applyHeroOrientation();
+}
+
+// INTERSECTION OBSERVER
+function observe(el) {
+  new IntersectionObserver(([e], o) => {
+    if (e.isIntersecting) { el.classList.add('visible'); o.disconnect(); }
+  }, { threshold: 0.05 }).observe(el);
+}
+
+// LOAD
+async function load() {
+  try {
+    const [prints] = await Promise.all([
+      fetch('/api/prints').then(r=>r.json()),
+      loadCategories(), // populates CATEGORY_ORDER before buildDropdown() runs inside buildFeed
+    ]);
+    await buildFeed(prints);
+    return true;
+  } catch(e) {
+    await buildFeed([]);
+    return false; // signals showPage() to retry next time, rather than locking in a blank hero
+  }
+}
+
+// FORM
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  const name = document.getElementById('f-name').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const interest = document.getElementById('f-interest').value;
+  const message = document.getElementById('f-message').value.trim();
+  const btn = document.getElementById('btn-submit');
+  const msg = document.getElementById('form-msg');
+  if (!name||!email) { msg.textContent='Name and email required.'; return; }
+  btn.disabled=true; btn.textContent='Sending...';
+  try {
+    const res = await fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,interest,message})});
+    if (res.ok) { btn.textContent='Sent.'; msg.textContent="Thank you — I'll be in touch."; }
+    else {
+      const d = await res.json().catch(()=>({}));
+      throw new Error(d.error || res.status);
+    }
+  } catch(e) { btn.disabled=false; btn.textContent='Send message'; msg.textContent='Error: ' + e.message; }
+});
+
+// COOKIE
+(function(){
+  if(localStorage.getItem('cookie_choice')) return;
+  const b = document.createElement('div');
+  Object.assign(b.style,{position:'fixed',bottom:'1.25rem',left:'50%',transform:'translateX(-50%)',width:'calc(100% - 3rem)',maxWidth:'420px',background:'rgba(250,250,248,.96)',backdropFilter:'blur(14px)',border:'1px solid rgba(17,17,16,.1)',borderRadius:'1px',padding:'.7rem 1rem',zIndex:'999',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'});
+  b.innerHTML=`<span style="font-size:9px;letter-spacing:.06em;color:rgba(17,17,16,.45);flex:1">Session cookie only — no tracking.</span><div style="display:flex;gap:.35rem;flex-shrink:0"><button onclick="window._d('r')" style="font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:rgba(17,17,16,.4);border:1px solid rgba(17,17,16,.12);padding:.26rem .6rem;cursor:pointer;font-family:'DM Mono',monospace">Reject</button><button onclick="window._d('a')" style="font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;background:#111110;color:#FAFAF8;border:none;padding:.26rem .6rem;cursor:pointer;font-family:'DM Mono',monospace">Accept</button></div>`;
+  document.body.appendChild(b);
+  window._d = c => { localStorage.setItem('cookie_choice',c); b.style.opacity='0'; b.style.transition='opacity .2s'; setTimeout(()=>b.remove(),220); };
+})();
+
+// LIGHTBOX
+let lightboxIndex = -1; // index into the currently filtered print list
+
+function getLightboxList() {
+  // Same filter logic as renderFeed so navigation matches what's on screen
+  if (currentFilter === 'all') return allPrints;
+  return allPrints.filter(p => {
+    const cats = Array.isArray(p.categories) && p.categories.length
+      ? p.categories
+      : [(p.category || 'abstract-bnw')];
+    return cats.some(c => c.toLowerCase() === currentFilter);
+  });
+}
+
+function openLightbox(src, title, printId) {
+  if (printId) {
+    if(!isNoTrack()) fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
+  }
+
+  // Track position in the filtered list for keyboard navigation
+  const list = getLightboxList();
+  lightboxIndex = printId ? list.findIndex(p => p.id === printId) : -1;
+
+  _renderLightbox(src, title, printId);
+  updateLightboxNavButtons();
+}
+
+function navigateLightbox(dir) {
+  const list = getLightboxList();
+  if (!list.length) return;
+  lightboxIndex = (lightboxIndex + dir + list.length) % list.length;
+  const p = list[lightboxIndex];
+  const imgUrl = p.image_url || p.url || '';
+
+  // Slide the current image out in the direction of travel, then render the new one
+  const inner = document.getElementById('lightbox-inner');
+  inner.style.transition = 'transform .2s ease, opacity .15s ease';
+  inner.style.transform = `translateX(${dir < 0 ? '4%' : '-4%'})`;
+  inner.style.opacity = '0';
+  setTimeout(() => {
+    _renderLightbox(imgUrl, p.title, p.id);
+    // _renderLightbox resets the animation, so no extra work needed
+  }, 180);
+
+  updateLightboxNavButtons();
+}
+
+function updateLightboxNavButtons() {
+  const list = getLightboxList();
+  const hasPrev = document.getElementById('lb-prev');
+  const hasNext = document.getElementById('lb-next');
+  const isMobile = window.innerWidth <= 640;
+  if (hasPrev) hasPrev.style.display = (!isMobile && list.length > 1) ? 'flex' : 'none';
+  if (hasNext) hasNext.style.display = (!isMobile && list.length > 1) ? 'flex' : 'none';
+}
+
+function _renderLightbox(src, title, printId) {
+  const lb  = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  const cap = document.getElementById('lightbox-caption');
+  const inner = document.getElementById('lightbox-inner');
+  const descToggle = document.getElementById('lightbox-desc-toggle');
+  const descPanel = document.getElementById('lightbox-desc');
+  const descText = document.getElementById('lightbox-desc-text');
+
+  // Progressive load: the w_1200 version is almost always already in the
+  // browser cache from the feed/shop grid, so it renders instantly; the
+  // sharper w_2000 swaps in silently once it has loaded. The dataset guard
+  // stops a slow hi-res from overwriting a photo the user has moved on from.
+  img.src = cld(src, 1200);
+  img.dataset.baseSrc = src;
+  const hiRes = new Image();
+  hiRes.onload = () => { if (img.dataset.baseSrc === src) img.src = hiRes.src; };
+  hiRes.src = cld(src, 2000);
+  cap.textContent = title || '';
+
+  const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
+  const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
+
+  descPanel.classList.remove('open');
+  if (description) {
+    descText.textContent = description;
+    descToggle.classList.add('has-desc');
+    descToggle.textContent = 'Read the story';
+  } else {
+    descToggle.classList.remove('has-desc');
+    descText.textContent = '';
+  }
+
+  inner.style.transform = 'scale(0.94)';
+  inner.style.opacity = '0';
+  inner.style.transition = 'none';
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    inner.style.transition = 'transform .35s cubic-bezier(0.16,1,0.3,1), opacity .25s ease';
+    inner.style.transform = 'scale(1)';
+    inner.style.opacity = '1';
+  });
+}
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const isOpen = btn.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.faq-q.open').forEach(q => {
+    q.classList.remove('open');
+    q.nextElementSibling.classList.remove('open');
+  });
+  // Toggle clicked one
+  if (!isOpen) {
+    btn.classList.add('open');
+    answer.classList.add('open');
+  }
+}
+
+function toggleLightboxDesc() {
+  const panel = document.getElementById('lightbox-desc');
+  const toggle = document.getElementById('lightbox-desc-toggle');
+  const isOpen = panel.classList.toggle('open');
+  toggle.textContent = isOpen ? 'Hide the story' : 'Read the story';
+}
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('open');
+  document.body.style.overflow = '';
+  // Hide nav arrows — their inline style.display set by updateLightboxNavButtons
+  // persists after close and makes them visible over the feed
+  const prev = document.getElementById('lb-prev');
+  const next = document.getElementById('lb-next');
+  if (prev) prev.style.display = 'none';
+  if (next) next.style.display = 'none';
+  setTimeout(() => {
+    document.getElementById('lightbox-img').src = '';
+  }, 400);
+}
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeLightbox();
+});
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); navigateLightbox(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); navigateLightbox(1); }
+});
+
+// Swipe support for mobile
+(function() {
+  let touchStartX = 0;
+  const lb = document.getElementById('lightbox');
+  lb.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+  lb.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) navigateLightbox(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
+
+// ── SHOP ──────────────────────────────────────────────────────────────────────
+let shopProducts = [];
+let cart = JSON.parse(localStorage.getItem('cart') || '[]'); // [{print_id, title, image_url, size, price_chf}]
+let selectedDelivery = null;
+let selectedDetailProduct = null;
+let selectedDetailSize = null;
+
+const SIZE_LABELS = { A4: 'A4 — flat mailer', A3: 'A3 — postal tube', A2: 'A2 — postal tube' };
+const DELIVERY_OPTION_LABELS = {
+  ch: 'Standard shipping (Switzerland / Liechtenstein)',
+  intl: 'International shipping',
+};
+const SIZE_RANK = { A4: 1, A3: 2, A2: 3 };
+let personalDeliveryZones = []; // loaded from API
+
+function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
+
+function saveCart() { localStorage.setItem('cart', JSON.stringify(cart)); chPriceCache = 0; updateCartBar(); }
+
+// Hero menu button behaves differently by width. On mobile (≤640px, where the
+// nav links are collapsed) it opens the full-screen overlay. On desktop the
+// links already live in the nav bar, so it simply reveals that bar instead of
+// showing a redundant mobile-style menu — then hides itself, handing off.
+function heroMenuClick() {
+  if (window.innerWidth <= 640) {
+    openMobileNav();
+  } else {
+    const nav = document.getElementById('nav');
+    nav.classList.add('visible', 'nav-pinned');
+    if (window.updateNavBlend) window.updateNavBlend();
+    const btn = document.getElementById('hero-menu-btn');
+    if (btn) btn.classList.remove('visible');
+  }
+}
+
+function openMobileNav() {
+  document.getElementById('nav-mobile-menu').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileNav() {
+  document.getElementById('nav-mobile-menu').classList.remove('open');
+  document.getElementById('nav-mobile-work-sub').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function toggleMobileWork() {
+  document.getElementById('nav-mobile-work-sub').classList.toggle('open');
+}
+
+function updateCartBar() {
+  const navCount = document.getElementById('nav-cart-count');
+  const mobileCount = document.getElementById('nav-mobile-cart-count');
+  const label = cart.length ? ' (' + cart.length + ')' : '';
+  if (navCount) navCount.textContent = label;
+  if (mobileCount) mobileCount.textContent = label;
+}
+
+// Load products into the shop grid
+async function loadShopProducts() {
+  const grid = document.getElementById('shop-grid');
+  try {
+    const [products, zones] = await Promise.all([
+      fetch('/api/shop/products').then(r => r.json()),
+      fetch('/api/personal-delivery-zones').then(r => r.json()),
+    ]);
+    shopProducts = products;
+    personalDeliveryZones = zones;
+
+    if (!products.length) {
+      grid.innerHTML = '<div class="shop-empty">No prints for sale just yet — check back soon.</div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    // Two-column masonry layout — matches the portfolio feed
+    const col0 = document.createElement('div');
+    col0.className = 'shop-col';
+    const col1 = document.createElement('div');
+    col1.className = 'shop-col';
+    grid.appendChild(col0);
+    grid.appendChild(col1);
+
+    let cardIndex = 0;
+    products.forEach((p, i) => {
+      const validSizes = p.sizes.filter(s => s.price_chf > 0);
+      if (!validSizes.length) return;
+      const minPrice = Math.min(...validSizes.map(s => s.price_chf));
+      const allSoldOut = validSizes.every(s => s.sold_out);
+
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      card.style.transitionDelay = (cardIndex * 0.07) + 's';
+      // Sequence index as flex order — no-op on desktop (each column is already
+      // ascending), but on mobile the columns become display:contents and this
+      // restores 1,2,3,4… instead of col0-then-col1 (1,3,5…2,4,6…).
+      card.style.order = cardIndex;
+      const isLimited = p.edition_type === 'limited';
+      card.innerHTML = `
+        <div class="shop-card-img-wrap">
+          ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
+          ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
+          <img src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}" loading="lazy">
+        </div>
+        <div class="shop-card-title">${esc(p.title)}</div>
+        <div class="shop-card-price">From ${fmtCHF(minPrice)}</div>
+      `;
+      card.addEventListener('click', () => openShopDetail(p.id));
+      // Alternate between columns
+      (cardIndex % 2 === 0 ? col0 : col1).appendChild(card);
+      cardIndex++;
+      new IntersectionObserver(([e], o) => { if (e.isIntersecting) { card.classList.add('visible'); o.disconnect(); } }, { threshold: 0.1 }).observe(card);
+    });
+  } catch (e) {
+    grid.innerHTML = '<div class="shop-empty">Could not load the shop right now.</div>';
+  }
+}
+
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Open the product detail overlay
+function openShopDetail(printId) {
+  const p = shopProducts.find(p => p.id === printId);
+  if (!p) return;
+  selectedDetailProduct = p;
+  selectedDetailSize = null;
+
+  const validSizes = p.sizes.filter(s => s.price_chf > 0);
+  const inner = document.getElementById('shop-detail-inner');
+  inner.innerHTML = `
+    <img class="shop-detail-img" src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}">
+    <div>
+      <p class="shop-detail-title">${esc(p.title)}</p>
+      <p class="shop-detail-desc">${esc(p.description || '')}</p>
+      ${p.edition_type === 'limited' ? `<p class="shop-card-price" style="margin-bottom:1rem">Limited edition of ${p.edition_size}</p>` : ''}
+      ${p.paper_description ? `<p class="shop-detail-note">This image is printed on <strong style="font-style:normal">${esc(p.paper_name)}</strong>. ${esc(p.paper_description)}</p>` : (p.shop_note ? `<p class="shop-detail-note">${esc(p.shop_note)}</p>` : '')}
+      <div id="shop-size-options"></div>
+      <div class="shop-customer-note-wrap" id="shop-customer-note-wrap" style="display:none">
+        <label class="shop-customer-note-label" for="customer-note">Notes for this print <span style="opacity:.5">(optional)</span></label>
+        <textarea id="customer-note" class="shop-customer-note" rows="2" placeholder="e.g. different margin style, dedication, anything specific…"></textarea>
+      </div>
+      <button class="btn-add-cart" id="btn-add-to-cart" disabled onclick="addSelectedToCart()">Select a size</button>
+    </div>
+  `;
+
+  // Same orientation-aware treatment as the portfolio and shop grid —
+  // landscape prints show at their own ratio instead of a cropped 4:5 frame.
+  getOrientation(p.image_url).then(orientation => {
+    const detailImg = inner.querySelector('.shop-detail-img');
+    if (detailImg && orientation === 'landscape') detailImg.classList.add('landscape');
+  });
+
+  // Progressive upgrade to the sharper w_2000 once it's loaded. If the user
+  // closed/reopened the overlay for another print, the captured element is no
+  // longer in the document (innerHTML was replaced) and the swap is skipped.
+  const detailImgEl = inner.querySelector('.shop-detail-img');
+  if (detailImgEl) {
+    const hiRes = new Image();
+    hiRes.onload = () => { if (detailImgEl.isConnected) detailImgEl.src = hiRes.src; };
+    hiRes.src = cld(p.image_url, 2000);
+  }
+
+  const sizeWrap = document.getElementById('shop-size-options');
+  ['A4','A3','A2'].forEach(size => {
+    const s = validSizes.find(sz => sz.size === size);
+    const opt = document.createElement('div');
+    opt.className = 'shop-size-option' + (!s || s.sold_out ? ' disabled' : '');
+    opt.dataset.size = size;
+    opt.innerHTML = `
+      <div>
+        <div class="shop-size-name">${size}</div>
+        <div class="shop-size-meta">${!s ? 'Not available' : s.sold_out ? 'Sold out' : (s.remaining != null ? s.remaining + ' remaining' : '')}</div>
+      </div>
+      <span class="shop-size-price">${s ? fmtCHF(s.price_chf) : ''}</span>
+    `;
+    if (s && !s.sold_out) {
+      opt.addEventListener('click', () => selectDetailSize(size, s.price_chf));
+    }
+    sizeWrap.appendChild(opt);
+  });
+
+  document.getElementById('shop-detail').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function selectDetailSize(size, priceChf) {
+  selectedDetailSize = { size, price_chf: priceChf };
+  document.querySelectorAll('.shop-size-option').forEach(el => el.classList.toggle('selected', el.dataset.size === size));
+  const btn = document.getElementById('btn-add-to-cart');
+  btn.disabled = false;
+  btn.textContent = `Add to cart — ${fmtCHF(priceChf)}`;
+  // Reveal the customer note field once a size is chosen
+  const noteWrap = document.getElementById('shop-customer-note-wrap');
+  if (noteWrap) noteWrap.style.display = 'block';
+}
+
+function addSelectedToCart() {
+  if (!selectedDetailProduct || !selectedDetailSize) return;
+  const noteEl = document.getElementById('customer-note');
+  cart.push({
+    print_id: selectedDetailProduct.id,
+    title: selectedDetailProduct.title,
+    image_url: selectedDetailProduct.image_url,
+    size: selectedDetailSize.size,
+    price_chf: selectedDetailSize.price_chf,
+    note: noteEl ? noteEl.value.trim() : '',
+  });
+  saveCart();
+  closeShopDetail();
+  showPage('cart');
+}
+
+function closeShopDetail() {
+  document.getElementById('shop-detail').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function renderCart() {
+  const itemsWrap = document.getElementById('cart-items');
+  const deliverySection = document.getElementById('cart-delivery-section');
+  const totalRow = document.getElementById('cart-total-row');
+  const checkoutBtn = document.getElementById('btn-checkout');
+  const termsRow = document.getElementById('terms-accept-row');
+  const termsCheckbox = document.getElementById('accept-terms');
+
+  // Ensure shop products are loaded — needed to check delivery availability per print
+  if (!shopProducts.length && cart.length) {
+    try {
+      shopProducts = await fetch('/api/shop/products').then(r => r.json());
+    } catch(e) {}
+  }
+
+  // Refresh cart prices from the live catalogue. localStorage stores a price
+  // snapshot from add-to-cart time; if a price was changed in admin since,
+  // the cart would display the old number while Stripe charges the new one.
+  // Checkout always uses authoritative DB prices — this keeps the display honest.
+  if (shopProducts.length && cart.length) {
+    let pricesChanged = false;
+    cart.forEach(item => {
+      const prod = shopProducts.find(p => p.id === item.print_id);
+      const size = prod && prod.sizes ? prod.sizes.find(s => s.size === item.size) : null;
+      if (size && size.price_chf > 0 && size.price_chf !== item.price_chf) {
+        item.price_chf = size.price_chf;
+        pricesChanged = true;
+      }
+    });
+    if (pricesChanged) saveCart();
+  }
+
+  if (!cart.length) {
+    itemsWrap.innerHTML = '<div class="cart-empty">Your cart is empty.</div>';
+    deliverySection.style.display = 'none';
+    totalRow.style.display = 'none';
+    termsRow.style.display = 'none';
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Cart is empty';
+    return;
+  }
+
+  itemsWrap.innerHTML = groupCartItems().map(group => {
+    const templateIndex = group.indices[0];
+    // Cap the + button at remaining edition stock, if this size is a limited
+    // edition. `remaining` is null for open editions, meaning uncapped.
+    const prod = shopProducts.find(p => p.id === group.print_id);
+    const sizeInfo = prod && prod.sizes ? prod.sizes.find(s => s.size === group.size) : null;
+    const remaining = sizeInfo ? sizeInfo.remaining : null;
+    const atMax = remaining !== null && group.count >= remaining;
+    return `
+    <div class="cart-item">
+      <div class="cart-item-img-wrap"><img src="${cld(group.image_url, 1200)}" alt="${esc(group.title)}"></div>
+      <div>
+        <div class="cart-item-title">${esc(group.title)}</div>
+        <div class="cart-item-size">${group.size}</div>
+        ${group.note ? `<div class="cart-item-note">${esc(group.note)}</div>` : ''}
+        <div class="cart-item-qty">
+          <button class="cart-qty-btn" onclick="removeFromCart(${templateIndex})" aria-label="Decrease quantity">−</button>
+          <span class="cart-qty-count">${group.count}</span>
+          <button class="cart-qty-btn" onclick="incrementCartItem(${templateIndex})" aria-label="Increase quantity"${atMax ? ' disabled title="No more copies available"' : ''}>+</button>
+        </div>
+        <button class="cart-item-remove" onclick="removeCartGroup('${group.indices.join(',')}')">Remove</button>
+      </div>
+      <div class="cart-item-price">${fmtCHF(group.price_chf * group.count)}</div>
+    </div>
+  `;
+  }).join('');
+
+  // Determine which delivery methods are valid for every item in the cart
+  const cartProducts = cart.map(item => shopProducts.find(p => p.id === item.print_id)).filter(Boolean);
+  const deliveryAvailability = {
+    ch: cartProducts.every(p => p.delivery_ch),
+    personal: cartProducts.every(p => p.delivery_personal),
+    intl: cartProducts.every(p => p.delivery_intl),
+  };
+
+  deliverySection.style.display = 'block';
+  const deliveryWrap = document.getElementById('cart-delivery-options');
+  deliveryWrap.innerHTML = '';
+  const countryWrap = document.getElementById('cart-country-wrap');
+  if (countryWrap) countryWrap.style.display = selectedDelivery === 'intl' ? 'block' : 'none';
+
+  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
+
+  // Helper to update total row in place — called after prices are known
+  function updateTotal() {
+    const baseMethod = selectedDelivery ? selectedDelivery.split('_')[0] : null;
+    const deliverySelected = selectedDelivery && (
+      (baseMethod === 'intl' && deliveryAvailability.intl && intlCountrySelected) ||
+      (baseMethod === 'personal' && deliveryAvailability.personal) ||
+      (baseMethod === 'ch' && deliveryAvailability.ch)
+    );
+    termsRow.style.display = 'flex';
+    if (deliverySelected) {
+      if (shippingQuoteRequired) {
+        totalRow.style.display = 'none';
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Contact us for a shipping quote';
+      } else {
+        totalRow.style.display = 'flex';
+        document.getElementById('cart-total-amount').textContent = fmtCHF(subtotal + calculatedShippingPrice);
+        checkoutBtn.disabled = !termsCheckbox.checked;
+        checkoutBtn.textContent = 'Checkout';
+      }
+    } else {
+      totalRow.style.display = 'none';
+      checkoutBtn.disabled = true;
+      checkoutBtn.textContent = 'Select a delivery option';
+    }
+  }
+
+  // Only rebuild the delivery options DOM if it's empty or cart contents changed
+  // — avoids the flicker/jump from full re-renders on every price update
+  const needsRebuild = deliveryWrap.children.length === 0;
+
+  const addOption = (method, label, available, priceLabel) => {
+    if (!needsRebuild) {
+      // Just update the price label in the existing element
+      const existing = deliveryWrap.querySelector(`[data-method="${method}"]`);
+      if (existing) existing.querySelector('.cart-delivery-price').textContent = priceLabel;
+      return;
+    }
+    const opt = document.createElement('div');
+    opt.className = 'cart-delivery-option' + (!available ? ' disabled' : '') + (selectedDelivery === method ? ' selected' : '');
+    opt.dataset.method = method;
+    opt.innerHTML = `<span>${label}</span><span class="cart-delivery-price">${priceLabel}</span>`;
+    if (available) opt.addEventListener('click', async () => {
+      document.querySelectorAll('.cart-delivery-option').forEach(el => el.classList.remove('selected'));
+      opt.classList.add('selected');
+      selectedDelivery = method;
+      if (countryWrap) countryWrap.style.display = method === 'intl' ? 'block' : 'none';
+      if (method !== 'intl') selectedCountry = 'CH';
+      if (method === 'intl' && !intlCountrySelected) {
+        // No real country chosen yet — don't call the shipping API at all.
+        // Sending 'CH' (the leftover default) would make the server treat
+        // this as domestic and silently return the CH/LI packet rate, which
+        // is the exact bug this guards against.
+        calculatedShippingPrice = 0;
+        shippingQuoteRequired = false;
+        opt.querySelector('.cart-delivery-price').textContent = 'Select country';
+        updateTotal();
+        return;
+      }
+      opt.querySelector('.cart-delivery-price').textContent = '…';
+      await recalcShipping();
+      // Update this option's price and the total in place — no full re-render
+      opt.querySelector('.cart-delivery-price').textContent = fmtCHF(calculatedShippingPrice);
+      updateTotal();
+    });
+    deliveryWrap.appendChild(opt);
+  };
+
+  // Personal delivery zone price (from DB, already loaded)
+  const personalZone = personalDeliveryZones[0];
+  const personalPrice = personalZone ? personalZone.price_chf_cents : 5000;
+
+  addOption('ch',           'Standard shipping (Switzerland / Liechtenstein)', deliveryAvailability.ch,       '…');
+  if (deliveryAvailability.personal) {
+    const isPersonalSelected = selectedDelivery === 'personal_ch_li';
+    addOption('personal_ch_li', 'Personal delivery (Switzerland / Liechtenstein)', true,
+      isPersonalSelected ? fmtCHF(calculatedShippingPrice) : '…');
+  } else {
+    addOption('personal', 'Personal delivery', false, 'Not available');
+  }
+  addOption('intl',         'International shipping',                            deliveryAvailability.intl,    selectedDelivery === 'intl' ? fmtCHF(calculatedShippingPrice) : 'Select country');
+
+  updateTotal();
+
+  // Fetch CH price in background and update label in place — no re-render
+  if (needsRebuild || !chPriceCache) {
+    fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.map(i => ({ print_id: i.print_id, size: i.size })), delivery_method: 'ch', country_code: 'CH' })
+    }).then(r => r.json()).then(d => {
+      chPriceCache = parseInt(d.price_chf_cents) || 0;
+      const chOpt = deliveryWrap.querySelector('[data-method="ch"]');
+      if (chOpt) {
+        chOpt.querySelector('.cart-delivery-price').textContent = selectedDelivery === 'ch' ? fmtCHF(calculatedShippingPrice) : fmtCHF(chPriceCache);
+      }
+      if (selectedDelivery === 'ch' && !calculatedShippingPrice) {
+        calculatedShippingPrice = chPriceCache;
+        updateTotal();
+      }
+    }).catch(() => {
+      const chOpt = deliveryWrap.querySelector('[data-method="ch"]');
+      if (chOpt) chOpt.querySelector('.cart-delivery-price').textContent = '—';
+    });
+  }
+
+  // Fetch personal delivery price in background
+  if (needsRebuild && deliveryAvailability.personal) {
+    fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart.map(i => ({ print_id: i.print_id, size: i.size })), delivery_method: 'personal', country_code: 'CH', zone: 'ch_li' })
+    }).then(r => r.json()).then(d => {
+      const price = parseInt(d.price_chf_cents) || 0;
+      const pOpt = deliveryWrap.querySelector('[data-method="personal_ch_li"]');
+      if (pOpt) {
+        pOpt.querySelector('.cart-delivery-price').textContent = selectedDelivery === 'personal_ch_li' ? fmtCHF(calculatedShippingPrice) : fmtCHF(price);
+      }
+    }).catch(() => {});
+  }
+}
+
+let selectedCountry = 'CH';
+// True only once the person has actually picked a country from the intl
+// dropdown. selectedCountry defaults to 'CH' for unrelated reasons (it's also
+// reused as a harmless placeholder before intl is ever touched), so this flag
+// is what actually distinguishes "no country chosen yet" from "chose CH".
+let intlCountrySelected = false;
+let shippingQuoteRequired = false;
+let calculatedShippingPrice = 0;
+let chPriceCache = 0; // cached so cart doesn't re-fetch on every render
+
+function toggleCountryPicker() {
+  const picker = document.getElementById('country-picker');
+  const opening = !picker.classList.contains('open');
+  picker.classList.toggle('open');
+  if (opening) {
+    const search = document.getElementById('country-picker-search');
+    search.value = '';
+    filterCountryPicker('');
+    // Focus after the menu has actually painted — needed for the picker to
+    // reliably grab focus on first open across browsers (notably mobile Safari).
+    requestAnimationFrame(() => search.focus());
+  }
+}
+
+// Live filter as the admin types. Options and group headers are flat DOM
+// siblings inside the menu, so this walks them in order, tracking whichever
+// group heading it most recently passed — a group hides itself once none of
+// its options still match.
+function filterCountryPicker(query) {
+  const q = query.trim().toLowerCase();
+  const menu = document.getElementById('country-picker-menu');
+  const children = Array.from(menu.children).filter(el =>
+    el.classList.contains('country-picker-group') || el.classList.contains('country-picker-option')
+  );
+  let anyVisible = false;
+  let currentGroup = null;
+  let groupHasVisible = false;
+
+  const closeGroup = () => { if (currentGroup) currentGroup.classList.toggle('filtered-out', !groupHasVisible); };
+
+  children.forEach(el => {
+    if (el.classList.contains('country-picker-group')) {
+      closeGroup();
+      currentGroup = el;
+      groupHasVisible = false;
+    } else {
+      const match = !q || el.textContent.toLowerCase().includes(q);
+      el.classList.toggle('filtered-out', !match);
+      if (match) { groupHasVisible = true; anyVisible = true; }
+    }
+  });
+  closeGroup();
+
+  document.getElementById('country-picker-empty').style.display = anyVisible ? 'none' : 'block';
+}
+
+function onCountrySearchKeydown(event) {
+  if (event.key === 'Enter') {
+    // Select the first still-visible match — lets someone type "germ" and
+    // hit enter instead of reaching for the mouse/finger.
+    event.preventDefault();
+    const firstMatch = document.querySelector('.country-picker-option:not(.filtered-out)');
+    if (firstMatch) firstMatch.click();
+  } else if (event.key === 'Escape') {
+    document.getElementById('country-picker').classList.remove('open');
+  }
+}
+
+function selectCountry(code, label) {
+  selectedCountry = code;
+  intlCountrySelected = true;
+  document.getElementById('country-picker-label').textContent = label;
+  document.querySelectorAll('.country-picker-option').forEach(el =>
+    el.classList.toggle('selected', el.dataset.value === code)
+  );
+  document.getElementById('country-picker').classList.remove('open');
+  document.getElementById('country-picker-search').value = '';
+  filterCountryPicker('');
+  onCountryChange();
+}
+// Close picker when clicking outside — also clears the search so the next
+// open starts showing the full list again.
+document.addEventListener('click', e => {
+  const picker = document.getElementById('country-picker');
+  if (picker && !picker.contains(e.target)) {
+    picker.classList.remove('open');
+    const search = document.getElementById('country-picker-search');
+    if (search) { search.value = ''; filterCountryPicker(''); }
+  }
+});
+
+async function onCountryChange() {
+  if (!selectedCountry) return;
+  const intlOpt = document.querySelector('[data-method="intl"] .cart-delivery-price');
+  if (intlOpt) intlOpt.textContent = '…';
+  await recalcShipping();
+  // Update intl price and total in place — no full re-render
+  if (intlOpt) intlOpt.textContent = shippingQuoteRequired ? 'Quote required' : fmtCHF(calculatedShippingPrice);
+  const subtotal = cart.reduce((sum, i) => sum + i.price_chf, 0);
+  const totalAmountEl = document.getElementById('cart-total-amount');
+  const totalRow = document.getElementById('cart-total-row');
+  const checkoutBtn = document.getElementById('btn-checkout');
+  const termsCheckbox = document.getElementById('accept-terms');
+  if (shippingQuoteRequired) {
+    totalRow.style.display = 'none';
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Contact us for a shipping quote';
+  } else {
+    totalRow.style.display = 'flex';
+    if (totalAmountEl) totalAmountEl.textContent = fmtCHF(subtotal + calculatedShippingPrice);
+    checkoutBtn.disabled = !termsCheckbox.checked;
+    checkoutBtn.textContent = 'Checkout';
+  }
+}
+
+async function recalcShipping() {
+  if (!selectedDelivery || !cart.length) return;
+  // selectedDelivery may be 'personal_canton_zurich' — extract base method for API
+  const baseMethod = selectedDelivery.startsWith('personal_') ? 'personal' : selectedDelivery;
+  const zone = selectedDelivery.startsWith('personal_') ? selectedDelivery.replace('personal_', '') : null;
+  try {
+    const res = await fetch('/api/shipping/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size })),
+        delivery_method: baseMethod,
+        country_code: selectedCountry || 'CH',
+        zone
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[recalcShipping] API error:', res.status, err);
+      return;
+    }
+    const data = await res.json();
+    shippingQuoteRequired = data.requires_quote === true;
+    calculatedShippingPrice = parseInt(data.price_chf_cents) || 0;
+
+    // Shipping debug panel — only shown when enabled from admin
+    const debugEl = document.getElementById('cart-shipping-debug');
+    if (debugEl && data.weight_g !== undefined) {
+      if (window._shippingDebugEnabled) {
+        const a4Count = cart.filter(i => i.size === 'A4').length;
+        const a3Count = cart.filter(i => i.size === 'A3').length;
+        const a2Count = cart.filter(i => i.size === 'A2').length;
+        debugEl.style.display = 'block';
+        debugEl.innerHTML = [
+          `<strong>🔧 Shipping debug</strong>`,
+          `Cart: ${a4Count} × A4, ${a3Count} × A3, ${a2Count} × A2`,
+          `Format: ${data.format || '—'} | Tubes: ${data.a2_tubes || 0} × A2 tube, ${data.a3_tubes || 0} × A3 tube (${data.tubes_needed || 0} total)`,
+          `Total shipment weight: ${data.weight_g}g`,
+          `Price: CHF ${(calculatedShippingPrice/100).toFixed(2)} | Quote required: ${shippingQuoteRequired}`,
+        ].join('<br>');
+      } else {
+        debugEl.style.display = 'none';
+      }
+    }
+    const quoteMsg = document.getElementById('cart-quote-msg');
+    if (quoteMsg) {
+      if (shippingQuoteRequired) {
+        quoteMsg.style.display = 'block';
+        quoteMsg.innerHTML = `Shipping to this destination requires a custom quote.<br>
+          <a href="#" onclick="event.preventDefault();showPage('contact')" style="color:var(--pink-d)">Contact us</a> for a price before ordering.`;
+      } else {
+        quoteMsg.style.display = 'none';
+      }
+    }
+  } catch(e) {
+    console.error('[recalcShipping] fetch failed:', e);
+  }
+}
+
+function getShippingPriceForCart(method) {
+  return calculatedShippingPrice;
+}
+
+// Groups cart entries by print+size+note so someone with multiple copies of
+// the same print/size sees one row with a quantity stepper instead of
+// duplicate rows. The underlying `cart` array still holds one entry per
+// physical unit — checkout, edition-number assignment, and the shipping
+// weight calculator all depend on that being true — so grouping happens only
+// here, for display. Different notes stay as separate rows on purpose: they
+// represent genuinely different personalisation requests.
+function groupCartItems() {
+  const groups = [];
+  const indexByKey = {};
+  cart.forEach((item, i) => {
+    const key = `${item.print_id}|${item.size}|${item.note || ''}`;
+    if (indexByKey[key] === undefined) {
+      indexByKey[key] = groups.length;
+      groups.push({ ...item, count: 1, indices: [i] });
+    } else {
+      const g = groups[indexByKey[key]];
+      g.count++;
+      g.indices.push(i);
+    }
+  });
+  return groups;
+}
+
+async function incrementCartItem(templateIndex) {
+  const template = cart[templateIndex];
+  if (!template) return;
+  cart.push({ ...template });
+  saveCart(); // also resets chPriceCache
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
+}
+
+// Removes an entire grouped row in one click, regardless of how many units
+// it holds — distinct from the "−" stepper, which only removes one unit at
+// a time. Indices arrive as a comma-joined string (onclick attributes can't
+// carry arrays directly) and must be spliced highest-first so removing one
+// index doesn't shift the position of the others still queued for removal.
+async function removeCartGroup(indicesStr) {
+  const indices = indicesStr.split(',').map(Number).sort((a, b) => b - a);
+  indices.forEach(i => cart.splice(i, 1));
+  saveCart();
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
+}
+
+async function removeFromCart(index) {
+  cart.splice(index, 1);
+  saveCart(); // also resets chPriceCache
+  calculatedShippingPrice = 0;
+  if (selectedDelivery && cart.length) {
+    await recalcShipping();
+  }
+  await renderCart();
+}
+
+async function goToCheckout() {
+  const btn = document.getElementById('btn-checkout');
+  const msg = document.getElementById('checkout-msg');
+  if (!cart.length || !selectedDelivery) return;
+  if (shippingQuoteRequired) return;
+  if (selectedDelivery === 'intl' && !intlCountrySelected) return;
+  btn.disabled = true; btn.textContent = 'Redirecting…'; msg.textContent = '';
+
+  try {
+    const res = await fetch('/api/shop/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: cart.map(i => ({ print_id: i.print_id, size: i.size, note: i.note || '' })),
+        delivery_method: selectedDelivery.startsWith('personal_') ? 'personal' : selectedDelivery,
+        zone: selectedDelivery.startsWith('personal_') ? selectedDelivery.replace('personal_', '') : null,
+        country_code: selectedCountry || 'CH',
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.url) {
+      localStorage.setItem('pending_cart', JSON.stringify(cart)); // kept in case checkout is abandoned
+      window.location.href = data.url;
+    } else {
+      throw new Error(data.error || 'Checkout failed');
+    }
+  } catch (e) {
+    msg.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'Checkout';
+  }
+}
+
+document.getElementById('shop-detail').addEventListener('click', e => { if (e.target === e.currentTarget) closeShopDetail(); });
+
+// ── SHOP SUCCESS PAGE ─────────────────────────────────────────────────────────
+async function checkShopSuccess() {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+  if (!sessionId || window.location.pathname.indexOf('/shop/success') === -1) return;
+
+  // Clear the cart — order is complete
+  cart = [];
+  saveCart();
+
+  showPage('shop-success');
+  try {
+    const res = await fetch('/api/shop/order/' + sessionId);
+    const data = await res.json();
+    if (res.ok && data.order) {
+      const order = data.order;
+      const items = data.items || [];
+      document.getElementById('success-message').textContent =
+        `Thank you${order.customer_name ? ', ' + order.customer_name : ''} — your order has been received. A confirmation has been sent to ${order.customer_email || 'your email'}.`;
+      const detailsWrap = document.getElementById('success-order-details');
+      detailsWrap.innerHTML = (order.order_ref ? `
+        <div class="success-order-line" style="border-bottom:none;font-family:monospace;color:var(--fg-l)"><span>Order reference</span><span>${esc(order.order_ref)}</span></div>
+      ` : '') + items.map(i => `
+        <div class="success-order-line"><span>${esc(i.print_title)} — ${i.size}</span><span>${fmtCHF(i.price_chf)}</span></div>
+      `).join('') + `
+        <div class="success-order-line"><span>Delivery</span><span>${fmtCHF(order.delivery_price_chf)}</span></div>
+        <div class="success-order-line" style="font-weight:500;border-top:1px solid var(--border);margin-top:.25rem;padding-top:.65rem"><span>Total</span><span>${fmtCHF(order.total_chf)}</span></div>
+      `;
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+// Init cart bar state on load
+updateCartBar();
+
+// Tracks whether the main hero/feed has been built yet — avoids rebuilding
+// or building it while #main-content is hidden behind a shop overlay.
+let mainFeedBuilt = false;
+
+// ── WORKSHOP PAGE DATA ────────────────────────────────────────────────────────
+let workshopDataLoaded = false;
+async function loadWorkshopData() {
+  if (workshopDataLoaded) return;
+  workshopDataLoaded = true;
+  try {
+    const photos = await fetch('/api/workshop-photos').then(r => r.json());
+    if (photos.length) {
+      document.getElementById('workshop-gallery-section').style.display = 'block';
+      document.getElementById('workshop-gallery').innerHTML = photos.map(p =>
+        `<img src="${cld(p.image_url, 1200)}" alt="" loading="lazy" onclick="openLightbox('${p.image_url}', '')">`
+      ).join('');
+    }
+  } catch(e) {}
+  try {
+    const dates = await fetch('/api/workshops').then(r => r.json());
+    const wrap = document.getElementById('workshop-dates');
+    if (!dates.length) {
+      wrap.innerHTML = '<p class="ws-no-dates">No dates announced yet. Check back soon.</p>';
+      return;
+    }
+    wrap.innerHTML = dates.map(d => {
+      const dt = new Date(d.date);
+      const label = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const full = d.spots_left <= 0;
+      return `<div class="ws-date-card">
+        <div>
+          <div class="ws-date-label">${label}</div>
+          <div class="ws-date-spots">${full ? 'Fully booked' : d.spots_left + ' of ' + d.capacity + ' spots left'}</div>
+        </div>
+        <div class="ws-date-right">
+          <span class="ws-date-price">${fmtCHF(d.price_chf_cents)}</span>
+          <button class="ws-book-btn" disabled title="Booking opens soon">Booking opens soon</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// Determine initial route FIRST, then decide whether to build the main feed.
+// This avoids a race where buildFeed() (GSAP/ScrollTrigger setup, hero image load)
+// runs while #main-content is about to be hidden by a shop/shop-success route.
+const initialPath = window.location.pathname;
+// Maps a landing URL to the SPA page it should open. Order-independent since
+// we match on exact-or-prefix below; /shop/success is special-cased first.
+const pathToPage = {
+  '/cart': 'cart', '/shop': 'shop', '/workshops': 'workshop',
+  '/about': 'about', '/contact': 'contact', '/faq': 'faq',
+  '/impressum': 'impressum', '/privacy': 'privacy', '/terms': 'terms',
+};
+const landingPage = Object.keys(pathToPage).find(p => initialPath.indexOf(p) === 0);
+// The main hero feed only needs building if we're not deep-linking into a
+// sub-page — otherwise it's wasted work behind the opened page.
+const startingOnSubPage = initialPath.indexOf('/shop/success') === 0 || !!landingPage;
+
+loadContent().then(() => {
+  if (!startingOnSubPage) { load().then(success => { if (success) mainFeedBuilt = true; }); }
+});
+
+if (initialPath.indexOf('/shop/success') === 0) {
+  checkShopSuccess();
+} else if (landingPage) {
+  showPage(pathToPage[landingPage]);
+}
+
+// Track pageview with referrer — skipped on browsers flagged via the admin
+// (localStorage 'baji_notrack'), so your own visits don't pollute the stats.
+function isNoTrack(){ try{ return localStorage.getItem('baji_notrack')==='1'; }catch(e){ return false; } }
+if(!isNoTrack()){
+  fetch('/api/pageview', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({path:'/', referrer: document.referrer || ''})
+  }).catch(()=>{});
+}
+</script>
+<script>
+// NAVDEBUG HUD
+(function(){
+  const hud = document.createElement('div');
+  hud.style.cssText = 'position:fixed;left:4px;bottom:4px;z-index:2147483647;background:rgba(0,0,0,.8);color:#0f0;font:10px/1.5 monospace;padding:6px 8px;border-radius:4px;pointer-events:none;white-space:pre';
+  document.body.appendChild(hud);
+  const nav = document.getElementById('nav');
+  function tick(){
+    const r = nav ? nav.getBoundingClientRect() : {top:'?',right:'?'};
+    const vv = window.visualViewport;
+    const de = document.documentElement;
+    const overflow = de.scrollWidth > de.clientWidth;
+    hud.textContent =
+      'scrollY ' + Math.round(window.scrollY) +
+      '\nnavTop  ' + (typeof r.top==='number'?r.top.toFixed(1):r.top) + '  navR ' + (typeof r.right==='number'?r.right.toFixed(0):r.right) +
+      '\nvvTop   ' + (vv?vv.offsetTop.toFixed(1):'n/a') + '  scale ' + (vv?vv.scale.toFixed(3):'-') +
+      '\ndocW    ' + de.scrollWidth + '/' + de.clientWidth + (overflow?'  ⚠ OVERFLOW':'  ✓ ok');
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function findOverflow(){
+    const vw = document.documentElement.clientWidth;
+    const bad = [];
+    document.querySelectorAll('*').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right > vw + 1 || r.left < -1) {
+        bad.push({ tag: el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+(el.className&&typeof el.className==='string'?'.'+el.className.trim().split(/\s+/).join('.'):''), right:Math.round(r.right), left:Math.round(r.left), w:Math.round(r.width) });
+      }
+    });
+    bad.sort((a,b)=>b.right-a.right);
+    const top = bad.slice(0,7).map(b=>`${b.right} [${b.left}..${b.right} w${b.w}] ${b.tag}`.slice(0,88)).join('\n');
+    alert('VIEWPORT '+vw+'px docW '+document.documentElement.scrollWidth+' — overflow (widest first):\n\n'+(top||'✓ NONE — nothing overflows'));
+  }
+  setTimeout(findOverflow, 3500);
+  document.addEventListener('click', findOverflow);
+})();
+</script>
+</body>
+</html>
