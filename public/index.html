@@ -108,6 +108,11 @@ input, textarea, select, button, a, label, [contenteditable] { cursor: none !imp
 nav {
   position: fixed;
   top: 0; left: 0; right: 0;
+  max-width: 100vw;      /* never exceed the viewport, even if the document
+                            briefly overflows wider (Android Chrome resolves
+                            right:0 against document width, not viewport, which
+                            let the nav stretch to 407px and slide) */
+  box-sizing: border-box;
   z-index: 500;
   display: flex;
   align-items: center;
@@ -468,6 +473,11 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   gap: 4vw;
   padding: 4vw 5vw 6vw;
   align-items: flex-start;
+  /* Guard: clip any transient horizontal overflow from item reveal animations
+     so it can never make the document wider than the viewport (which detaches
+     the fixed nav on Android Chrome). Safe here — the nav lives outside this
+     subtree, so this doesn't affect its fixed positioning. */
+  overflow-x: clip;
 }
 
 .feed-col {
@@ -763,6 +773,11 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 #contact-page .inner { max-width: 600px; margin: 0 auto; }
 #contact-page.active { display: block; }
 #main-content.hidden { display: none; }
+/* Clip any transient horizontal overflow (e.g. the hero's scale-on-scroll
+   transform in its first frames) at the content-wrapper level, so it can
+   never briefly widen the document and detach the fixed nav on Android
+   Chrome. The nav is outside #main-content, so this doesn't affect it. */
+#main-content { overflow-x: clip; }
 
 #privacy-page {
   display: none;
@@ -2034,17 +2049,17 @@ function initScrollAnimation() {
     }
   });
 
-  // Each portfolio item flies in individually
+  // Each portfolio item flies in individually — vertical only. A horizontal
+  // x-offset reveal (previously x:±30) pushed right-column items past the
+  // viewport's right edge during the animation, making the document wider
+  // than the screen. On Android Chrome that horizontal overflow detached the
+  // fixed nav from the visual viewport, so it appeared to "slide" on scroll.
+  // A pure y-axis fade-in gives the same reveal with zero horizontal overflow.
   document.querySelectorAll('.feed-col-item').forEach((item, i) => {
-    const isLeft = item.classList.contains('col-left');
-    // Left items come from left, right from right — subtle x offset
-    const fromX = isLeft ? -30 : 30;
-
     gsap.fromTo(item,
-      { y: 50, x: fromX, opacity: 0 },
+      { y: 50, opacity: 0 },
       {
         y: 0,
-        x: 0,
         opacity: 1,
         duration: 0.9,
         ease: 'power2.out',
