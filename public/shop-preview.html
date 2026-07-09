@@ -105,6 +105,23 @@
   .dot.active { background:var(--fg); transform:scale(1.25); }
   .view-label { text-align:center; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-l); min-height:1.2em; }
 
+  /* No-margin single view — no swipe track, one image + a dedicated note */
+  .viewer.single .view-slide { aspect-ratio:1 / 1.15; }
+  .nomargin-note {
+    margin-top:.85rem;
+    background:var(--bg-2);
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:.85rem 1rem;
+    font-size:11px; line-height:1.65; color:var(--fg-m);
+  }
+  .nomargin-tag {
+    display:inline-block;
+    font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--pink-d);
+    margin-right:.5rem;
+  }
+
   .hint { text-align:center; font-size:9px; letter-spacing:.08em; color:var(--fg-l); margin-top:.5rem; }
 
   /* Meta / sizes */
@@ -283,22 +300,39 @@ function renderDetail() {
       <span class="pr">${fmtCHF(s.price_chf)}</span>
     </button>`).join('');
 
-  stage.innerHTML = `
-    <div class="detail active">
+  const noteText = (CONTENT.shop_no_margin_note || 'This print is produced full-bleed, without a border — this image is stronger edge to edge.').trim();
+
+  const viewerHtml = p.no_margin
+    ? `
+      <!-- No-margin print: single image, no swipe, dedicated note below -->
+      <div class="viewer single">
+        <div class="view-slide full" onclick="openZoom('full')">
+          <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
+        </div>
+      </div>
+      <div class="nomargin-note">
+        <span class="nomargin-tag">Full-bleed print</span>
+        ${escapeHtml(noteText)}
+      </div>
+      <div class="hint">Tap to enlarge</div>`
+    : `
       <div class="viewer">
         <div class="viewer-track" id="track" onscroll="onTrackScroll()">
           <div class="view-slide full" onclick="openZoom('full')">
             <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
           </div>
-          <div class="view-slide mock" id="mock-slide" onclick="${p.no_margin ? '' : "openZoom('mock')"}">
-            ${p.no_margin ? noMarginHtml(p) : paperMockupHtml(p)}
+          <div class="view-slide mock" id="mock-slide" onclick="openZoom('mock')">
+            ${paperMockupHtml(p)}
           </div>
         </div>
       </div>
       <div class="dots"><span class="dot active" id="dot0"></span><span class="dot" id="dot1"></span></div>
       <div class="view-label" id="viewLabel">Full image</div>
-      <div class="hint">${p.no_margin ? '← swipe to see it printed full-bleed →' : '← swipe to see it printed with margins →'}</div>
+      <div class="hint">← swipe to see it printed with margins →</div>`;
 
+  stage.innerHTML = `
+    <div class="detail active">
+      ${viewerHtml}
       <div class="meta">
         <div class="title">${escapeHtml(p.title)}</div>
         <div class="sizes">${sizesHtml}</div>
@@ -309,35 +343,33 @@ function renderDetail() {
 }
 
 // Builds the paper+window markup for the current size & orientation.
-function paperMockupHtml(p) {
+// forZoom=true sizes the paper against the viewport (constrained on BOTH axes
+// by the paper's true aspect ratio) so landscape and portrait each fit the
+// fullscreen stage correctly — the earlier bug forced height:80vh on every
+// paper, which made landscape sheets overflow sideways.
+function paperMockupHtml(p, forZoom) {
   const g = printGeometry(currentSize, currentOrientation);
-  // The paper element gets the true paper aspect ratio; we cap its size to the
-  // slide via max-width/height so portrait and landscape both fit the stage.
   const isPortraitPaper = g.paperH >= g.paperW;
-  const sizeStyle = isPortraitPaper
-    ? `height:86%; aspect-ratio:${g.paperW} / ${g.paperH};`
-    : `width:92%; aspect-ratio:${g.paperW} / ${g.paperH};`;
+  let sizeStyle;
+  if (forZoom) {
+    // Fit within ~90vw x ~82vh while preserving the paper aspect ratio.
+    // Using aspect-ratio + both max-width and max-height lets the browser pick
+    // whichever constraint binds first, so neither orientation overflows.
+    sizeStyle = isPortraitPaper
+      ? `height:82vh; width:auto; max-width:90vw; aspect-ratio:${g.paperW} / ${g.paperH};`
+      : `width:90vw; height:auto; max-height:82vh; aspect-ratio:${g.paperW} / ${g.paperH};`;
+  } else {
+    sizeStyle = isPortraitPaper
+      ? `height:86%; aspect-ratio:${g.paperW} / ${g.paperH};`
+      : `width:92%; aspect-ratio:${g.paperW} / ${g.paperH};`;
+  }
   return `
     <div class="paper" id="paper" style="${sizeStyle}">
       <div class="paper-window" style="
         left:${g.leftPct}%; top:${g.topPct}%;
         width:${g.winWPct}%; height:${g.winHPct}%;">
-        <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
+        <img src="${cld(p.image_url, forZoom ? 2000 : 1400)}" alt="${escapeHtml(p.title)}">
       </div>
-    </div>`;
-}
-
-// Second slide when the print is sold full-bleed: shows the image edge-to-edge
-// with the editable explanatory note beneath it, instead of a margin mockup.
-function noMarginHtml(p) {
-  const note = (CONTENT.shop_no_margin_note || 'This print is produced full-bleed, without a border.').trim();
-  return `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;max-width:100%;max-height:100%;">
-      <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}"
-           style="max-width:100%;max-height:70%;object-fit:contain;box-shadow:0 2px 18px rgba(0,0,0,.12);display:block">
-      <p style="font-size:11px;line-height:1.6;color:var(--fg-m);text-align:center;max-width:34ch;padding:0 .5rem">
-        ${escapeHtml(note)}
-      </p>
     </div>`;
 }
 
@@ -393,13 +425,8 @@ function openZoom(which) {
   const zoom = document.getElementById('zoom');
   const zs = document.getElementById('zoom-stage');
   zs.innerHTML = which === 'mock'
-    ? `<div class="zoom-inner" id="zoomInner">${paperMockupHtml(current)}</div>`
+    ? `<div class="zoom-inner" id="zoomInner">${paperMockupHtml(current, true)}</div>`
     : `<div class="zoom-inner" id="zoomInner"><img src="${cld(current.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
-  // size the paper mock sensibly in zoom
-  if (which === 'mock') {
-    const paper = zs.querySelector('.paper');
-    if (paper) { paper.style.height = '80vh'; paper.style.width = 'auto'; }
-  }
   zoomState = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0 };
   applyZoom();
   zoom.classList.add('open');
