@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Shop Detail — Margin Mockup Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --white:#FAFAF8; --black:#111110; --gray:#999896;
+    --pink:#C8907A; --pink-d:#A87060;
+    --bg:#FAFAF8; --bg-2:#F0EFEC;
+    --fg:#111110; --fg-m:rgba(17,17,16,.6); --fg-l:rgba(17,17,16,.35);
+    --border:rgba(17,17,16,.12);
+    --fm:'DM Mono', monospace;
+    --fi:'Playfair Display', Georgia, serif;
+    /* Paper tone for the mockup — warm off-white, subtly distinct from page bg */
+    --paper:#FCFCFA;
+    --paper-edge:rgba(17,17,16,.10);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--fg);
+    font-family:var(--fm); font-size:12px; letter-spacing:.02em;
+    -webkit-font-smoothing:antialiased;
+  }
+  .staging-banner {
+    background:var(--pink); color:#fff; text-align:center;
+    padding:.5rem 1rem; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  }
+  .wrap { max-width:520px; margin:0 auto; padding:1.5rem 1.25rem 4rem; }
+  h1 { font-family:var(--fi); font-style:italic; font-weight:400; font-size:1.6rem; margin-bottom:.25rem; }
+  .sub { font-size:11px; color:var(--fg-m); margin-bottom:1.5rem; line-height:1.6; }
+
+  /* Product picker (staging only — real site opens detail from the grid) */
+  .picker { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .picker button {
+    font-family:var(--fm); font-size:10px; letter-spacing:.04em;
+    background:var(--bg-2); border:1px solid var(--border); color:var(--fg);
+    padding:.45rem .7rem; border-radius:2px; cursor:pointer; transition:all .15s;
+  }
+  .picker button.active { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+  /* ===== DETAIL VIEW ===== */
+  .detail { display:none; }
+  .detail.active { display:block; }
+
+  /* Swipe viewport — horizontal scroll-snap between views */
+  .viewer {
+    position:relative;
+    background:var(--bg-2);
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .viewer-track {
+    display:flex;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .viewer-track::-webkit-scrollbar { display:none; }
+  .view-slide {
+    flex:0 0 100%;
+    scroll-snap-align:center;
+    display:flex; align-items:center; justify-content:center;
+    /* fixed square-ish stage so both slides share height and swipe feels stable */
+    aspect-ratio:1 / 1.15;
+    padding:1.25rem;
+    position:relative;
+  }
+
+  /* Slide 1: the bare image */
+  .view-slide.full img {
+    max-width:100%; max-height:100%;
+    object-fit:contain; display:block;
+    box-shadow:0 2px 18px rgba(0,0,0,.12);
+  }
+
+  /* Slide 2: the print-with-margins mockup.
+     The paper is a rectangle at the TRUE paper aspect ratio; the image sits
+     inside a window inset by the (proportional) margins, bottom-heavier. */
+  .paper {
+    position:relative;
+    background:var(--paper);
+    box-shadow:0 3px 22px rgba(0,0,0,.16);
+    /* dimensions set inline by JS (aspect-ratio + max sizing) */
+  }
+  .paper-window {
+    position:absolute;
+    overflow:hidden;
+    background:var(--bg-2);
+  }
+  .paper-window img {
+    width:100%; height:100%;
+    object-fit:cover;   /* fill-crop into the fixed margin window */
+    display:block;
+  }
+
+  /* Slide dots */
+  .dots { display:flex; gap:.4rem; justify-content:center; padding:.85rem 0 .25rem; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--fg-l); transition:background .2s, transform .2s; }
+  .dot.active { background:var(--fg); transform:scale(1.25); }
+  .view-label { text-align:center; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--fg-l); min-height:1.2em; }
+
+  .hint { text-align:center; font-size:9px; letter-spacing:.08em; color:var(--fg-l); margin-top:.5rem; }
+
+  /* Meta / sizes */
+  .meta { margin-top:1.5rem; }
+  .title { font-family:var(--fi); font-style:italic; font-size:1.5rem; margin-bottom:.5rem; }
+  .sizes { display:flex; gap:.4rem; margin:1rem 0; flex-wrap:wrap; }
+  .size-btn {
+    font-family:var(--fm); font-size:11px;
+    background:var(--bg-2); border:1px solid var(--border); color:var(--fg);
+    padding:.5rem .85rem; border-radius:2px; cursor:pointer; transition:all .15s;
+    display:flex; flex-direction:column; align-items:flex-start; gap:.15rem; min-width:64px;
+  }
+  .size-btn.active { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  .size-btn .sz { font-size:12px; letter-spacing:.05em; }
+  .size-btn .pr { font-size:9px; opacity:.7; }
+  .size-note { font-size:10px; color:var(--fg-m); line-height:1.6; margin-top:.25rem; }
+
+  /* Fullscreen zoom */
+  .zoom-overlay {
+    display:none; position:fixed; inset:0; z-index:1000;
+    background:rgba(10,10,9,.94);
+    align-items:center; justify-content:center;
+    touch-action:none;
+  }
+  .zoom-overlay.open { display:flex; }
+  .zoom-overlay img, .zoom-overlay .paper { max-width:none; }
+  .zoom-stage {
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .zoom-inner { transform-origin:center center; will-change:transform; }
+  .zoom-close {
+    position:fixed; top:1rem; right:1rem; z-index:1001;
+    background:rgba(255,255,255,.12); border:none; color:#fff;
+    width:38px; height:38px; border-radius:50%; font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-hint { position:fixed; bottom:1.25rem; left:0; right:0; text-align:center; color:rgba(255,255,255,.6); font-size:10px; letter-spacing:.1em; }
+
+  .loading, .error { text-align:center; padding:4rem 1rem; color:var(--fg-m); font-size:11px; }
+  .error { color:var(--pink-d); }
+</style>
+</head>
+<body>
+
+<div class="staging-banner">Staging preview · margin mockup · not the live site</div>
+
+<div class="wrap">
+  <h1>Shop detail — margin mockup</h1>
+  <p class="sub">Pulls your live shop products. Tap a product, then swipe the image left/right between the full photo and the print-with-margins mockup. Change the size to see the mat proportion update. Tap either view to enlarge.</p>
+
+  <div id="picker" class="picker"></div>
+  <div id="stage"></div>
+</div>
+
+<!-- Fullscreen zoom overlay -->
+<div class="zoom-overlay" id="zoom">
+  <button class="zoom-close" onclick="closeZoom()">×</button>
+  <div class="zoom-stage" id="zoom-stage"></div>
+  <div class="zoom-hint">Pinch or double-tap to zoom · tap × to close</div>
+</div>
+
+<script>
+// ---- margin geometry ----------------------------------------------------
+// Real paper sizes (cm), portrait orientation (W x H).
+const PAPER = {
+  A2: { w:42.0, h:59.4 },
+  A3: { w:29.7, h:42.0 },
+  A4: { w:21.0, h:29.7 },
+};
+// A2 reference margins (cm). Sides = left/top/right, bottom is heavier.
+const A2_SIDE = 3.5, A2_BOTTOM = 5.25, A2_LONG = 59.4;
+// Margins scale proportionally to the paper's long edge relative to A2, so
+// every size keeps the same visual margin-to-image ratio.
+function marginsFor(sizeKey) {
+  const p = PAPER[sizeKey] || PAPER.A2;
+  const scale = p.h / A2_LONG;
+  return { side: A2_SIDE * scale, bottom: A2_BOTTOM * scale };
+}
+
+// Given a size and orientation, returns the paper rectangle (in cm, as it
+// hangs on the wall) and the image window inset within it.
+// - portrait photo  -> paper stays portrait (w x h)
+// - landscape photo -> paper is rotated (h x w), margins applied the same way
+function printGeometry(sizeKey, orientation) {
+  const p = PAPER[sizeKey] || PAPER.A2;
+  const m = marginsFor(sizeKey);
+  let paperW, paperH;
+  if (orientation === 'landscape') { paperW = p.h; paperH = p.w; }
+  else { paperW = p.w; paperH = p.h; }
+  const winW = paperW - 2 * m.side;
+  const winH = paperH - m.side - m.bottom;
+  return {
+    paperW, paperH,
+    // insets as % of paper, for absolute positioning of the window
+    leftPct:  (m.side / paperW) * 100,
+    topPct:   (m.side / paperH) * 100,
+    winWPct:  (winW / paperW) * 100,
+    winHPct:  (winH / paperH) * 100,
+  };
+}
+
+// ---- image url helper (same as the site) --------------------------------
+function cld(url, w) {
+  if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
+  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+}
+function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
+
+// ---- state --------------------------------------------------------------
+let PRODUCTS = [];
+let current = null;        // current product
+let currentSize = 'A2';    // selected size key
+let currentOrientation = 'portrait';
+
+// Detect orientation from the natural dimensions of the loaded image.
+function detectOrientation(url) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => res(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
+    img.onerror = () => res('portrait');
+    img.src = cld(url, 60);
+  });
+}
+
+// ---- render -------------------------------------------------------------
+async function boot() {
+  const stage = document.getElementById('stage');
+  try {
+    const res = await fetch('/api/shop/products');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    PRODUCTS = await res.json();
+  } catch (e) {
+    stage.innerHTML = `<div class="error">Couldn't load products from /api/shop/products — ${e.message}.<br>Make sure this file is served from your own domain (bharatbhatia.photography/shop-preview.html), not opened as a local file.</div>`;
+    return;
+  }
+  if (!Array.isArray(PRODUCTS) || !PRODUCTS.length) {
+    stage.innerHTML = `<div class="error">No products returned. Is anything marked for sale?</div>`;
+    return;
+  }
+  // Build picker
+  const picker = document.getElementById('picker');
+  picker.innerHTML = PRODUCTS.map((p, i) =>
+    `<button data-i="${i}" onclick="openProduct(${i})">${escapeHtml(p.title || 'Untitled')}</button>`
+  ).join('');
+  openProduct(0);
+}
+
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function openProduct(i) {
+  current = PRODUCTS[i];
+  document.querySelectorAll('#picker button').forEach(b => b.classList.toggle('active', +b.dataset.i === i));
+
+  // default size = the largest available (A2 > A3 > A4), fallback to first
+  const order = ['A2','A3','A4'];
+  const available = (current.sizes || []).map(s => s.size);
+  currentSize = order.find(sz => available.includes(sz)) || available[0] || 'A2';
+
+  currentOrientation = await detectOrientation(current.image_url);
+  renderDetail();
+}
+
+function renderDetail() {
+  const stage = document.getElementById('stage');
+  const p = current;
+  const sizesHtml = (p.sizes || []).map(s => `
+    <button class="size-btn ${s.size === currentSize ? 'active' : ''}" onclick="setSize('${s.size}')">
+      <span class="sz">${s.size}</span>
+      <span class="pr">${fmtCHF(s.price_chf)}</span>
+    </button>`).join('');
+
+  stage.innerHTML = `
+    <div class="detail active">
+      <div class="viewer">
+        <div class="viewer-track" id="track" onscroll="onTrackScroll()">
+          <div class="view-slide full" onclick="openZoom('full')">
+            <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
+          </div>
+          <div class="view-slide mock" id="mock-slide" onclick="openZoom('mock')">
+            ${paperMockupHtml(p)}
+          </div>
+        </div>
+      </div>
+      <div class="dots"><span class="dot active" id="dot0"></span><span class="dot" id="dot1"></span></div>
+      <div class="view-label" id="viewLabel">Full image</div>
+      <div class="hint">← swipe to see it printed with margins →</div>
+
+      <div class="meta">
+        <div class="title">${escapeHtml(p.title)}</div>
+        <div class="sizes">${sizesHtml}</div>
+        <div class="size-note" id="sizeNote"></div>
+      </div>
+    </div>`;
+  updateSizeNote();
+}
+
+// Builds the paper+window markup for the current size & orientation.
+function paperMockupHtml(p) {
+  const g = printGeometry(currentSize, currentOrientation);
+  // The paper element gets the true paper aspect ratio; we cap its size to the
+  // slide via max-width/height so portrait and landscape both fit the stage.
+  const isPortraitPaper = g.paperH >= g.paperW;
+  const sizeStyle = isPortraitPaper
+    ? `height:86%; aspect-ratio:${g.paperW} / ${g.paperH};`
+    : `width:92%; aspect-ratio:${g.paperW} / ${g.paperH};`;
+  return `
+    <div class="paper" id="paper" style="${sizeStyle}">
+      <div class="paper-window" style="
+        left:${g.leftPct}%; top:${g.topPct}%;
+        width:${g.winWPct}%; height:${g.winHPct}%;">
+        <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
+      </div>
+    </div>`;
+}
+
+function setSize(sz) {
+  currentSize = sz;
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.toggle('active', b.querySelector('.sz').textContent === sz));
+  // re-render just the mock slide so the margins update live
+  const mock = document.getElementById('mock-slide');
+  if (mock) mock.innerHTML = paperMockupHtml(current);
+  updateSizeNote();
+}
+
+function updateSizeNote() {
+  const note = document.getElementById('sizeNote');
+  if (!note) return;
+  const paper = PAPER[currentSize];
+  const m = marginsFor(currentSize);
+  const orient = currentOrientation === 'landscape' ? 'landscape' : 'portrait';
+  const pw = orient === 'landscape' ? paper.h : paper.w;
+  const ph = orient === 'landscape' ? paper.w : paper.h;
+  const winW = (pw - 2*m.side).toFixed(1);
+  const winH = (ph - m.side - m.bottom).toFixed(1);
+  note.innerHTML =
+    `${currentSize} · ${orient} · paper ${pw}×${ph}cm<br>` +
+    `margins ${m.side.toFixed(2)}cm sides / ${m.bottom.toFixed(2)}cm bottom · image area ${winW}×${winH}cm`;
+}
+
+// ---- swipe dots ---------------------------------------------------------
+function onTrackScroll() {
+  const track = document.getElementById('track');
+  if (!track) return;
+  const idx = Math.round(track.scrollLeft / track.clientWidth);
+  document.getElementById('dot0')?.classList.toggle('active', idx === 0);
+  document.getElementById('dot1')?.classList.toggle('active', idx === 1);
+  const label = document.getElementById('viewLabel');
+  if (label) label.textContent = idx === 0 ? 'Full image' : 'Printed · bottom-weighted margins';
+}
+
+// ---- zoom (pinch + double-tap) ------------------------------------------
+let zoomState = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0 };
+function openZoom(which) {
+  const zoom = document.getElementById('zoom');
+  const zs = document.getElementById('zoom-stage');
+  zs.innerHTML = which === 'mock'
+    ? `<div class="zoom-inner" id="zoomInner">${paperMockupHtml(current)}</div>`
+    : `<div class="zoom-inner" id="zoomInner"><img src="${cld(current.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+  // size the paper mock sensibly in zoom
+  if (which === 'mock') {
+    const paper = zs.querySelector('.paper');
+    if (paper) { paper.style.height = '80vh'; paper.style.width = 'auto'; }
+  }
+  zoomState = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0 };
+  applyZoom();
+  zoom.classList.add('open');
+}
+function closeZoom(){ document.getElementById('zoom').classList.remove('open'); }
+function applyZoom(){
+  const inner = document.getElementById('zoomInner');
+  if (inner) inner.style.transform = `translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
+}
+(function attachZoomGestures(){
+  const zoom = document.getElementById('zoom');
+  let pts = [];
+  zoom.addEventListener('touchstart', e => {
+    pts = Array.from(e.touches);
+    if (pts.length === 2) {
+      zoomState.startDist = Math.hypot(pts[0].clientX-pts[1].clientX, pts[0].clientY-pts[1].clientY);
+      zoomState.startScale = zoomState.scale;
+    } else if (pts.length === 1) {
+      const now = Date.now();
+      if (now - zoomState.lastTapT < 300) {
+        zoomState.scale = zoomState.scale > 1 ? 1 : 2.2;
+        zoomState.x = 0; zoomState.y = 0; applyZoom();
+      }
+      zoomState.lastTapT = now;
+      zoomState._sx = pts[0].clientX - zoomState.x;
+      zoomState._sy = pts[0].clientY - zoomState.y;
+    }
+  }, { passive:true });
+  zoom.addEventListener('touchmove', e => {
+    const t = Array.from(e.touches);
+    if (t.length === 2 && zoomState.startDist) {
+      const d = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+      zoomState.scale = Math.max(1, Math.min(5, zoomState.startScale * (d / zoomState.startDist)));
+      applyZoom();
+    } else if (t.length === 1 && zoomState.scale > 1) {
+      zoomState.x = t[0].clientX - zoomState._sx;
+      zoomState.y = t[0].clientY - zoomState._sy;
+      applyZoom();
+    }
+  }, { passive:true });
+  // click background (not the image) to close
+  zoom.addEventListener('click', e => { if (e.target === zoom || e.target.id === 'zoom-stage') closeZoom(); });
+})();
+
+boot();
+</script>
+</body>
+</html>
