@@ -359,6 +359,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       <span class="sidebar-label">Shop</span>
       <button class="sidebar-btn" onclick="showPanel('orders',this)">Orders <span class="badge" id="orders-badge" style="display:none">0</span></button>
       <button class="sidebar-btn" onclick="showPanel('shop',this)">Prints for sale</button>
+      <button class="sidebar-btn" onclick="showPanel('margins',this)">Margin reference</button>
       <button class="sidebar-btn" onclick="showPanel('papers',this)">Papers</button>
       <button class="sidebar-btn" onclick="showPanel('shipping',this)">Shipping</button>
       <span class="sidebar-label">Text content</span>
@@ -441,6 +442,13 @@ textarea.field-input{resize:vertical;min-height:70px}
         <p class="panel-sub">Choose which prints are for sale, set prices per size, and pick available delivery options. Sizes: A4 (flat), A3 / A2 (rolled in a tube).</p>
         <div id="limited-editions-summary"></div>
         <div id="shop-prints-list"></div>
+      </div>
+
+      <!-- MARGIN REFERENCE -->
+      <div class="panel" id="panel-margins">
+        <h2 class="panel-title">Margin reference</h2>
+        <p class="panel-sub">Exact print dimensions for the bottom-weighted margin, per size and orientation — the same geometry the shop mockup uses. For your own reference when preparing prints; nothing here is editable.</p>
+        <div id="margin-ref-table"></div>
       </div>
 
       <!-- SHIPPING -->
@@ -1908,6 +1916,54 @@ async function loadAll(){
   await loadPapers();
   await loadShopPrints();
   await loadOrders();
+  renderMarginReference();
+}
+
+// Builds the static margin-geometry reference table (all sizes × orientations).
+// Computed here from the same rule the shop mockup uses, so it stays correct
+// even if the base A2 margins ever change.
+function renderMarginReference() {
+  const el = document.getElementById('margin-ref-table');
+  if (!el) return;
+  const PAPER = { A2:[42.0,59.4], A3:[29.7,42.0], A4:[21.0,29.7] };
+  const A2_SIDE = 3.5, A2_BOTTOM = 5.25, A2_LONG = 59.4;
+  const fmt = n => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  let rows = '';
+  ['A2','A3','A4'].forEach(sz => {
+    const [w,h] = PAPER[sz];
+    const scale = h / A2_LONG;
+    const side = A2_SIDE * scale, bottom = A2_BOTTOM * scale;
+    ['portrait','landscape'].forEach((orient, oi) => {
+      const pw = orient === 'landscape' ? h : w;
+      const ph = orient === 'landscape' ? w : h;
+      const ww = pw - 2 * side, wh = ph - side - bottom;
+      rows += `<tr style="border-top:1px solid var(--border,#e5e0d8)">
+        <td style="padding:.5rem .6rem;font-weight:${oi===0?'600':'400'}">${oi===0?sz:''}</td>
+        <td style="padding:.5rem .6rem">${orient}</td>
+        <td style="padding:.5rem .6rem">${fmt(pw)} × ${fmt(ph)}</td>
+        <td style="padding:.5rem .6rem">${fmt(side)} sides / ${fmt(bottom)} bottom</td>
+        <td style="padding:.5rem .6rem;font-weight:500">${fmt(ww)} × ${fmt(wh)}</td>
+      </tr>`;
+    });
+  });
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+    <table style="border-collapse:collapse;font-family:'DM Mono',monospace;font-size:.78rem;color:var(--text-m,#555);min-width:560px">
+      <thead>
+        <tr style="text-align:left;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-l,#999)">
+          <th style="padding:.5rem .6rem;font-weight:500">Size</th>
+          <th style="padding:.5rem .6rem;font-weight:500">Orientation</th>
+          <th style="padding:.5rem .6rem;font-weight:500">Paper (cm)</th>
+          <th style="padding:.5rem .6rem;font-weight:500">Margins (cm)</th>
+          <th style="padding:.5rem .6rem;font-weight:500">Image area (cm)</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>
+    <p style="font-size:.72rem;color:var(--text-l,#999);margin-top:.85rem;line-height:1.6">
+      Bottom margin is always 1.5× the side/top margin. Margins scale proportionally with paper size, so every size keeps the same visual proportion.
+    </p>`;
 }
 
 async function loadStats(){
