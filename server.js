@@ -584,6 +584,10 @@ async function initDB() {
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_personal BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS delivery_intl BOOLEAN DEFAULT FALSE;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS shop_note TEXT; -- print/paper description shown in shop detail (legacy, replaced by paper_id)
+    -- Per-print flag: this print is sold WITHOUT the bottom-weighted margin
+    -- (some images read better full-bleed). Shown on the shop with an
+    -- explanatory note (text editable via the shop_no_margin_note content key).
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS no_margin BOOLEAN DEFAULT FALSE;
 
     -- ── PAPERS: reusable paper descriptions ────────────────────────────
     CREATE TABLE IF NOT EXISTS papers (
@@ -801,6 +805,8 @@ async function initDB() {
     ['faq_damaged', 'If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I\'ll arrange a replacement or full refund, including return shipping costs, at no charge to you.'],
     ['faq_returns', 'Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I\'ll refund the full purchase price. See the terms of sale for full details.'],
     ['faq_framing', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
+    // Default note shown on the shop for prints flagged no_margin (editable)
+    ['shop_no_margin_note', 'This print is produced full-bleed, without a border — this image is stronger edge to edge.'],
     // FAQ visibility flags — 'false' hides that question on the site
     ['faq_paper_enabled','true'],['faq_sizes_enabled','true'],['faq_signed_enabled','true'],
     ['faq_limited_enabled','true'],['faq_limited_platforms_enabled','true'],['faq_margin_enabled','true'],['faq_how_order_enabled','true'],
@@ -983,7 +989,7 @@ app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
       `SELECT p.id, p.title, p.description, p.image_url, p.edition_type, p.edition_size,
-              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note,
+              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin,
               pa.name AS paper_name, pa.description AS paper_description
        FROM prints p
        LEFT JOIN papers pa ON pa.id = p.paper_id
@@ -1624,7 +1630,7 @@ app.delete('/api/admin/papers/:id', requireAuth, async (req, res) => {
 app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   try {
     const { rows: printRows } = await pool.query(
-      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id
+      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id, no_margin
        FROM prints WHERE id=$1`, [req.params.id]
     );
     if (!printRows[0]) return res.status(404).json({ error: 'Not found' });
@@ -1665,12 +1671,12 @@ app.put('/api/admin/shop/print/:id/forsale', requireAuth, async (req, res) => {
 
 // Update shop settings for a print (for_sale, edition info, delivery options, paper)
 app.put('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
-  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id } = req.body;
+  const { for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id, no_margin } = req.body;
   try {
     await pool.query(
       `UPDATE prints SET for_sale=$1, edition_type=$2, edition_size=$3,
-       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6, shop_note=$7, paper_id=$8 WHERE id=$9`,
-      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, shop_note || null, paper_id || null, req.params.id]
+       delivery_ch=$4, delivery_personal=$5, delivery_intl=$6, shop_note=$7, paper_id=$8, no_margin=$9 WHERE id=$10`,
+      [!!for_sale, edition_type || 'open', edition_size || null, !!delivery_ch, !!delivery_personal, !!delivery_intl, shop_note || null, paper_id || null, !!no_margin, req.params.id]
     );
     res.json({ ok: true });
   } catch (e) {

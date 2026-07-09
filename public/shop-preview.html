@@ -155,7 +155,7 @@
 
 <div class="wrap">
   <h1>Shop detail — margin mockup</h1>
-  <p class="sub">Pulls your live shop products. Tap a product, then swipe the image left/right between the full photo and the print-with-margins mockup. Change the size to see the mat proportion update. Tap either view to enlarge.</p>
+  <p class="sub">Pulls your live shop products. Tap a product, then swipe the image left/right between the full photo and the print mockup. Prints you've flagged "sold without margin" in admin show the full-bleed note instead. Tap either view to enlarge.</p>
 
   <div id="picker" class="picker"></div>
   <div id="stage"></div>
@@ -217,6 +217,7 @@ function fmtCHF(cents) { return 'CHF ' + (cents / 100).toFixed(2); }
 
 // ---- state --------------------------------------------------------------
 let PRODUCTS = [];
+let CONTENT = {};          // editable text (shop_no_margin_note, etc.)
 let current = null;        // current product
 let currentSize = 'A2';    // selected size key
 let currentOrientation = 'portrait';
@@ -235,9 +236,13 @@ function detectOrientation(url) {
 async function boot() {
   const stage = document.getElementById('stage');
   try {
-    const res = await fetch('/api/shop/products');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    PRODUCTS = await res.json();
+    const [prodRes, contentRes] = await Promise.all([
+      fetch('/api/shop/products'),
+      fetch('/api/content').catch(() => null),
+    ]);
+    if (!prodRes.ok) throw new Error('HTTP ' + prodRes.status);
+    PRODUCTS = await prodRes.json();
+    if (contentRes && contentRes.ok) CONTENT = await contentRes.json();
   } catch (e) {
     stage.innerHTML = `<div class="error">Couldn't load products from /api/shop/products — ${e.message}.<br>Make sure this file is served from your own domain (bharatbhatia.photography/shop-preview.html), not opened as a local file.</div>`;
     return;
@@ -285,14 +290,14 @@ function renderDetail() {
           <div class="view-slide full" onclick="openZoom('full')">
             <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}">
           </div>
-          <div class="view-slide mock" id="mock-slide" onclick="openZoom('mock')">
-            ${paperMockupHtml(p)}
+          <div class="view-slide mock" id="mock-slide" onclick="${p.no_margin ? '' : "openZoom('mock')"}">
+            ${p.no_margin ? noMarginHtml(p) : paperMockupHtml(p)}
           </div>
         </div>
       </div>
       <div class="dots"><span class="dot active" id="dot0"></span><span class="dot" id="dot1"></span></div>
       <div class="view-label" id="viewLabel">Full image</div>
-      <div class="hint">← swipe to see it printed with margins →</div>
+      <div class="hint">${p.no_margin ? '← swipe to see it printed full-bleed →' : '← swipe to see it printed with margins →'}</div>
 
       <div class="meta">
         <div class="title">${escapeHtml(p.title)}</div>
@@ -322,6 +327,20 @@ function paperMockupHtml(p) {
     </div>`;
 }
 
+// Second slide when the print is sold full-bleed: shows the image edge-to-edge
+// with the editable explanatory note beneath it, instead of a margin mockup.
+function noMarginHtml(p) {
+  const note = (CONTENT.shop_no_margin_note || 'This print is produced full-bleed, without a border.').trim();
+  return `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:1rem;max-width:100%;max-height:100%;">
+      <img src="${cld(p.image_url, 1400)}" alt="${escapeHtml(p.title)}"
+           style="max-width:100%;max-height:70%;object-fit:contain;box-shadow:0 2px 18px rgba(0,0,0,.12);display:block">
+      <p style="font-size:11px;line-height:1.6;color:var(--fg-m);text-align:center;max-width:34ch;padding:0 .5rem">
+        ${escapeHtml(note)}
+      </p>
+    </div>`;
+}
+
 function setSize(sz) {
   currentSize = sz;
   document.querySelectorAll('.size-btn').forEach(b => b.classList.toggle('active', b.querySelector('.sz').textContent === sz));
@@ -334,6 +353,14 @@ function setSize(sz) {
 function updateSizeNote() {
   const note = document.getElementById('sizeNote');
   if (!note) return;
+  if (current && current.no_margin) {
+    const paper = PAPER[currentSize];
+    const orient = currentOrientation === 'landscape' ? 'landscape' : 'portrait';
+    const pw = orient === 'landscape' ? paper.h : paper.w;
+    const ph = orient === 'landscape' ? paper.w : paper.h;
+    note.innerHTML = `${currentSize} · ${orient} · printed full-bleed on ${pw}×${ph}cm paper — no border`;
+    return;
+  }
   const paper = PAPER[currentSize];
   const m = marginsFor(currentSize);
   const orient = currentOrientation === 'landscape' ? 'landscape' : 'portrait';
@@ -354,7 +381,10 @@ function onTrackScroll() {
   document.getElementById('dot0')?.classList.toggle('active', idx === 0);
   document.getElementById('dot1')?.classList.toggle('active', idx === 1);
   const label = document.getElementById('viewLabel');
-  if (label) label.textContent = idx === 0 ? 'Full image' : 'Printed · bottom-weighted margins';
+  if (label) {
+    const nm = current && current.no_margin;
+    label.textContent = idx === 0 ? 'Full image' : (nm ? 'Printed · full-bleed, no border' : 'Printed · bottom-weighted margins');
+  }
 }
 
 // ---- zoom (pinch + double-tap) ------------------------------------------

@@ -1325,6 +1325,11 @@ function buildShopCard(printMeta, shopPrint, sizes){
           ${(window._papers||[]).map(p => `<option value="${p.id}" ${shopPrint.paper_id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
         </select>
 
+        <label style="display:flex;align-items:flex-start;gap:.5rem;margin:.5rem 0;font-size:.8rem;color:var(--text-m);cursor:pointer">
+          <input type="checkbox" id="nomargin-${id}" ${shopPrint.no_margin ? 'checked' : ''} style="cursor:pointer;margin-top:.15rem">
+          <span>Sold without margin (full-bleed) — shows the explanatory note on the shop instead of the margin mockup. The note text is editable under Content → Shop.</span>
+        </label>
+
         <div class="shop-sizes-title">Sizes & prices (CHF)</div>
         ${SHOP_SIZES.map(size => `
           <div class="shop-size-row">
@@ -1384,6 +1389,7 @@ async function saveShopPrint(id, btn){
   const deliveryIntl = document.getElementById('delintl-'+id).checked;
   const paperSelect = document.getElementById('paper-'+id);
   const paperId = paperSelect ? (paperSelect.value || null) : null;
+  const noMargin = document.getElementById('nomargin-'+id)?.checked || false;
 
   try{
     await fetch('/api/admin/shop/print/'+id, {
@@ -1391,7 +1397,8 @@ async function saveShopPrint(id, btn){
       body: JSON.stringify({
         for_sale: forSale, edition_type: editionType, edition_size: editionSize,
         delivery_ch: deliveryCh, delivery_personal: deliveryPersonal, delivery_intl: deliveryIntl,
-        paper_id: paperId ? parseInt(paperId) : null
+        paper_id: paperId ? parseInt(paperId) : null,
+        no_margin: noMargin
       })
     });
 
@@ -1879,6 +1886,7 @@ async function loadAll(){
     ['shop_cart_heading',    'Cart page heading',              false],
     ['shop_success_heading', 'Order confirmation heading',     false],
     ['shop_continue_btn',    'Button text after checkout',     false],
+    ['shop_no_margin_note',  'No-margin note (shown for prints sold full-bleed)', true],
   ]);
 
   buildFields('footer-fields',[
