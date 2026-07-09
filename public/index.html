@@ -1076,7 +1076,12 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   color: var(--fg-m);
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 2rem; padding: .55rem 1rem;
-  cursor: none; transition: color .2s, border-color .2s, background .2s;
+  cursor: none;
+  /* Starts hidden; fades in only after the nav has faded out (see the
+     delayed opacity transition on body.shop-detail-open below), so the two
+     never briefly appear at once. */
+  opacity: 0; pointer-events: none;
+  transition: color .2s, border-color .2s, background .2s;
 }
 .shop-detail-close:hover { color: var(--fg); border-color: var(--fg); }
 .shop-detail-close .sdc-x { font-size: 13px; line-height: 1; }
@@ -1085,9 +1090,20 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 /* While the shop detail overlay is open, hide the site nav + hero menu button
    so they don't sit on top of the detail view and collide with the close
-   button — "Back to shop" is the single clear way out. */
+   button — "Back to shop" is the single clear way out. Fade them out quickly
+   (.25s) so the handoff to the close button feels snappy. */
 body.shop-detail-open nav,
-body.shop-detail-open .hero-menu-btn { opacity: 0 !important; pointer-events: none !important; }
+body.shop-detail-open .hero-menu-btn {
+  opacity: 0 !important; pointer-events: none !important;
+  transition: opacity .25s ease !important;
+}
+/* The close button fades IN just after the nav has gone (.28s delay ≈ the
+   .25s nav fade), so the two never briefly appear at once but there's no
+   sluggish wait. On close it hides instantly as the nav returns. */
+body.shop-detail-open .shop-detail-close {
+  opacity: 1; pointer-events: auto;
+  transition: opacity .25s ease .28s, color .2s, border-color .2s, background .2s;
+}
 .cart-continue-link {
   display: block;
   font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
