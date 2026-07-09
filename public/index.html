@@ -996,6 +996,25 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .pv-dot.active { background: var(--fg); transform: scale(1.25); }
 .pv-label { text-align: center; font-family: var(--fm); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--fg-l); min-height: 1.2em; }
 .pv-hint { text-align: center; font-family: var(--fm); font-size: 9px; letter-spacing: .08em; color: var(--fg-l); margin-top: .4rem; }
+/* Swipe-viewer arrows — shown on desktop (pointer:fine); touch uses swipe */
+.pv-arrow {
+  display: none;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  z-index: 3;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(250,250,248,.82); border: 1px solid var(--border);
+  color: var(--fg); font-size: 22px; line-height: 1;
+  align-items: center; justify-content: center;
+  cursor: pointer; transition: opacity .2s, background .2s, transform .2s;
+  padding: 0; padding-bottom: 3px;
+}
+.pv-arrow:hover { background: var(--white); }
+.pv-arrow-prev { left: .6rem; }
+.pv-arrow-next { right: .6rem; }
+.pv-arrow-hidden { opacity: 0; pointer-events: none; }
+@media (pointer: fine) {
+  .pv-arrow { display: flex; }
+}
 /* No-margin single view + dedicated note */
 .pv-viewer.pv-single .pv-slide { aspect-ratio: 1 / 1.15; }
 .pv-nomargin-note {
@@ -1533,7 +1552,7 @@ nav.on-light .nav-hamburger span,
   <div style="display:flex;align-items:center;gap:1.75rem">
     <ul class="nav-links">
       <li class="nav-dropdown">
-        <a onclick="showPage('main');setFilter('all')" id="c-nav_work">Work</a>
+        <a onclick="showPage('main');setFilter('all')" id="c-nav_work">Portfolio</a>
         <div class="nav-dropdown-menu" id="work-dropdown">
           <div class="nav-dropdown-menu-inner" id="work-dropdown-inner">
             <!-- populated dynamically from allPrints categories -->
@@ -1576,7 +1595,7 @@ nav.on-light .nav-hamburger span,
 <!-- MOBILE NAV MENU -->
 <div id="nav-mobile-menu">
   <button id="nav-mobile-close" onclick="closeMobileNav()">Close ✕</button>
-  <a onclick="toggleMobileWork()">Work</a>
+  <a onclick="toggleMobileWork()">Portfolio</a>
   <div id="nav-mobile-work-sub">
     <!-- populated dynamically from allPrints, same as desktop dropdown -->
   </div>
@@ -3189,10 +3208,12 @@ function pvViewerHtml(p) {
           ${pvMockupHtml(p, false)}
         </div>
       </div>
+      <button class="pv-arrow pv-arrow-prev" id="pv-arrow-prev" onclick="pvGo(-1)" aria-label="Previous view">‹</button>
+      <button class="pv-arrow pv-arrow-next" id="pv-arrow-next" onclick="pvGo(1)" aria-label="Next view">›</button>
     </div>
     <div class="pv-dots"><span class="pv-dot active" id="pv-dot0"></span><span class="pv-dot" id="pv-dot1"></span></div>
     <div class="pv-label" id="pv-label">Full image</div>
-    <div class="pv-hint">← swipe to see it printed with margins →</div>`;
+    <div class="pv-hint" id="pv-hint">Full image · see it printed with margins →</div>`;
 }
 
 // The paper+window mockup. forZoom computes exact px dimensions from the
@@ -3236,10 +3257,24 @@ function pvOnScroll() {
   document.getElementById('pv-dot1')?.classList.toggle('active', idx === 1);
   const label = document.getElementById('pv-label');
   if (label) label.textContent = idx === 0 ? 'Full image' : 'Printed · bottom-weighted margins';
+  // Fade arrows out at the ends (only meaningful with 2 slides)
+  const prev = document.getElementById('pv-arrow-prev');
+  const next = document.getElementById('pv-arrow-next');
+  if (prev) prev.classList.toggle('pv-arrow-hidden', idx <= 0);
+  if (next) next.classList.toggle('pv-arrow-hidden', idx >= 1);
+}
+
+// Arrow navigation for the swipe viewer — scrolls one slide in `dir`.
+function pvGo(dir) {
+  const track = document.getElementById('pv-track');
+  if (!track) return;
+  const idx = Math.round(track.scrollLeft / track.clientWidth);
+  const target = Math.max(0, Math.min(1, idx + dir));
+  track.scrollTo({ left: target * track.clientWidth, behavior: 'smooth' });
 }
 
 // ---- Fullscreen zoom: touch (pinch + double-tap) AND mouse (wheel + drag) ----
-let pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0 };
+let pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0, view:'full' };
 function pvOpenZoom(which) {
   const p = pvState.product;
   if (!p) return;
@@ -3248,14 +3283,25 @@ function pvOpenZoom(which) {
   stage.innerHTML = which === 'mock'
     ? `<div class="pv-zoom-inner" id="pv-zoom-inner">${pvMockupHtml(p, true)}</div>`
     : `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
-  pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0 };
+  pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0, view:which };
   pvApplyZoom();
-  // Desktop hint wording
+  // Desktop hint wording — mention arrow keys to switch views (skip for no-margin, which has only one view)
   const hint = document.getElementById('pv-zoom-hint');
-  if (hint) hint.textContent = matchMedia('(pointer:fine)').matches
-    ? 'Scroll to zoom · drag to pan · tap × or Esc to close'
-    : 'Pinch or double-tap to zoom · tap × to close';
+  if (hint) {
+    const fine = matchMedia('(pointer:fine)').matches;
+    const canSwitch = !p.no_margin;
+    hint.textContent = fine
+      ? (canSwitch ? 'Scroll to zoom · drag to pan · ← → switch view · Esc to close' : 'Scroll to zoom · drag to pan · Esc to close')
+      : 'Pinch or double-tap to zoom · tap × to close';
+  }
   zoom.classList.add('open');
+}
+// Switch the zoomed view between full image and mockup (arrow keys / desktop).
+function pvZoomSwitch(view) {
+  const p = pvState.product;
+  if (!p || p.no_margin) return;           // no-margin has a single view
+  if (view === pvZoom.view) return;
+  pvOpenZoom(view);                          // re-render at reset zoom
 }
 function pvCloseZoom(){ document.getElementById('pv-zoom').classList.remove('open'); }
 function pvApplyZoom(){
@@ -3310,9 +3356,14 @@ function pvApplyZoom(){
     if (e.target.classList.contains('pv-zoom-close')) return;
     pvZoom.scale = pvZoom.scale > 1 ? 1 : 2.2; pvZoom.x = 0; pvZoom.y = 0; pvApplyZoom();
   });
-  // click background / Esc to close
+  // click background / Esc to close; arrow keys switch view when zoom is open
   zoom.addEventListener('click', e => { if (e.target === zoom || e.target.id === 'pv-zoom-stage') pvCloseZoom(); });
-  window.addEventListener('keydown', e => { if (e.key === 'Escape') pvCloseZoom(); });
+  window.addEventListener('keydown', e => {
+    if (!document.getElementById('pv-zoom')?.classList.contains('open')) return;
+    if (e.key === 'Escape') { pvCloseZoom(); }
+    else if (e.key === 'ArrowRight') { pvZoomSwitch('mock'); }
+    else if (e.key === 'ArrowLeft')  { pvZoomSwitch('full'); }
+  });
 })();
 
 function openShopDetail(printId) {
@@ -3346,7 +3397,10 @@ function openShopDetail(printId) {
   getOrientation(p.image_url).then(orientation => {
     pvState.orientation = orientation;
     const mount = document.getElementById('pv-mount');
-    if (mount && pvState.product === p) mount.innerHTML = pvViewerHtml(p);
+    if (mount && pvState.product === p) {
+      mount.innerHTML = pvViewerHtml(p);
+      pvOnScroll(); // set initial arrow/dot state (prev arrow hidden at slide 0)
+    }
   });
 
   const sizeWrap = document.getElementById('shop-size-options');
