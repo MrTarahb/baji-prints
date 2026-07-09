@@ -153,7 +153,14 @@
     display:flex; align-items:center; justify-content:center;
     overflow:hidden;
   }
-  .zoom-inner { transform-origin:center center; will-change:transform; }
+  .zoom-inner {
+    transform-origin:center center; will-change:transform;
+    /* shrink-wrap the paper — as a flex child it must not impose its own
+       width, or the paper's width:auto+aspect-ratio resolves against a
+       stretched box and the sheet renders too wide (portrait looked squarish) */
+    display:flex; align-items:center; justify-content:center;
+    max-width:100%; max-height:100%;
+  }
   .zoom-close {
     position:fixed; top:1rem; right:1rem; z-index:1001;
     background:rgba(255,255,255,.12); border:none; color:#fff;
@@ -352,12 +359,16 @@ function paperMockupHtml(p, forZoom) {
   const isPortraitPaper = g.paperH >= g.paperW;
   let sizeStyle;
   if (forZoom) {
-    // Fit within ~90vw x ~82vh while preserving the paper aspect ratio.
-    // Using aspect-ratio + both max-width and max-height lets the browser pick
-    // whichever constraint binds first, so neither orientation overflows.
-    sizeStyle = isPortraitPaper
-      ? `height:82vh; width:auto; max-width:90vw; aspect-ratio:${g.paperW} / ${g.paperH};`
-      : `width:90vw; height:auto; max-height:82vh; aspect-ratio:${g.paperW} / ${g.paperH};`;
+    // Compute exact pixel dimensions from the viewport + true paper ratio,
+    // rather than relying on aspect-ratio + width:auto (which flex layout in
+    // the zoom stage was stretching, making portrait sheets render too wide).
+    const ratio = g.paperW / g.paperH;              // width/height
+    const availW = window.innerWidth  * 0.90;
+    const availH = window.innerHeight * 0.82;
+    let pxW = availH * ratio;                        // try fitting to height
+    let pxH = availH;
+    if (pxW > availW) { pxW = availW; pxH = availW / ratio; } // else fit to width
+    sizeStyle = `width:${Math.round(pxW)}px; height:${Math.round(pxH)}px;`;
   } else {
     sizeStyle = isPortraitPaper
       ? `height:86%; aspect-ratio:${g.paperW} / ${g.paperH};`
