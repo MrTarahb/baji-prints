@@ -2166,17 +2166,23 @@ function initScrollAnimation() {
     }
   });
 
-  // Each portfolio item slides up into place as it scrolls into view. This is
-  // SLIDE ONLY (y-axis) — no opacity here, because the image's own fade-in on
-  // load (see .img-loaded) handles appearance. Keeping the two separate means
-  // the slide stays crisp instead of fighting a nested opacity fade, and it's
-  // vertical-only so it can't push content past the viewport edge (the old
-  // horizontal x:±30 offset is what detached the fixed nav on Android Chrome).
+  // Each portfolio item slides in diagonally as it scrolls into view — left
+  // column drifts in from the left, right column from the right (the original
+  // reveal). This uses a horizontal x-offset, which historically caused the
+  // Android Chrome nav-slide bug by widening the document. It's safe now
+  // because two guards contain it: overflow-x:clip on .feed-cols AND
+  // #main-content clip the transform so it never reaches the document, and
+  // max-width:100vw on the nav means the nav can't stretch even if it did.
+  // SLIDE ONLY (no opacity here) — the image's own fade-in on load handles
+  // appearance, so the slide stays crisp and there's no layout jump.
   document.querySelectorAll('.feed-col-item').forEach((item, i) => {
+    const isLeft = item.classList.contains('col-left');
+    const fromX = isLeft ? -30 : 30;
     gsap.fromTo(item,
-      { y: 50 },
+      { y: 50, x: fromX },
       {
         y: 0,
+        x: 0,
         duration: 0.9,
         ease: 'power2.out',
         scrollTrigger: {
