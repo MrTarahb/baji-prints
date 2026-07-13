@@ -461,7 +461,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 .feed-item-first {
   position: relative;
   z-index: 20;
-  opacity: 0;
 }
 
 /* FILTER BAR */
@@ -493,7 +492,8 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 
 .feed-col-item {
-  opacity: 0; /* GSAP animates to 1 */
+  /* opacity handled by the image's own fade-in on load; GSAP does the slide
+     only, so the item itself stays fully opaque */
 }
 .feed-col-item.portrait {
   display: flex;
@@ -523,7 +523,6 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 /* First item — full width hero entry */
 .feed-item-first {
   grid-column: 1 / -1;
-  opacity: 0;
   margin-bottom: 6vw;
 }
 .feed-item-first .img-wrap img {
@@ -2167,18 +2166,17 @@ function initScrollAnimation() {
     }
   });
 
-  // Each portfolio item flies in individually — vertical only. A horizontal
-  // x-offset reveal (previously x:±30) pushed right-column items past the
-  // viewport's right edge during the animation, making the document wider
-  // than the screen. On Android Chrome that horizontal overflow detached the
-  // fixed nav from the visual viewport, so it appeared to "slide" on scroll.
-  // A pure y-axis fade-in gives the same reveal with zero horizontal overflow.
+  // Each portfolio item slides up into place as it scrolls into view. This is
+  // SLIDE ONLY (y-axis) — no opacity here, because the image's own fade-in on
+  // load (see .img-loaded) handles appearance. Keeping the two separate means
+  // the slide stays crisp instead of fighting a nested opacity fade, and it's
+  // vertical-only so it can't push content past the viewport edge (the old
+  // horizontal x:±30 offset is what detached the fixed nav on Android Chrome).
   document.querySelectorAll('.feed-col-item').forEach((item, i) => {
     gsap.fromTo(item,
-      { y: 50, opacity: 0 },
+      { y: 50 },
       {
         y: 0,
-        opacity: 1,
         duration: 0.9,
         ease: 'power2.out',
         scrollTrigger: {
