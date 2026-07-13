@@ -543,6 +543,13 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   transition: transform .6s ease;
   display: block; width: 100%;
 }
+/* Feed images fade in when they finish loading, so a late arrival (larger
+   files since the quality bump) eases in smoothly instead of hard-popping
+   into place. The .img-loaded class is added by the img's onload. This
+   opacity layer is independent of the GSAP item reveal (which animates the
+   parent .feed-col-item), so the two compose cleanly. */
+.feed-col-item .img-wrap img { opacity: 0; transition: opacity .5s ease, transform .6s ease; }
+.feed-col-item .img-wrap img.img-loaded { opacity: 1; }
 .img-wrap:hover img { transform: scale(1.02); }
 
 .img-label {
@@ -2690,11 +2697,20 @@ function renderFeed() {
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
-      <img src="${cld(imgUrl, 1200)}" alt="${imgTitle}" loading="lazy">
+      <img src="${cld(imgUrl, 800)}" alt="${imgTitle}" loading="lazy" onload="this.classList.add('img-loaded')">
       <span class="img-label">${imgTitle}</span>
     </div>`;
 
     (isLeft ? colLeft : colRight).appendChild(item);
+  });
+
+  // Safety for cached images: if an image is already complete at insert time,
+  // its onload may not fire, which would leave it stuck at opacity 0. Mark
+  // those as loaded immediately.
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.feed-col-item .img-wrap img').forEach(img => {
+      if (img.complete && img.naturalWidth > 0) img.classList.add('img-loaded');
+    });
   });
 
   // After rebuilding the feed, refresh ScrollTrigger so the hero animation
