@@ -761,9 +761,19 @@ async function markRead(id){try{await fetch('/api/admin/messages/'+id+'/read',{m
 async function delMsg(id){if(!confirm('Delete?'))return;try{await fetch('/api/admin/messages/'+id,{method:'DELETE',credentials:'include'});allMessages=allMessages.filter(m=>m.id!==id);renderMessages();updateBadge();}catch(e){}}
 
 // CONTENT FIELDS
-function makeField(key,label,value,multi){
+function makeField(key,label,value,multi,options){
   const d=document.createElement('div');d.className='field';
-  d.innerHTML=`<label class="field-label">${esc(label)}</label>${multi?`<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`:`<input class="field-input" id="f-${key}" value="${esc(value)}">`}<div class="field-footer"><button class="btn-save" onclick="saveField('${key}',this)">Save</button><span class="save-msg" id="sm-${key}"></span></div>`;
+  let control;
+  if (Array.isArray(options)) {
+    // Select/toggle field — options is [[value,label],...]. Uses the same
+    // #f-<key> id + saveField path as text fields.
+    control = `<select class="field-input" id="f-${key}">${options.map(([v,l])=>`<option value="${esc(v)}" ${value===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  } else if (multi) {
+    control = `<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`;
+  } else {
+    control = `<input class="field-input" id="f-${key}" value="${esc(value)}">`;
+  }
+  d.innerHTML=`<label class="field-label">${esc(label)}</label>${control}<div class="field-footer"><button class="btn-save" onclick="saveField('${key}',this)">Save</button><span class="save-msg" id="sm-${key}"></span></div>`;
   return d;
 }
 async function uploadAboutPhoto(input) {
@@ -930,7 +940,7 @@ async function saveField(key,btn){
 }
 function buildFields(containerId,fields){
   const c=document.getElementById(containerId);c.innerHTML='';
-  fields.forEach(([key,label,multi])=>c.appendChild(makeField(key,label,allContent[key]||'',multi)));
+  fields.forEach(([key,label,multi,options])=>c.appendChild(makeField(key,label,allContent[key]||'',multi,options)));
 }
 
 // CATEGORIES
@@ -1897,6 +1907,7 @@ async function loadAll(){
     ['shop_success_heading', 'Order confirmation heading',     false],
     ['shop_continue_btn',    'Button text after checkout',     false],
     ['shop_no_margin_note',  'No-margin note (shown for prints sold full-bleed)', true],
+    ['feed_show_print_badge','"Available as print" badge on portfolio hover', false, [['on','Shown (on for-sale photos)'],['off','Hidden completely']]],
   ]);
 
   buildFields('footer-fields',[

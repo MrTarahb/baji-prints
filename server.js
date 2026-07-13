@@ -807,6 +807,9 @@ async function initDB() {
     ['faq_framing', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
     // Default note shown on the shop for prints flagged no_margin (editable)
     ['shop_no_margin_note', 'This print is produced full-bleed, without a border — this image is stronger edge to edge.'],
+    // Toggle: show the subtle "Available as print" badge on hover over feed
+    // photos that are for sale. 'on' or 'off'.
+    ['feed_show_print_badge', 'on'],
     // FAQ visibility flags — 'false' hides that question on the site
     ['faq_paper_enabled','true'],['faq_sizes_enabled','true'],['faq_signed_enabled','true'],
     ['faq_limited_enabled','true'],['faq_limited_platforms_enabled','true'],['faq_margin_enabled','true'],['faq_how_order_enabled','true'],
@@ -964,7 +967,7 @@ app.get('/api/content', async (req, res) => {
 
 app.get('/api/prints', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, for_sale, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });

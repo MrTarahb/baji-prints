@@ -564,6 +564,26 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
 }
 .img-wrap:hover .img-label { opacity: 1; transform: translateY(0); }
 
+/* "Available as print" badge — top-right on hover, a quiet nudge (not a price
+   tag). Terracotta accent ties it to the brand; fades in with the title. */
+.img-print-badge {
+  position: absolute;
+  top: .75rem; right: .75rem;
+  font-size: 7.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.95);
+  background: var(--pink-d);
+  padding: .22rem .55rem;
+  border-radius: 2px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  z-index: 2;
+}
+.img-wrap:hover .img-print-badge { opacity: 1; transform: translateY(0); }
+
 /* Gap between images */
 .gap-sm { height: 2px; background: var(--bg); }
 .gap-md { height: 6vw; }
@@ -2696,9 +2716,15 @@ function renderFeed() {
 
     const item = document.createElement('div');
     item.className = `feed-col-item ${isLeft ? 'col-left' : 'col-right'} ${ori}${i === 0 ? ' feed-item-first' : ''}`;
+    // Subtle "Available as print" badge on hover — only for prints that are
+    // actually for sale, and only when enabled in admin (feed_show_print_badge).
+    const badgeOn = !window._content || window._content.feed_show_print_badge !== 'off';
+    const showBadge = badgeOn && p.for_sale;
+    const badgeHtml = showBadge ? `<span class="img-print-badge">Available as print</span>` : '';
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
       <img src="${cld(imgUrl, 800)}" alt="${imgTitle}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
+      ${badgeHtml}
     </div>`;
 
     (isLeft ? colLeft : colRight).appendChild(item);
