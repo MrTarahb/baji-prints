@@ -2724,7 +2724,22 @@ function renderFeed() {
 // shipping the full-resolution original into small layout slots.
 function cld(url, w) {
   if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
-  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+  // Device-pixel-ratio aware: a phone at 2–3× rendering a w_1200 request into a
+  // near-full-width container was getting a soft, upscaled-looking result. We
+  // multiply the requested width by DPR (capped at 2 — beyond that the file
+  // size cost outweighs any visible gain) so the browser receives enough real
+  // pixels to render crisply. Tiny probe thumbs (<=100px, used only for
+  // orientation detection) skip this — no point doubling them. The final width
+  // is also capped at 2600px so already-large requests (hero/zoom at 2000)
+  // don't balloon to 4000px on a 2× screen — past ~2600 there's no visible
+  // gain on any phone/laptop, just wasted bytes.
+  const dpr = Math.min(2, Math.max(1, Math.round((window.devicePixelRatio || 1))));
+  const targetW = w <= 100 ? w : Math.min(2600, w * dpr);
+  // q_auto:good instead of bare q_auto: the automatic quality could drop low
+  // enough to band/blotch dark smooth gradients (the shadow areas in the
+  // night/light images), especially when f_auto served AVIF. :good holds a
+  // higher floor so those gradients stay clean, while still compressing well.
+  return url.replace('/image/upload/', `/image/upload/w_${targetW},f_auto,q_auto:good/`);
 }
 
 // Detect image orientation then build feed — a w_50 thumb answers

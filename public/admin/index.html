@@ -724,7 +724,9 @@ function showPanel(name,btn){
 function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function cld(url, w) {
   if (!url || !url.includes('/image/upload/') || url.includes('/upload/w_')) return url;
-  return url.replace('/image/upload/', `/image/upload/w_${w},f_auto,q_auto/`);
+  const dpr = Math.min(2, Math.max(1, Math.round((window.devicePixelRatio || 1))));
+  const targetW = w <= 100 ? w : Math.min(2600, w * dpr);
+  return url.replace('/image/upload/', `/image/upload/w_${targetW},f_auto,q_auto:good/`);
 }
 function relTime(str){const d=new Date(str),now=new Date(),m=Math.floor((now-d)/60000);if(m<2)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';const dy=Math.floor(h/24);if(dy<7)return dy+'d ago';return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
 
