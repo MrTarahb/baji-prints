@@ -302,6 +302,8 @@ textarea.field-input{resize:vertical;min-height:70px}
 .save-print-msg{font-size:.65rem;display:block;min-height:.9rem}
 .btn-del-print{background:none;border:1px solid rgba(200,144,122,.2);color:var(--pink);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .btn-del-print:hover{background:var(--pink);color:white}
+.btn-replace-print{background:none;border:1px solid var(--border);color:var(--text-m);padding:.25rem .6rem;font-size:.65rem;border-radius:1px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.btn-replace-print:hover{border-color:var(--ink);color:var(--ink)}
 .prints-empty{color:var(--text-l);font-style:italic;font-size:.8rem;grid-column:1/-1;padding:.5rem 0}
 .divider{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
 .add-form{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:1.25rem}
@@ -1099,7 +1101,7 @@ async function loadPrints(){
           ${esc(label)}
         </label>`
       ).join('');
-      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="phc-${p.id}" ${excludedFromCatHero} style="cursor:pointer"><label for="phc-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from category hero (still eligible for the main-page hero — just won't be picked as the hero when someone browses its category)</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="phc-${p.id}" ${excludedFromCatHero} style="cursor:pointer"><label for="phc-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from category hero (still eligible for the main-page hero — just won't be picked as the hero when someone browses its category)</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-replace-print" onclick="document.getElementById('pr-${p.id}').click()">Replace image</button><input type="file" id="pr-${p.id}" accept="image/*" style="display:none" onchange="replacePrintImage(${p.id},this)"><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
 
@@ -1171,6 +1173,31 @@ async function deletePrint(id,btn){
   if(!confirm('Delete this print?'))return;
   btn.textContent='...';btn.disabled=true;
   try{const res=await fetch('/api/admin/prints/'+id,{method:'DELETE',credentials:'include'});if(res.ok)await loadPrints();}catch(e){}
+}
+
+// Replace the image on an existing print, keeping title/categories/order etc.
+async function replacePrintImage(id, input){
+  const file = input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('pm-'+id);
+  if (msg) { msg.textContent = 'Uploading new image…'; msg.style.color = ''; }
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch('/api/admin/prints/'+id+'/image', {
+      method:'PUT', credentials:'include', body: fd
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP '+res.status));
+    }
+    if (msg) msg.textContent = 'Image replaced ✓';
+    await loadPrints(); // re-render so the new image shows
+  } catch (e) {
+    if (msg) { msg.textContent = 'Replace failed: ' + e.message; msg.style.color = '#c0392b'; }
+  } finally {
+    input.value = ''; // reset so the same file can be re-picked if needed
+  }
 }
 
 // ── SHOP: MANAGE PRINTS FOR SALE ────────────────────────────────────────────

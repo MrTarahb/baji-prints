@@ -1382,6 +1382,46 @@ app.post('/api/admin/prints', requireAuth, (req, res, next) => {
   }
 });
 
+// Replace the image on an existing print — uploads the new file, swaps
+// image_url + public_id, and deletes the OLD Cloudinary asset so it doesn't
+// orphan. All other fields (title, categories, sort order, for_sale, etc.)
+// are untouched. Registered before /:id so the literal path wins.
+app.put('/api/admin/prints/:id/image', requireAuth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Print image replace error:', err);
+      return res.status(500).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image received' });
+  try {
+    // Grab the old public_id first so we can clean it up after the swap.
+    const existing = await pool.query('SELECT public_id FROM prints WHERE id=$1', [req.params.id]);
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Print not found' });
+    const oldPublicId = existing.rows[0].public_id;
+
+    const url = req.file.path;
+    const publicId = req.file.filename;
+    const { rows } = await pool.query(
+      'UPDATE prints SET image_url=$1, public_id=$2 WHERE id=$3 RETURNING *',
+      [url, publicId, req.params.id]
+    );
+
+    // Delete the old asset (best-effort — don't fail the request if cleanup
+    // hiccups, since the DB is already pointing at the new image).
+    if (oldPublicId && oldPublicId !== publicId) {
+      cloudinary.uploader.destroy(oldPublicId).catch(e =>
+        console.error('Old image cleanup failed (non-fatal):', e.message));
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('DB error replacing print image:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/admin/prints/reorder', requireAuth, async (req, res) => {
   const { order } = req.body; // array of print IDs in new order
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of IDs' });
