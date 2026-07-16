@@ -2999,6 +2999,10 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
 
 // LIGHTBOX
 let lightboxIndex = -1; // index into the currently filtered print list
+// Remembers whether the viewer wants the story open, so it persists as they
+// navigate between photos instead of resetting each time. Toggled by the
+// Read/Hide button; applied per photo (only if that photo actually has a story).
+let storyPref = false;
 
 function getLightboxList() {
   // Same filter logic as renderFeed so navigation matches what's on screen
@@ -3076,16 +3080,24 @@ function _renderLightbox(src, title, printId) {
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
   const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
 
+  // Apply the persisted open/closed preference to this photo. The panel and
+  // image-shrink follow storyPref, but only if this photo actually has a story.
   descPanel.classList.remove('open');
-  lb.classList.remove('story-open'); // reset image-shrink state for the new photo
+  lb.classList.remove('story-open');
   if (description) {
     descText.textContent = description;
-    descToggle.textContent = 'Read the story';
-    // Reset the pulse so it re-triggers for this photo. Removing then
-    // re-adding has-desc on the next frame restarts the CSS animation.
     descToggle.classList.remove('has-desc', 'story-seen');
-    void descToggle.offsetWidth; // force reflow so the animation restarts
+    void descToggle.offsetWidth; // force reflow so a fresh pulse can play
     descToggle.classList.add('has-desc');
+    if (storyPref) {
+      // Carry the open state over — no pulse needed since it's already shown.
+      descPanel.classList.add('open');
+      lb.classList.add('story-open');
+      descToggle.textContent = 'Hide the story';
+      descToggle.classList.add('story-seen'); // suppress pulse while open
+    } else {
+      descToggle.textContent = 'Read the story';
+    }
   } else {
     descToggle.classList.remove('has-desc', 'story-seen');
     descText.textContent = '';
@@ -3122,6 +3134,7 @@ function toggleLightboxDesc() {
   const toggle = document.getElementById('lightbox-desc-toggle');
   const lb = document.getElementById('lightbox');
   const isOpen = panel.classList.toggle('open');
+  storyPref = isOpen; // remember the choice so it carries to the next photo
   if (lb) lb.classList.toggle('story-open', isOpen); // :has() fallback for the image shrink
   toggle.textContent = isOpen ? 'Hide the story' : 'Read the story';
   toggle.classList.add('story-seen'); // stop the attention pulse once engaged
@@ -3139,6 +3152,8 @@ function toggleLightboxDesc() {
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
   lb.classList.remove('open');
+  lb.classList.remove('story-open');
+  storyPref = false; // fresh open later starts closed (discoverable, pulses again)
   document.body.style.overflow = '';
   // Hide nav arrows — their inline style.display set by updateLightboxNavButtons
   // persists after close and makes them visible over the feed
