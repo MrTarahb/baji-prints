@@ -661,6 +661,8 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   pointer-events: none;
   transition: background .4s ease, opacity .4s ease;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* momentum scrolling on iOS */
+  overscroll-behavior: contain;      /* don't leak scroll to the page behind */
 }
 #lightbox.open {
   background: rgba(10,10,9,0.92);
@@ -799,6 +801,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   background: rgba(10,10,9,0.6);
   border-radius: 4px;
   position: relative;
+  overscroll-behavior: contain;
 }
 #lightbox-desc.open { display: block; }
 #lightbox-desc > p {
@@ -3178,15 +3181,39 @@ document.addEventListener('keydown', e => {
 
 // Swipe support for mobile
 (function() {
-  let touchStartX = 0;
   const lb = document.getElementById('lightbox');
+  let startX = 0, startY = 0, tracking = false, multiTouch = false;
+
   lb.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
+    // More than one finger = pinch/zoom gesture — never treat as a swipe.
+    if (e.touches.length > 1) { multiTouch = true; tracking = false; return; }
+    multiTouch = false;
+    // Don't hijack swipes that begin inside the scrollable story panel.
+    if (e.target.closest && e.target.closest('#lightbox-desc')) { tracking = false; return; }
+    tracking = true;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
   }, { passive: true });
+
+  lb.addEventListener('touchmove', e => {
+    // If a second finger lands mid-gesture (pinch), abort swipe tracking.
+    if (e.touches.length > 1) { multiTouch = true; tracking = false; }
+  }, { passive: true });
+
   lb.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 50) navigateLightbox(dx < 0 ? 1 : -1);
+    if (!tracking || multiTouch) { tracking = false; return; }
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    // Require a clear horizontal swipe: far enough sideways AND more horizontal
+    // than vertical (so vertical scrolls / diagonal drags don't navigate).
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      navigateLightbox(dx < 0 ? 1 : -1);
+    }
   }, { passive: true });
+
+  // Safety: if the gesture cancels (e.g. the browser takes over for zoom).
+  lb.addEventListener('touchcancel', () => { tracking = false; multiTouch = false; }, { passive: true });
 })();
 
 // ── SHOP ──────────────────────────────────────────────────────────────────────
