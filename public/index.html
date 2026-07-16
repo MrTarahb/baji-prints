@@ -675,7 +675,13 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   opacity: 1;
   border-radius: 1px;
   cursor: none;
+  transition: max-height .4s cubic-bezier(0.16,1,0.3,1);
 }
+/* When the story panel is open, cap the image height so the image and the
+   opening lines of the story sit together in view — signals they belong to
+   the same piece and removes the "where did the button go?" scroll confusion. */
+#lightbox:has(#lightbox-desc.open) img,
+#lightbox.story-open img { max-height: 58vh; }
 #lightbox.open img {
   opacity: 1;
 }
@@ -3071,6 +3077,7 @@ function _renderLightbox(src, title, printId) {
   const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
 
   descPanel.classList.remove('open');
+  lb.classList.remove('story-open'); // reset image-shrink state for the new photo
   if (description) {
     descText.textContent = description;
     descToggle.textContent = 'Read the story';
@@ -3113,9 +3120,21 @@ function toggleFaq(btn) {
 function toggleLightboxDesc() {
   const panel = document.getElementById('lightbox-desc');
   const toggle = document.getElementById('lightbox-desc-toggle');
+  const lb = document.getElementById('lightbox');
   const isOpen = panel.classList.toggle('open');
+  if (lb) lb.classList.toggle('story-open', isOpen); // :has() fallback for the image shrink
   toggle.textContent = isOpen ? 'Hide the story' : 'Read the story';
   toggle.classList.add('story-seen'); // stop the attention pulse once engaged
+  if (isOpen) {
+    // On desktop the tall image pushes the story below the fold with no cue to
+    // scroll. Smoothly bring the panel into view so the reader is taken to it.
+    requestAnimationFrame(() => {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  } else {
+    // On hide, scroll back up to the image so they're not left in dead space.
+    if (lb) requestAnimationFrame(() => lb.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
 }
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
