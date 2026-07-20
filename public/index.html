@@ -994,7 +994,21 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   width: 100%; height: auto; display: block;
   transition: transform .5s ease;
 }
-.shop-card:hover .shop-card-img-wrap img { transform: scale(1.04); }
+/* Default hover: gentle zoom — but ONLY for cards without an in-situ photo. */
+.shop-card:not(.has-insitu):hover .shop-card-img-wrap img { transform: scale(1.04); }
+
+/* In-situ crossfade: the lifestyle photo is layered over the base image and
+   fades in on hover (no zoom), so hovering shows the print in context. */
+.shop-card.has-insitu .shop-card-insitu {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  opacity: 0;
+  transition: opacity .5s ease;
+  z-index: 1; /* same layer as base; sits on top via source order, below badges (z-index 2) */
+}
+.shop-card.has-insitu:hover .shop-card-insitu { opacity: 1; }
+.shop-card.has-insitu .shop-card-base { transition: opacity .5s ease; }
+.shop-card.has-insitu:hover .shop-card-base { opacity: 0; }
 .shop-card-img-wrap.landscape img { width: 100%; height: auto; }
 .shop-card-title { font-size: 11px; color: var(--fg); margin-bottom: .15rem; }
 .shop-card-price { font-family: var(--fm); font-size: 9px; color: var(--fg-l); letter-spacing: .04em; }
@@ -3243,11 +3257,14 @@ async function loadShopProducts() {
       // restores 1,2,3,4… instead of col0-then-col1 (1,3,5…2,4,6…).
       card.style.order = cardIndex;
       const isLimited = p.edition_type === 'limited';
+      const hasInsitu = !!p.lifestyle_image_url;
+      if (hasInsitu) card.classList.add('has-insitu');
       card.innerHTML = `
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
           ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
-          <img src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}" loading="lazy">
+          <img class="shop-card-base" src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}" loading="lazy">
+          ${hasInsitu ? `<img class="shop-card-insitu" src="${cld(p.lifestyle_image_url, 1200)}" alt="${esc(p.title)} in situ" loading="lazy">` : ''}
         </div>
         <div class="shop-card-title">${esc(p.title)}</div>
         <div class="shop-card-price">From ${fmtCHF(minPrice)}</div>
