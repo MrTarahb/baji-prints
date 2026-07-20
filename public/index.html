@@ -1045,6 +1045,7 @@ nav.on-light .nav-dropdown-menu .dropdown-divider { background: rgba(17,17,16,.1
   cursor: none;
 }
 .pv-slide.pv-full img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; box-shadow: 0 2px 18px rgba(0,0,0,.12); }
+.pv-slide.pv-life img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; box-shadow: 0 2px 18px rgba(0,0,0,.12); }
 /* Paper mockup */
 .pv-paper { position: relative; background: #FFFFFF; box-shadow: 0 3px 22px rgba(0,0,0,.16); }
 .pv-window { position: absolute; overflow: hidden; background: #FFFFFF; }
@@ -3293,13 +3294,28 @@ function pvGeometry(sizeKey, orientation) {
   };
 }
 
-const pvState = { product: null, size: 'A2', orientation: 'portrait' };
+const pvState = { product: null, size: 'A2', orientation: 'portrait', slides: ['full','mock'] };
 
 // Builds the whole viewer for a product: swipe (full + mockup) for a normal
 // print, or a single image + dedicated note for a no-margin print.
 function pvViewerHtml(p) {
   if (p.no_margin) {
     const note = ((window._content && window._content.shop_no_margin_note) || 'This print is produced full-bleed, without a border — this image is stronger edge to edge.').trim();
+    const lifestyleSlide = p.lifestyle_image_url ? `
+      <div class="pv-slide pv-life" onclick="pvOpenZoom('life')">
+        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(p.title)} in situ">
+      </div>` : '';
+    // No-margin: if there's a lifestyle photo we still show a 2-slide swipe
+    // (full + in situ); otherwise the original single view.
+    if (p.lifestyle_image_url) {
+      pvState.slides = ['full', 'life'];
+      return pvSwipeShell(p, `
+        <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
+          <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
+        </div>${lifestyleSlide}`, ['Full image', 'In the home']) +
+        `<div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>`;
+    }
+    pvState.slides = ['full'];
     return `
       <div class="pv-viewer pv-single">
         <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
@@ -3309,21 +3325,43 @@ function pvViewerHtml(p) {
       <div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>
       <div class="pv-hint">Tap image to enlarge</div>`;
   }
+
+  // Normal print: full + margin mockup, plus optional in-situ lifestyle slide.
+  const slides = ['full', 'mock'];
+  const labels = ['Full image', 'Printed · bottom-weighted margins'];
+  let slidesHtml = `
+    <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
+      <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
+    </div>
+    <div class="pv-slide pv-mock" id="pv-mock-slide" onclick="pvOpenZoom('mock')">
+      ${pvMockupHtml(p, false)}
+    </div>`;
+  if (p.lifestyle_image_url) {
+    slides.push('life');
+    labels.push('In the home');
+    slidesHtml += `
+      <div class="pv-slide pv-life" onclick="pvOpenZoom('life')">
+        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(p.title)} in situ">
+      </div>`;
+  }
+  pvState.slides = slides;
+  return pvSwipeShell(p, slidesHtml, labels);
+}
+
+// Wraps a set of slides with the track, arrows, dots (one per slide), and label.
+function pvSwipeShell(p, slidesHtml, labels) {
+  const dots = labels.map((_, i) =>
+    `<span class="pv-dot ${i === 0 ? 'active' : ''}" id="pv-dot${i}"></span>`).join('');
   return `
     <div class="pv-viewer">
       <div class="pv-track" id="pv-track" onscroll="pvOnScroll()">
-        <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-          <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
-        </div>
-        <div class="pv-slide pv-mock" id="pv-mock-slide" onclick="pvOpenZoom('mock')">
-          ${pvMockupHtml(p, false)}
-        </div>
+        ${slidesHtml}
       </div>
-      <button class="pv-arrow pv-arrow-prev" id="pv-arrow-prev" onclick="pvGo(-1)" aria-label="Previous view">‹</button>
+      <button class="pv-arrow pv-arrow-prev pv-arrow-hidden" id="pv-arrow-prev" onclick="pvGo(-1)" aria-label="Previous view">‹</button>
       <button class="pv-arrow pv-arrow-next" id="pv-arrow-next" onclick="pvGo(1)" aria-label="Next view">›</button>
     </div>
-    <div class="pv-dots"><span class="pv-dot active" id="pv-dot0"></span><span class="pv-dot" id="pv-dot1"></span></div>
-    <div class="pv-label" id="pv-label">Full image</div>`;
+    <div class="pv-dots">${dots}</div>
+    <div class="pv-label" id="pv-label">${labels[0]}</div>`;
 }
 
 // The paper+window mockup. forZoom computes exact px dimensions from the
@@ -3362,24 +3400,31 @@ function pvUpdateSize(sizeKey) {
 function pvOnScroll() {
   const track = document.getElementById('pv-track');
   if (!track) return;
+  const slides = pvState.slides || ['full', 'mock'];
+  const n = slides.length;
   const idx = Math.round(track.scrollLeft / track.clientWidth);
-  document.getElementById('pv-dot0')?.classList.toggle('active', idx === 0);
-  document.getElementById('pv-dot1')?.classList.toggle('active', idx === 1);
+  // Update dots
+  for (let i = 0; i < n; i++) {
+    document.getElementById('pv-dot' + i)?.classList.toggle('active', i === idx);
+  }
+  // Update label from the slide kind
+  const labelMap = { full: 'Full image', mock: 'Printed · bottom-weighted margins', life: 'In the home' };
   const label = document.getElementById('pv-label');
-  if (label) label.textContent = idx === 0 ? 'Full image' : 'Printed · bottom-weighted margins';
-  // Fade arrows out at the ends (only meaningful with 2 slides)
+  if (label) label.textContent = labelMap[slides[idx]] || '';
+  // Arrow visibility at the ends
   const prev = document.getElementById('pv-arrow-prev');
   const next = document.getElementById('pv-arrow-next');
   if (prev) prev.classList.toggle('pv-arrow-hidden', idx <= 0);
-  if (next) next.classList.toggle('pv-arrow-hidden', idx >= 1);
+  if (next) next.classList.toggle('pv-arrow-hidden', idx >= n - 1);
 }
 
 // Arrow navigation for the swipe viewer — scrolls one slide in `dir`.
 function pvGo(dir) {
   const track = document.getElementById('pv-track');
   if (!track) return;
+  const n = (pvState.slides || ['full', 'mock']).length;
   const idx = Math.round(track.scrollLeft / track.clientWidth);
-  const target = Math.max(0, Math.min(1, idx + dir));
+  const target = Math.max(0, Math.min(n - 1, idx + dir));
   track.scrollTo({ left: target * track.clientWidth, behavior: 'smooth' });
 }
 
@@ -3390,9 +3435,15 @@ function pvOpenZoom(which) {
   if (!p) return;
   const zoom = document.getElementById('pv-zoom');
   const stage = document.getElementById('pv-zoom-stage');
-  stage.innerHTML = which === 'mock'
-    ? `<div class="pv-zoom-inner" id="pv-zoom-inner">${pvMockupHtml(p, true)}</div>`
-    : `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+  let inner;
+  if (which === 'mock') {
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner">${pvMockupHtml(p, true)}</div>`;
+  } else if (which === 'life' && p.lifestyle_image_url) {
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.lifestyle_image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+  } else {
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+  }
+  stage.innerHTML = inner;
   pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0, view:which };
   pvApplyZoom();
   // Desktop hint wording — mention arrow keys to switch views (skip for no-margin, which has only one view)

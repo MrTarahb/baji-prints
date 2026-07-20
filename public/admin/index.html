@@ -1452,6 +1452,17 @@ function buildShopCard(printMeta, shopPrint, sizes){
           <span>Sold without margin (full-bleed) — shows the explanatory note on the shop instead of the margin mockup. The note text is editable under Content → Shop.</span>
         </label>
 
+        <div class="shop-sizes-title" style="margin-top:.75rem">In-situ photo <span style="font-weight:400;color:var(--text-l)">(optional — e.g. the print framed on a wall)</span></div>
+        <div id="lifestyle-wrap-${id}" style="display:flex;align-items:center;gap:.75rem;margin:.35rem 0 .25rem">
+          <div id="lifestyle-preview-${id}" style="width:74px;height:74px;border:1px solid var(--border);border-radius:2px;background:var(--bg-2,#f0efec) center/cover no-repeat;flex-shrink:0;${shopPrint.lifestyle_image_url ? `background-image:url('${esc(shopPrint.lifestyle_image_url)}')` : ''}"></div>
+          <div>
+            <button class="btn-replace-print" onclick="document.getElementById('lifestyle-file-${id}').click()">${shopPrint.lifestyle_image_url ? 'Replace photo' : 'Add photo'}</button>
+            <button class="btn-del-print" id="lifestyle-del-${id}" onclick="deleteLifestyle(${id})" style="${shopPrint.lifestyle_image_url ? '' : 'display:none'}">Remove</button>
+            <input type="file" id="lifestyle-file-${id}" accept="image/*" style="display:none" onchange="uploadLifestyle(${id},this)">
+            <div id="lifestyle-msg-${id}" style="font-size:.7rem;color:var(--text-l);margin-top:.25rem"></div>
+          </div>
+        </div>
+
         <div class="shop-sizes-title">Sizes & prices (CHF)</div>
         ${SHOP_SIZES.map(size => `
           <div class="shop-size-row">
@@ -1496,6 +1507,46 @@ function toggleShopOpen(id){
 function toggleEditionSize(id){
   const type = document.getElementById('edtype-'+id).value;
   document.getElementById('edsize-'+id).style.display = type === 'limited' ? 'inline-block' : 'none';
+}
+
+// Upload / replace the in-situ lifestyle photo for a shop print.
+async function uploadLifestyle(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('lifestyle-msg-'+id);
+  msg.textContent = 'Uploading…'; msg.style.color = '';
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch('/api/admin/prints/'+id+'/lifestyle', {
+      method:'PUT', credentials:'include', body: fd
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'HTTP '+res.status); }
+    const data = await res.json();
+    const preview = document.getElementById('lifestyle-preview-'+id);
+    if (preview && data.lifestyle_image_url) preview.style.backgroundImage = `url('${data.lifestyle_image_url}')`;
+    const delBtn = document.getElementById('lifestyle-del-'+id);
+    if (delBtn) delBtn.style.display = '';
+    msg.textContent = 'Saved ✓';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  } catch (e) {
+    msg.textContent = 'Failed: ' + e.message; msg.style.color = '#c0392b';
+  } finally { input.value = ''; }
+}
+
+async function deleteLifestyle(id) {
+  if (!confirm('Remove the in-situ photo from this print?')) return;
+  const msg = document.getElementById('lifestyle-msg-'+id);
+  try {
+    const res = await fetch('/api/admin/prints/'+id+'/lifestyle', { method:'DELETE', credentials:'include' });
+    if (!res.ok) throw new Error();
+    const preview = document.getElementById('lifestyle-preview-'+id);
+    if (preview) preview.style.backgroundImage = '';
+    const delBtn = document.getElementById('lifestyle-del-'+id);
+    if (delBtn) delBtn.style.display = 'none';
+    msg.textContent = 'Removed'; msg.style.color = '';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  } catch (e) { if (msg) { msg.textContent = 'Error removing'; msg.style.color = '#c0392b'; } }
 }
 
 async function saveShopPrint(id, btn){

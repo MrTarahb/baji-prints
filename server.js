@@ -588,6 +588,11 @@ async function initDB() {
     -- (some images read better full-bleed). Shown on the shop with an
     -- explanatory note (text editable via the shop_no_margin_note content key).
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS no_margin BOOLEAN DEFAULT FALSE;
+    -- Optional "in situ" lifestyle photo (e.g. the print framed on a living-room
+    -- wall). Shown as an extra slide in the shop viewer when set. Its Cloudinary
+    -- public_id is stored too so it can be deleted/replaced cleanly.
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_image_url TEXT;
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_public_id TEXT;
 
     -- ── PAPERS: reusable paper descriptions ────────────────────────────
     CREATE TABLE IF NOT EXISTS papers (
@@ -1057,7 +1062,7 @@ app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
       `SELECT p.id, p.title, p.description, p.image_url, p.edition_type, p.edition_size,
-              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin,
+              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin, p.lifestyle_image_url,
               pa.name AS paper_name, pa.description AS paper_description
        FROM prints p
        LEFT JOIN papers pa ON pa.id = p.paper_id
@@ -1574,6 +1579,53 @@ app.put('/api/admin/prints/reorder', requireAuth, async (req, res) => {
   }
 });
 
+// Upload / replace the optional "in situ" lifestyle photo for a print.
+app.put('/api/admin/prints/:id/lifestyle', requireAuth, (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Lifestyle image upload error:', err);
+      return res.status(500).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image received' });
+  try {
+    const existing = await pool.query('SELECT lifestyle_public_id FROM prints WHERE id=$1', [req.params.id]);
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Print not found' });
+    const oldPublicId = existing.rows[0].lifestyle_public_id;
+    const { rows } = await pool.query(
+      'UPDATE prints SET lifestyle_image_url=$1, lifestyle_public_id=$2 WHERE id=$3 RETURNING lifestyle_image_url',
+      [req.file.path, req.file.filename, req.params.id]
+    );
+    if (oldPublicId && oldPublicId !== req.file.filename) {
+      cloudinary.uploader.destroy(oldPublicId).catch(e =>
+        console.error('Old lifestyle image cleanup failed (non-fatal):', e.message));
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('DB error saving lifestyle image:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Remove the lifestyle photo from a print.
+app.delete('/api/admin/prints/:id/lifestyle', requireAuth, async (req, res) => {
+  try {
+    const existing = await pool.query('SELECT lifestyle_public_id FROM prints WHERE id=$1', [req.params.id]);
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Print not found' });
+    const oldPublicId = existing.rows[0].lifestyle_public_id;
+    await pool.query('UPDATE prints SET lifestyle_image_url=NULL, lifestyle_public_id=NULL WHERE id=$1', [req.params.id]);
+    if (oldPublicId) {
+      cloudinary.uploader.destroy(oldPublicId).catch(e =>
+        console.error('Lifestyle image cleanup failed (non-fatal):', e.message));
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
   const { title, description, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories } = req.body;
   // categories is the new multi-value array; category is the legacy single string kept for compatibility
@@ -1812,7 +1864,7 @@ app.delete('/api/admin/papers/:id', requireAuth, async (req, res) => {
 app.get('/api/admin/shop/print/:id', requireAuth, async (req, res) => {
   try {
     const { rows: printRows } = await pool.query(
-      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id, no_margin
+      `SELECT id, title, for_sale, edition_type, edition_size, delivery_ch, delivery_personal, delivery_intl, shop_note, paper_id, no_margin, lifestyle_image_url
        FROM prints WHERE id=$1`, [req.params.id]
     );
     if (!printRows[0]) return res.status(404).json({ error: 'Not found' });
