@@ -609,8 +609,18 @@ textarea.field-input{resize:vertical;min-height:70px}
       <!-- FAQ -->
       <div class="panel" id="panel-faq">
         <h2 class="panel-title">FAQ</h2>
-        <p class="panel-sub">Toggle questions on/off and edit their answers. Disabled questions won't appear on the site.</p>
-        <div id="faq-fields"></div>
+        <p class="panel-sub">Add, edit, remove, enable/disable, and reorder questions. Items are grouped on the site by their section. Disabled questions won't appear.</p>
+
+        <div style="border:1px solid var(--border);border-radius:3px;padding:1rem;margin-bottom:1.25rem;background:var(--bg-2,#f7f5f2)">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:.6rem">Add a new question</div>
+          <input class="field-input" id="new-faq-section" placeholder="Section (e.g. Workshops, Prints & paper)" style="margin-bottom:.4rem">
+          <input class="field-input" id="new-faq-question" placeholder="Question" style="margin-bottom:.4rem">
+          <textarea class="field-input" id="new-faq-answer" rows="3" placeholder="Answer" style="margin-bottom:.5rem"></textarea>
+          <button class="btn-save-print" onclick="createFaq(this)">Add question</button>
+          <span id="new-faq-msg" style="font-size:.7rem;color:var(--text-l);margin-left:.5rem"></span>
+        </div>
+
+        <div id="faq-list"></div>
       </div>
 
       <!-- WORKSHOP -->
@@ -881,55 +891,120 @@ async function saveShippingSettings(btn) {
   } catch(e) { msg.textContent = 'Error'; btn.textContent = 'Save all shipping settings'; btn.disabled = false; }
 }
 
-function buildFaqFields(questions) {
-  const wrap = document.getElementById('faq-fields');
-  wrap.innerHTML = questions.map(([key, question]) => {
-    const answer = allContent[key] || '';
-    const enabled = allContent[key + '_enabled'] !== 'false';
-    return `
-      <div class="faq-admin-item" id="faq-item-${key}" style="border:1px solid var(--border);border-radius:3px;padding:.85rem 1rem;margin-bottom:.5rem;opacity:${enabled ? '1' : '.5'}">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.5rem">
-          <label class="field-label" style="margin:0;flex:1">${esc(question)}</label>
-          <label style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:var(--text-l);cursor:pointer;flex-shrink:0">
-            <input type="checkbox" id="faq-enabled-${key}" ${enabled ? 'checked' : ''}
-              onchange="toggleFaqItem('${key}',this)"
-              style="cursor:pointer">
-            Visible
-          </label>
-        </div>
-        <textarea class="field-input" id="faq-answer-${key}" rows="3"
-          style="resize:vertical;font-size:.78rem;line-height:1.5;margin-bottom:.4rem">${esc(answer)}</textarea>
-        <button class="btn-order-action" onclick="saveFaqItem('${key}',this)" style="font-size:.65rem">Save</button>
-        <span id="faq-msg-${key}" style="font-size:.7rem;color:var(--text-l);margin-left:.4rem"></span>
-      </div>`;
-  }).join('');
-}
-
-async function toggleFaqItem(key, checkbox) {
-  const item = document.getElementById('faq-item-' + key);
-  const enabled = checkbox.checked;
-  item.style.opacity = enabled ? '1' : '.5';
-  await fetch('/api/admin/content', {
-    method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include',
-    body: JSON.stringify({ key: key + '_enabled', value: enabled ? 'true' : 'false' })
-  });
-  allContent[key + '_enabled'] = enabled ? 'true' : 'false';
-}
-
-async function saveFaqItem(key, btn) {
-  btn.disabled = true; btn.textContent = 'Saving…';
-  const answer = document.getElementById('faq-answer-' + key).value;
-  const msg = document.getElementById('faq-msg-' + key);
+// ── FAQ CRUD (DB-backed) ──────────────────────────────────────────────────────
+let _adminFaqs = [];
+async function loadFaqs() {
+  const list = document.getElementById('faq-list');
+  if (!list) return;
   try {
-    await fetch('/api/admin/content', {
-      method: 'PUT', headers: {'Content-Type':'application/json'}, credentials: 'include',
-      body: JSON.stringify({ key, value: answer })
+    _adminFaqs = await fetch('/api/admin/faqs', { credentials:'include' }).then(r => r.json());
+  } catch (e) { list.innerHTML = '<p style="color:#c0392b">Couldn\'t load FAQs.</p>'; return; }
+  renderFaqList();
+}
+
+function renderFaqList() {
+  const list = document.getElementById('faq-list');
+  if (!list) return;
+  if (!_adminFaqs.length) { list.innerHTML = '<p style="font-size:.8rem;color:var(--text-l)">No questions yet — add one above.</p>'; return; }
+  list.innerHTML = _adminFaqs.map((f, i) => `
+    <div class="faq-admin-item" id="faq-item-${f.id}" style="border:1px solid var(--border);border-radius:3px;padding:.85rem 1rem;margin-bottom:.5rem;opacity:${f.enabled ? '1' : '.5'}">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+        <div style="display:flex;flex-direction:column;gap:.15rem">
+          <button onclick="moveFaq(${f.id},-1)" ${i===0?'disabled':''} title="Move up" style="border:1px solid var(--border);background:none;cursor:pointer;border-radius:2px;font-size:.6rem;line-height:1;padding:.1rem .3rem">▲</button>
+          <button onclick="moveFaq(${f.id},1)" ${i===_adminFaqs.length-1?'disabled':''} title="Move down" style="border:1px solid var(--border);background:none;cursor:pointer;border-radius:2px;font-size:.6rem;line-height:1;padding:.1rem .3rem">▼</button>
+        </div>
+        <input class="field-input" id="faq-section-${f.id}" value="${esc(f.section)}" placeholder="Section" style="flex:0 0 34%;font-size:.72rem">
+        <input class="field-input" id="faq-question-${f.id}" value="${esc(f.question)}" placeholder="Question" style="flex:1;font-size:.78rem;font-weight:600">
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--text-l);cursor:pointer;flex-shrink:0">
+          <input type="checkbox" id="faq-enabled-${f.id}" ${f.enabled ? 'checked' : ''} onchange="toggleFaqItem(${f.id},this)" style="cursor:pointer"> Visible
+        </label>
+      </div>
+      <textarea class="field-input" id="faq-answer-${f.id}" rows="3" style="resize:vertical;font-size:.78rem;line-height:1.5;margin-bottom:.4rem">${esc(f.answer)}</textarea>
+      <button class="btn-save-print" onclick="saveFaqItem(${f.id},this)" style="font-size:.65rem">Save changes</button>
+      <button class="btn-del-print" onclick="deleteFaqItem(${f.id},this)" style="font-size:.65rem">Delete</button>
+      <span id="faq-msg-${f.id}" style="font-size:.7rem;color:var(--text-l);margin-left:.4rem"></span>
+    </div>`).join('');
+}
+
+async function createFaq(btn) {
+  const section = document.getElementById('new-faq-section').value.trim() || 'General';
+  const question = document.getElementById('new-faq-question').value.trim();
+  const answer = document.getElementById('new-faq-answer').value.trim();
+  const msg = document.getElementById('new-faq-msg');
+  if (!question || !answer) { msg.textContent = 'Question and answer required'; msg.style.color = '#c0392b'; return; }
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/admin/faqs', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ section, question, answer })
     });
-    allContent[key] = answer;
-    msg.textContent = 'Saved ✓';
-    btn.textContent = 'Save'; btn.disabled = false;
+    if (!res.ok) throw new Error();
+    document.getElementById('new-faq-section').value = '';
+    document.getElementById('new-faq-question').value = '';
+    document.getElementById('new-faq-answer').value = '';
+    msg.textContent = 'Added ✓'; msg.style.color = '';
+    await loadFaqs();
     setTimeout(() => { msg.textContent = ''; }, 2000);
-  } catch(e) { msg.textContent = 'Error'; btn.textContent = 'Save'; btn.disabled = false; }
+  } catch (e) { msg.textContent = 'Error adding'; msg.style.color = '#c0392b'; }
+  btn.disabled = false; btn.textContent = 'Add question';
+}
+
+async function saveFaqItem(id, btn) {
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const section = document.getElementById('faq-section-'+id).value.trim() || 'General';
+  const question = document.getElementById('faq-question-'+id).value.trim();
+  const answer = document.getElementById('faq-answer-'+id).value.trim();
+  const msg = document.getElementById('faq-msg-'+id);
+  try {
+    const res = await fetch('/api/admin/faqs/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ section, question, answer })
+    });
+    if (!res.ok) throw new Error();
+    const f = _adminFaqs.find(x => x.id === id);
+    if (f) { f.section = section; f.question = question; f.answer = answer; }
+    msg.textContent = 'Saved ✓';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  } catch (e) { msg.textContent = 'Error'; }
+  btn.disabled = false; btn.textContent = 'Save changes';
+}
+
+async function toggleFaqItem(id, checkbox) {
+  const item = document.getElementById('faq-item-'+id);
+  const enabled = checkbox.checked;
+  if (item) item.style.opacity = enabled ? '1' : '.5';
+  try {
+    await fetch('/api/admin/faqs/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ enabled })
+    });
+    const f = _adminFaqs.find(x => x.id === id);
+    if (f) f.enabled = enabled;
+  } catch (e) {}
+}
+
+async function deleteFaqItem(id, btn) {
+  if (!confirm('Delete this question?')) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await fetch('/api/admin/faqs/'+id, { method:'DELETE', credentials:'include' });
+    if (res.ok) { _adminFaqs = _adminFaqs.filter(x => x.id !== id); renderFaqList(); }
+  } catch (e) { btn.disabled = false; btn.textContent = 'Delete'; }
+}
+
+// Move an item up/down, persist the new order.
+async function moveFaq(id, dir) {
+  const idx = _adminFaqs.findIndex(x => x.id === id);
+  const target = idx + dir;
+  if (idx < 0 || target < 0 || target >= _adminFaqs.length) return;
+  [_adminFaqs[idx], _adminFaqs[target]] = [_adminFaqs[target], _adminFaqs[idx]];
+  renderFaqList();
+  try {
+    await fetch('/api/admin/faqs/reorder', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ order: _adminFaqs.map(f => f.id) })
+    });
+  } catch (e) {}
 }
 
 async function saveField(key,btn){
@@ -1902,27 +1977,7 @@ async function loadAll(){
   await loadWorkshopDates();
   await loadWorkshopGallery();
 
-  buildFaqFields([
-    ['faq_paper',         'What paper are the prints made on?'],
-    ['faq_sizes',         'What sizes are available?'],
-    ['faq_signed',        'Are the prints signed?'],
-    ['faq_limited',       'What is a limited edition print?'],
-    ['faq_limited_platforms', 'Are your limited editions honoured across different platforms?'],
-    ['faq_margin',        'Will prints have a margin / passepartout?'],
-    ['faq_how_order',     'How do I order?'],
-    ['faq_payment',       'What payment methods do you accept?'],
-    ['faq_custom_print',  "Can I order a print that isn't in the shop?"],
-    ['faq_packaging',     'How are prints shipped?'],
-    ['faq_delivery_time', 'How long does delivery take?'],
-    ['faq_intl',          'Do you ship internationally?'],
-    ['faq_shipping_cost', 'How much does shipping cost?'],
-    ['faq_personal_what', 'What is personal delivery?'],
-    ['faq_personal_where','Which areas are covered?'],
-    ['faq_personal_how',  'How does personal delivery work in practice?'],
-    ['faq_damaged',       'What if my print arrives damaged?'],
-    ['faq_returns',       'Do you accept returns?'],
-    ['faq_framing',       'Do you offer framing?'],
-  ]);
+  await loadFaqs();
 
   buildFields('shoptext-fields',[
     ['nav_shop',             'Nav link label',                false],

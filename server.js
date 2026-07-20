@@ -633,6 +633,18 @@ async function initDB() {
       UNIQUE(print_id, size)
     );
 
+    -- FAQ items — fully editable (add / edit / remove / reorder) via admin,
+    -- grouped into sections. Replaces the old hardcoded content-key FAQ.
+    CREATE TABLE IF NOT EXISTS faqs (
+      id SERIAL PRIMARY KEY,
+      section TEXT NOT NULL DEFAULT 'General',
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      enabled BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- Shipping rates: one price per (delivery method × size). Size-aware because
     -- A4 ships flat (cheap), A3/A2 ship rolled in a tube (pricier).
     CREATE TABLE IF NOT EXISTS shipping_rates (
@@ -944,6 +956,47 @@ async function initDB() {
     }
   }
 
+  // Seed FAQ items once, only if the table is empty (so deleting a seeded item
+  // in admin doesn't resurrect it on the next deploy). Migrates the previous
+  // hardcoded FAQ set verbatim and adds the workshop questions.
+  const { rows: faqCount } = await pool.query('SELECT COUNT(*)::int AS n FROM faqs');
+  if (faqCount[0].n === 0) {
+    const faqDefaults = [
+      // section, question, answer
+      ['Prints & paper', 'What paper are the prints made on?', 'Each print is produced on museum-grade fine art paper — the specific paper for each image is noted in the shop. I use archival papers such as Hahnemühle Photo Rag and similar. The paper choice is made per image to best complement the photograph.'],
+      ['Prints & paper', 'What sizes are available?', 'Prints are available in A4, A3, and A2 — standard DIN paper sizes. A4 is approximately 21×30cm, A3 is 30×42cm, and A2 is 42×60cm. Not all sizes are available for every image; available sizes and prices are shown per print in the shop.'],
+      ['Prints & paper', 'Are the prints signed?', 'Yes. All prints are signed by hand. Limited edition prints are also numbered.'],
+      ['Prints & paper', 'What is a limited edition print?', 'A limited edition means only a fixed number of that print will ever be produced in that size. The edition size is shown in the shop. Once the edition sells out, no more copies of that print in that size will be made. Your edition number is recorded at the time of purchase.'],
+      ['Prints & paper', 'Are your limited editions honoured across different platforms?', 'Some limited editions are also offered through other platforms, such as Artfinder. The edition size is shared across all of them — if a print has an edition of 50, that\'s 50 total, not 50 per platform. Every sale, wherever it happens, is recorded against the same running number, so the edition limit is always honoured and no print is ever oversold. A print may also be available as an open edition on this site even if a limited edition of it is listed elsewhere — the two are always clearly distinguished, and only the limited version is signed, numbered, and capped.'],
+      ['Prints & paper', 'Will prints have a margin / passepartout?', 'Yes — all prints are delivered with a white border, heavier at the bottom (classic passepartout proportions). If you\'d prefer something different — equal margins, no margins, or a custom layout — just let me know in the notes field when ordering and I\'ll accommodate it.'],
+      ['Ordering & payment', 'How do I order?', 'Browse the shop, select a print and size, add it to your cart, choose a delivery method, and proceed to checkout. Payment is handled securely by Stripe — your card details are never seen or stored by me.'],
+      ['Ordering & payment', 'What payment methods do you accept?', 'Credit and debit cards (Visa, Mastercard, Amex) and TWINT for Swiss customers. All payments are processed securely via Stripe.'],
+      ['Ordering & payment', 'Can I order a print that isn\'t in the shop?', 'Yes — if you\'ve seen a photo in my portfolio that isn\'t currently available as a print, just get in touch and I\'ll arrange it for you.'],
+      ['Shipping & delivery', 'How are prints shipped?', 'A4 prints are sent flat in a rigid protective mailer. A3 and A2 prints are shipped rolled in a sturdy postal tube. All prints are carefully packaged to arrive in perfect condition.'],
+      ['Shipping & delivery', 'How long does delivery take?', 'I aim to print and dispatch every order within one to two weeks of payment. Swiss delivery typically takes 2–4 working days after dispatch; EU and international delivery takes longer depending on destination. You\'ll receive a confirmation email when your order ships.'],
+      ['Shipping & delivery', 'Do you ship internationally?', 'Yes — I ship to EU countries and a range of other destinations worldwide. Shipping cost is calculated at checkout based on your country and the size of your order. For destinations not listed at checkout, contact me for a quote.'],
+      ['Shipping & delivery', 'How much does shipping cost?', 'Shipping is calculated automatically at checkout based on your delivery method, destination, and the size and weight of your prints. Swiss standard shipping starts from CHF 2 for A4 and CHF 9 for A3/A2. EU rates vary by weight — shown at checkout once you select your country.'],
+      ['Personal delivery', 'What is personal delivery?', 'Personal delivery means I bring the print to you in person — no postal service, no tube. It\'s the most careful way to receive a large fine art print, and it gives us a chance to meet and make sure you\'re happy with the piece.'],
+      ['Personal delivery', 'Where is personal delivery available?', 'Personal delivery is available across Switzerland and Liechtenstein. After placing your order, I\'ll contact you directly to arrange a time and location that works for you.'],
+      ['Personal delivery', 'How does personal delivery work?', 'Once your order is confirmed and the print is ready, I\'ll reach out by email to coordinate. We arrange a meeting point — your home, your office, or anywhere convenient. I bring the print in person, flat or rolled depending on size, and you can inspect it on the spot before I leave.'],
+      ['Returns & issues', 'What if my print arrives damaged?', 'If your print arrives damaged, contact me as soon as possible with photos of the damage and packaging. I\'ll arrange a replacement or full refund, including return shipping costs, at no charge to you.'],
+      ['Returns & issues', 'Can I return a print?', 'Yes — you can return any print within 30 days of delivery, for any reason, no questions asked. Return shipping is at your cost; once the print arrives back in good condition I\'ll refund the full purchase price. See the terms of sale for full details.'],
+      ['Framing', 'Do you offer framing?', 'Not yet — but it\'s coming. I\'m in the process of learning to build my own frames by hand. Once available, framing will be offered as an optional add-on at checkout. Get in touch if you\'d like to know more or be notified when it launches.'],
+      // Workshop Q&As (new)
+      ['Workshops', 'What is the "Photo to Print" workshop?', 'A full-day workshop where we go out and shoot together around a creative theme, then return to my atelier and produce a finished fine art print of your work — from camera to a large-format archival print you take home. It combines a guided photo walk with hands-on exposure to a real colour-managed printing workflow.'],
+      ['Workshops', 'Do I need my own camera and experience?', 'You\'ll need a camera you can control manually — a DSLR or mirrorless where you can set aperture, shutter, and ISO. The workshop suits enthusiastic beginners through to experienced photographers; it\'s about seeing and making, not about gear or technical perfection. Phone-only or fully-automatic shooting isn\'t the right fit for this particular day.'],
+      ['Workshops', 'What\'s included, and what does it cost?', 'The day includes the guided shoot, individual consultation on selecting and preparing your image, and one large-format fine art print of your chosen photograph produced in my atelier. Group sizes are kept small so everyone gets real attention. Pricing and available dates are shown on the workshop page — get in touch if you\'d like to be notified of upcoming dates.'],
+      ['Workshops', 'When do I get my print?', 'Because each print is produced with a full colour-managed workflow to the same standard as my commissioned work, it\'s prepared with care after the workshop rather than rushed on the day. I\'ll finish and dispatch (or arrange personal handover of) your print shortly after — so you leave with the experience and receive the finished piece soon after.'],
+    ];
+    for (let i = 0; i < faqDefaults.length; i++) {
+      const [section, question, answer] = faqDefaults[i];
+      await pool.query(
+        'INSERT INTO faqs (section, question, answer, sort_order) VALUES ($1,$2,$3,$4)',
+        [section, question, answer, i]
+      );
+    }
+  }
+
   console.log('DB initialised');
 }
 
@@ -960,6 +1013,18 @@ app.get('/api/content', async (req, res) => {
     const content = {};
     rows.forEach(r => { content[r.key] = r.value; });
     res.json(content);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Public: enabled FAQ items, ordered. The frontend groups them by section.
+app.get('/api/faqs', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, section, question, answer FROM faqs WHERE enabled = TRUE ORDER BY sort_order ASC, id ASC'
+    );
+    res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1304,6 +1369,80 @@ app.put('/api/admin/content', requireAuth, async (req, res) => {
       'INSERT INTO content (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()',
       [key, value]
     );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── ADMIN FAQ CRUD ────────────────────────────────────────────────────────────
+// List ALL faqs (including disabled) for the admin panel.
+app.get('/api/admin/faqs', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, section, question, answer, sort_order, enabled FROM faqs ORDER BY sort_order ASC, id ASC'
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create a new FAQ item — appended to the end.
+app.post('/api/admin/faqs', requireAuth, async (req, res) => {
+  const { section, question, answer } = req.body;
+  if (!question || !answer) return res.status(400).json({ error: 'Question and answer are required' });
+  try {
+    const { rows: maxRow } = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM faqs');
+    const { rows } = await pool.query(
+      'INSERT INTO faqs (section, question, answer, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
+      [section || 'General', question, answer, maxRow[0].next]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Reorder — accepts an array of ids in the new order. MUST be before /:id.
+app.put('/api/admin/faqs/reorder', requireAuth, async (req, res) => {
+  const { order } = req.body; // array of faq ids
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
+  try {
+    for (let i = 0; i < order.length; i++) {
+      await pool.query('UPDATE faqs SET sort_order = $1 WHERE id = $2', [i, order[i]]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update an existing FAQ item (any field).
+app.put('/api/admin/faqs/:id', requireAuth, async (req, res) => {
+  const { section, question, answer, enabled } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE faqs SET
+         section = COALESCE($1, section),
+         question = COALESCE($2, question),
+         answer = COALESCE($3, answer),
+         enabled = COALESCE($4, enabled)
+       WHERE id = $5 RETURNING *`,
+      [section ?? null, question ?? null, answer ?? null,
+       (typeof enabled === 'boolean' ? enabled : null), req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'FAQ not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete a FAQ item.
+app.delete('/api/admin/faqs/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM faqs WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
