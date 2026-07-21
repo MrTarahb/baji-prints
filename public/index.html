@@ -1656,6 +1656,24 @@ nav.on-light .nav-hamburger span,
 </head>
 <body>
 
+<noscript>
+  <div style="max-width:640px;margin:2rem auto;padding:0 1.5rem;font-family:Georgia,serif;line-height:1.6;color:#111110;">
+    <h1>Bharat Bhatia — Fine Art Photography &amp; Prints, Zürich</h1>
+    <p>Bharat Bhatia is a fine art photographer based in Zürich, Switzerland,
+    working in abstract, black-and-white, intentional camera movement (ICM) and
+    macro photography on the theme of isolation. Each print is hand-produced in
+    his own atelier on museum-grade archival paper.</p>
+    <p>Limited edition and open edition fine art photography prints are available
+    to buy in sizes A4, A3 and A2, with worldwide shipping and personal delivery
+    across Switzerland. Bharat also offers giclée printing and photography
+    workshops in Zürich.</p>
+    <p>Browse the work and shop prints at
+    <a href="https://bharatbhatia.photography">bharatbhatia.photography</a>,
+    or follow <a href="https://instagram.com/bajidigital">@bajidigital</a> on Instagram.</p>
+    <p>This site requires JavaScript to browse the full portfolio and shop.</p>
+  </div>
+</noscript>
+
 <div id="cur"></div>
 
 <nav id="nav">
@@ -2319,17 +2337,20 @@ async function loadContent() {
         }
       });
     });
-    // SEO meta tags
-    if (d.seo_title) {
+    // SEO meta tags — apply the global seo_* overrides EXCEPT on per-product
+    // pages (/shop/:id), where the server already injected accurate per-print
+    // title/description/image that shouldn't be overwritten.
+    const onProductPage = /^\/shop\/\d+/.test(location.pathname);
+    if (d.seo_title && !onProductPage) {
       document.title = d.seo_title;
       const t = document.getElementById('meta-title'); if(t) t.textContent = d.seo_title;
       const ot = document.getElementById('meta-og-title'); if(ot) ot.setAttribute('content', d.seo_title);
     }
-    if (d.seo_desc) {
+    if (d.seo_desc && !onProductPage) {
       const md = document.getElementById('meta-desc'); if(md) md.setAttribute('content', d.seo_desc);
       const od = document.getElementById('meta-og-desc'); if(od) od.setAttribute('content', d.seo_desc);
     }
-    if (d.seo_image) {
+    if (d.seo_image && !onProductPage) {
       const mi = document.getElementById('meta-og-image'); if(mi) mi.setAttribute('content', d.seo_image);
     }
     // About photo — only show if one has been uploaded

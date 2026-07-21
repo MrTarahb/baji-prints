@@ -481,6 +481,9 @@ app.post('/api/shipping/calculate', async (req, res) => {
   }
 });
 app.use(express.static(path.join(__dirname, 'public'), {
+  // Don't let static serve index.html automatically for '/' — our own '/'
+  // route injects per-page SEO meta into it. Static still serves real assets.
+  index: false,
   setHeaders: (res, filePath) => {
     // index.html (and the admin's index.html) is the entry point and changes
     // often — never let the browser cache a stale copy of it. Other static
@@ -2147,27 +2150,165 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
   }
 });
 
-// ── PAGEVIEW TRACKING ────────────────────────────────────────────────────────
-// ── WORKSHOPS ─────────────────────────────────────────────────────────────────
+// ── SEO: server-rendered per-route meta tags + JSON-LD ───────────────────────
+// The site is a client-rendered SPA, so without this, every route would serve
+// the homepage's meta tags and crawlers/link-previews would see no page-specific
+// content. We read index.html once, then inject route-appropriate <title>,
+// description, Open Graph tags, canonical, and JSON-LD structured data before
+// sending. Focus: the artist and their prints for sale.
+const fs = require('fs');
+const SITE = 'https://bharatbhatia.photography';
+const DEFAULT_OG_IMAGE = 'https://res.cloudinary.com/dqsl63ax7/image/upload/v1777886744/baji-prints/zazpsby8txguspgnfhis.jpg';
+let _indexHtmlCache = null;
+function indexHtml() {
+  if (!_indexHtmlCache) {
+    _indexHtmlCache = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  }
+  return _indexHtmlCache;
+}
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+// Base JSON-LD: the artist as a Person, plus the site. Present on every page.
+function personJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Bharat Bhatia",
+    "alternateName": "Baji",
+    "jobTitle": "Fine Art Photographer",
+    "url": SITE,
+    "image": DEFAULT_OG_IMAGE,
+    "sameAs": ["https://instagram.com/bajidigital"],
+    "address": { "@type": "PostalAddress", "addressLocality": "Zürich", "addressCountry": "CH" },
+    "knowsAbout": ["Fine art photography", "Giclée printing", "Abstract photography", "Intentional camera movement", "Macro photography"]
+  };
+}
+// Serves index.html with injected meta for a given route.
+function serveWithMeta(res, { title, description, path: urlPath, image, jsonLd }) {
+  let html = indexHtml();
+  const canonical = SITE + (urlPath || '/');
+  const img = image || DEFAULT_OG_IMAGE;
+  const desc = escapeHtml(description);
+  const t = escapeHtml(title);
 
-// Deep link: /workshops serves the SPA, which opens the workshop page on load.
-// (The static middleware only serves real files, so this route catches the path.)
-app.get('/workshops', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+  html = html
+    .replace(/<title id="meta-title">[^<]*<\/title>/,
+      `<title id="meta-title">${t}</title>`)
+    .replace(/(<meta name="description" id="meta-desc" content=")[^"]*(">)/,
+      `$1${desc}$2`)
+    .replace(/(<meta property="og:title" id="meta-og-title" content=")[^"]*(">)/,
+      `$1${t}$2`)
+    .replace(/(<meta property="og:description" id="meta-og-desc" content=")[^"]*(">)/,
+      `$1${desc}$2`)
+    .replace(/(<meta property="og:image" id="meta-og-image" content=")[^"]*(">)/,
+      `$1${escapeHtml(img)}$2`)
+    .replace(/(<meta property="og:url" content=")[^"]*(">)/,
+      `$1${escapeHtml(canonical)}$2`)
+    .replace(/(<link rel="canonical" href=")[^"]*(">)/,
+      `$1${escapeHtml(canonical)}$2`);
 
-// Same for /shop and /cart, so these paths can be typed directly, bookmarked,
-// or shared as links without 404ing. The SPA reads the path on load and opens
-// the matching page. /shop/success is covered by the /shop prefix match here.
-app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/shop/*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+  // Inject JSON-LD (Person + optional page-specific) right before </head>.
+  const blocks = [personJsonLd()];
+  if (jsonLd) blocks.push(jsonLd);
+  const ld = blocks.map(b =>
+    `<script type="application/ld+json">${JSON.stringify(b)}</script>`).join('\n');
+  html = html.replace('</head>', `${ld}\n</head>`);
+
+  res.type('html').send(html);
+}
+
+// Per-route metadata (art / prints focused).
+const ROUTE_META = {
+  '/': {
+    title: 'Bharat Bhatia — Fine Art Photography & Prints, Zürich',
+    description: 'Limited edition fine art photography prints by Bharat Bhatia — abstract, black-and-white and macro work, hand-printed in Zürich on museum-grade archival paper.',
+  },
+  '/shop': {
+    title: 'Fine Art Prints for Sale — Bharat Bhatia, Zürich',
+    description: 'Buy limited edition and open edition fine art photography prints. Abstract and black-and-white work, hand-printed in Zürich on archival museum-grade paper, shipped worldwide.',
+  },
+  '/workshops': {
+    title: 'Photography Workshops — Bharat Bhatia, Zürich',
+    description: 'A full-day photo-to-print workshop in Zürich: shoot fine art photography and leave with a large-format archival print made in the artist\'s own atelier.',
+  },
+  '/about': {
+    title: 'About — Bharat Bhatia, Fine Art Photographer, Zürich',
+    description: 'Bharat Bhatia is a Zürich-based fine art photographer working in abstract, black-and-white and macro imagery, printing each piece by hand in his atelier.',
+  },
+  '/contact': {
+    title: 'Contact — Bharat Bhatia, Fine Art Photography, Zürich',
+    description: 'Get in touch about fine art prints, commissions, or giclée printing in Zürich.',
+  },
+  '/faq': {
+    title: 'FAQ — Bharat Bhatia Fine Art Prints, Zürich',
+    description: 'Answers about paper, sizes, editions, shipping, personal delivery and workshops for Bharat Bhatia fine art photography prints.',
+  },
+};
+
+// Static routes with their own meta.
+app.get('/', (req, res) => serveWithMeta(res, { ...ROUTE_META['/'], path: '/' }));
+app.get('/workshops', (req, res) => serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' }));
+app.get('/shop', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-// The remaining content pages, so every page in the nav/footer has its own
-// shareable URL rather than only living behind the SPA's in-page navigation.
-for (const p of ['/about', '/contact', '/faq', '/impressum', '/privacy', '/terms']) {
+for (const p of ['/about', '/contact', '/faq']) {
+  app.get(p, (req, res) => serveWithMeta(res, { ...ROUTE_META[p], path: p }));
+}
+for (const p of ['/impressum', '/privacy', '/terms']) {
   app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 }
+
+// Per-product page: /shop/:id — pulls the print so the title, description, image
+// and Product JSON-LD are specific to that print (key for sharing + rich results).
+app.get('/shop/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.title, p.description, p.image_url, p.edition_type,
+              MIN(ps.price_chf) AS min_price
+       FROM prints p
+       LEFT JOIN print_sizes ps ON ps.print_id = p.id AND ps.enabled = TRUE
+       WHERE p.id = $1 AND p.for_sale = TRUE
+       GROUP BY p.id`, [id]
+    );
+    const p = rows[0];
+    if (!p) return serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' });
+
+    const title = `${p.title} — Fine Art Print by Bharat Bhatia`;
+    const description = p.description
+      ? `${p.description} Limited ${p.edition_type === 'limited' ? 'edition' : 'open edition'} fine art print, hand-printed in Zürich on archival paper.`.slice(0, 300)
+      : `${p.title} — a fine art photography print by Bharat Bhatia, hand-printed in Zürich on museum-grade archival paper.`;
+    const image = p.image_url || DEFAULT_OG_IMAGE;
+
+    const productLd = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": p.title,
+      "image": image,
+      "description": p.description || `${p.title} — fine art photography print by Bharat Bhatia.`,
+      "brand": { "@type": "Brand", "name": "Bharat Bhatia" },
+      "category": "Fine Art Photography Print",
+    };
+    if (p.min_price) {
+      productLd.offers = {
+        "@type": "Offer",
+        "priceCurrency": "CHF",
+        "price": (p.min_price / 100).toFixed(2),
+        "availability": "https://schema.org/InStock",
+        "url": `${SITE}/shop/${p.id}`,
+      };
+    }
+    serveWithMeta(res, { title, description, path: `/shop/${p.id}`, image, jsonLd: productLd });
+  } catch (e) {
+    serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' });
+  }
+});
+app.get('/shop/*', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
+
+
 
 // Public: upcoming open dates with live remaining capacity. A spot is taken by
 // a paid booking, or by a pending one younger than 35 minutes (the lifetime of
@@ -2394,11 +2535,32 @@ app.get('/robots.txt', (req, res) => {
   res.send('User-agent: *\nAllow: /\nSitemap: https://bharatbhatia.photography/sitemap.xml');
 });
 
-app.get('/sitemap.xml', (req, res) => {
+app.get('/sitemap.xml', async (req, res) => {
+  const base = 'https://bharatbhatia.photography';
   res.type('application/xml');
+  // Static routes + every for-sale print (so Google can discover each one).
+  const staticUrls = [
+    { loc: '/',          freq: 'weekly',  pri: '1.0' },
+    { loc: '/shop',      freq: 'weekly',  pri: '0.9' },
+    { loc: '/workshops', freq: 'monthly', pri: '0.6' },
+    { loc: '/about',     freq: 'monthly', pri: '0.5' },
+    { loc: '/contact',   freq: 'yearly',  pri: '0.4' },
+    { loc: '/faq',       freq: 'monthly', pri: '0.4' },
+  ];
+  let productUrls = [];
+  try {
+    const { rows } = await pool.query(
+      "SELECT id FROM prints WHERE for_sale = TRUE ORDER BY sort_order ASC"
+    );
+    productUrls = rows.map(r => ({ loc: `/shop/${r.id}`, freq: 'weekly', pri: '0.8' }));
+  } catch (e) { /* fall back to static-only sitemap */ }
+  const all = [...staticUrls, ...productUrls];
+  const body = all.map(u =>
+    `  <url><loc>${base}${u.loc}</loc><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
+  ).join('\n');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://bharatbhatia.photography/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+${body}
 </urlset>`);
 });
 
