@@ -3581,6 +3581,9 @@ function openShopDetail(printId) {
   selectedDetailSize = null;
   pvState.product = p;
   pvState.size = 'A2';
+  // Reflect the open print in the URL so it's shareable / bookmarkable and
+  // matches the server-rendered /shop/:id meta.
+  try { history.replaceState(null, '', '/shop/' + printId); } catch (e) {}
 
   const validSizes = p.sizes.filter(s => s.price_chf > 0);
   const inner = document.getElementById('shop-detail-inner');
@@ -3667,6 +3670,8 @@ function closeShopDetail() {
   document.getElementById('shop-detail').classList.remove('open');
   document.body.classList.remove('shop-detail-open');
   document.body.style.overflow = '';
+  // Restore the shop URL if we were on a /shop/:id detail path.
+  try { if (/^\/shop\/\d+$/.test(location.pathname)) history.replaceState(null, '', '/shop'); } catch (e) {}
 }
 
 async function renderCart() {
