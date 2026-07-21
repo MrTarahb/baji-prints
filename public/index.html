@@ -4245,12 +4245,28 @@ const landingPage = Object.keys(pathToPage).find(p => initialPath.indexOf(p) ===
 // sub-page — otherwise it's wasted work behind the opened page.
 const startingOnSubPage = initialPath.indexOf('/shop/success') === 0 || !!landingPage;
 
+// Detect a deep link to a specific product: /shop/123 (but not /shop/success).
+const productMatch = initialPath.match(/^\/shop\/(\d+)$/);
+const deepLinkProductId = productMatch ? parseInt(productMatch[1], 10) : null;
+
 loadContent().then(() => {
   if (!startingOnSubPage) { load().then(success => { if (success) mainFeedBuilt = true; }); }
 });
 
 if (initialPath.indexOf('/shop/success') === 0) {
   checkShopSuccess();
+} else if (deepLinkProductId) {
+  // Open the shop, then open the specific product's detail once products load.
+  showPage('shop');
+  let _dlTries = 0;
+  const openWhenReady = () => {
+    if (Array.isArray(shopProducts) && shopProducts.length) {
+      if (shopProducts.some(p => p.id === deepLinkProductId)) openShopDetail(deepLinkProductId);
+    } else if (_dlTries++ < 40) { // ~5s max, then give up and leave the grid open
+      setTimeout(openWhenReady, 120);
+    }
+  };
+  openWhenReady();
 } else if (landingPage) {
   showPage(pathToPage[landingPage]);
 }
