@@ -2680,7 +2680,7 @@ function renderFeed() {
     const showBadge = badgeOn && p.for_sale;
     const badgeHtml = showBadge ? `<span class="img-print-badge">Available as print</span>` : '';
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
-      <img src="${cld(imgUrl, 800)}" alt="${altText(imgTitle, 'photo')}" loading="lazy">
+      <img src="${cld(imgUrl, 800)}" alt="${altText(imgTitle, 'photo', p.alt_text)}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
       ${badgeHtml}
     </div>`;
@@ -2740,7 +2740,9 @@ function cld(url, w) {
 //         'print'   → a photograph offered as a print
 //         'mockup'  → the print shown with its paper margins
 //         'insitu'  → the framed print photographed in a room
-function altText(title, kind) {
+function altText(title, kind, custom) {
+  // A hand-written alt_text from the admin panel always wins.
+  if (custom && String(custom).trim()) return String(custom).trim();
   const t = (title || '').trim();
   switch (kind) {
     case 'print':
@@ -3024,7 +3026,9 @@ function _renderLightbox(src, title, printId) {
   hiRes.onload = () => { if (img.dataset.baseSrc === src) img.src = hiRes.src; };
   hiRes.src = cld(src, 2000);
   cap.textContent = title || '';
-  img.alt = altText(title, 'photo');
+  // Prefer the print's hand-written alt text (admin) over the generated one.
+  const _lbPrint = printId ? allPrints.find(x => x.id === printId) : null;
+  img.alt = altText(title, 'photo', _lbPrint && _lbPrint.alt_text);
 
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
   const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
@@ -3311,7 +3315,7 @@ async function loadShopProducts() {
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
           ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
-          <img class="shop-card-base" src="${cld(p.image_url, 1200)}" alt="${esc(altText(p.title, 'print'))}" loading="lazy">
+          <img class="shop-card-base" src="${cld(p.image_url, 1200)}" alt="${esc(altText(p.title, 'print', p.alt_text))}" loading="lazy">
           ${hasInsitu ? `<img class="shop-card-insitu" src="${cld(p.lifestyle_image_url, 1200)}" alt="${esc(altText(p.title, 'insitu'))}" loading="lazy">` : ''}
         </div>
         <div class="shop-card-title">${esc(p.title)}</div>
@@ -3376,7 +3380,7 @@ function pvViewerHtml(p) {
       pvState.slides = ['full', 'life'];
       return pvSwipeShell(p, `
         <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
+          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print', p.alt_text))}">
         </div>${lifestyleSlide}`, ['Full image', 'In the home']) +
         `<div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>`;
     }
@@ -3384,7 +3388,7 @@ function pvViewerHtml(p) {
     return `
       <div class="pv-viewer pv-single">
         <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
+          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print', p.alt_text))}">
         </div>
       </div>
       <div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>
@@ -3396,7 +3400,7 @@ function pvViewerHtml(p) {
   const labels = ['Full image', 'Printed · bottom-weighted margins'];
   let slidesHtml = `
     <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-      <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
+      <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print', p.alt_text))}">
     </div>
     <div class="pv-slide pv-mock" id="pv-mock-slide" onclick="pvOpenZoom('mock')">
       ${pvMockupHtml(p, false)}
@@ -3450,7 +3454,7 @@ function pvMockupHtml(p, forZoom) {
   return `
     <div class="pv-paper" style="${sizeStyle}">
       <div class="pv-window" style="left:${g.leftPct}%; top:${g.topPct}%; width:${g.winWPct}%; height:${g.winHPct}%;">
-        <img src="${cld(p.image_url, forZoom ? 2000 : 1400)}" alt="${esc(altText(p.title, 'mockup'))}">
+        <img src="${cld(p.image_url, forZoom ? 2000 : 1400)}" alt="${esc(altText(p.title, 'mockup', p.alt_text))}">
       </div>
     </div>`;
 }
@@ -3506,7 +3510,7 @@ function pvOpenZoom(which) {
   } else if (which === 'life' && p.lifestyle_image_url) {
     inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.lifestyle_image_url, 2000)}" alt="${esc(altText(p.title, 'insitu'))}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
   } else {
-    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" alt="${esc(altText(p.title, 'print'))}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" alt="${esc(altText(p.title, 'print', p.alt_text))}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
   }
   stage.innerHTML = inner;
   pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0, view:which };

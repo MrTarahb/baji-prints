@@ -596,6 +596,10 @@ async function initDB() {
     -- public_id is stored too so it can be deleted/replaced cleanly.
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_image_url TEXT;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_public_id TEXT;
+    -- Optional hand-written alt text. When set it overrides the auto-generated
+    -- description (see altText() in index.html). Serves both accessibility and
+    -- image search, so it should describe what is actually visible.
+    ALTER TABLE prints ADD COLUMN IF NOT EXISTS alt_text TEXT;
 
     -- ── PAPERS: reusable paper descriptions ────────────────────────────
     CREATE TABLE IF NOT EXISTS papers (
@@ -1040,7 +1044,7 @@ app.get('/api/faqs', async (req, res) => {
 
 app.get('/api/prints', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, for_sale, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, for_sale, alt_text, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1065,7 +1069,7 @@ app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
       `SELECT p.id, p.title, p.description, p.image_url, p.edition_type, p.edition_size,
-              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin, p.lifestyle_image_url,
+              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin, p.lifestyle_image_url, p.alt_text,
               pa.name AS paper_name, pa.description AS paper_description
        FROM prints p
        LEFT JOIN papers pa ON pa.id = p.paper_id
@@ -1630,18 +1634,20 @@ app.delete('/api/admin/prints/:id/lifestyle', requireAuth, async (req, res) => {
 });
 
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
-  const { title, description, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories } = req.body;
+  const { title, description, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, alt_text } = req.body;
   // categories is the new multi-value array; category is the legacy single string kept for compatibility
   const cats = Array.isArray(categories) && categories.length ? categories : [category || 'abstract-bnw'];
   const primaryCat = cats[0]; // keep legacy category column in sync with first selection
+  // Empty string → NULL so the frontend falls back to auto-generated alt text.
+  const alt = (typeof alt_text === 'string' && alt_text.trim()) ? alt_text.trim() : null;
   try {
     let query, params;
     if (sort_order !== undefined) {
-      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, exclude_from_category_hero=$5, category=$6, categories=$7 WHERE id=$8 RETURNING *';
-      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, exclude_from_category_hero=$5, category=$6, categories=$7, alt_text=$8 WHERE id=$9 RETURNING *';
+      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), alt, req.params.id];
     } else {
-      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, exclude_from_category_hero=$4, category=$5, categories=$6 WHERE id=$7 RETURNING *';
-      params = [title, description, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, exclude_from_category_hero=$4, category=$5, categories=$6, alt_text=$7 WHERE id=$8 RETURNING *';
+      params = [title, description, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), alt, req.params.id];
     }
     const { rows } = await pool.query(query, params);
     res.json(rows[0]);
