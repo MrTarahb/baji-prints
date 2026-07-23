@@ -2733,32 +2733,16 @@ function cld(url, w) {
   return url.replace('/image/upload/', `/image/upload/w_${targetW},f_auto,q_auto:good/`);
 }
 
-// Builds descriptive alt text. Accessibility first (a screen reader should learn
-// what the image actually is), with the artist/medium context that also helps
-// image search — NOT keyword stuffing. Keep results short (~125 chars).
-//   kind: 'photo'   → a portfolio photograph
-//         'print'   → a photograph offered as a print
-//         'mockup'  → the print shown with its paper margins
-//         'insitu'  → the framed print photographed in a room
+// Returns the hand-written alt text for an image, or an empty string.
+// NOTE: auto-generated fallbacks were deliberately removed — the owner writes
+// alt text per print in the admin panel (Manage prints → Alt text). Until a
+// print has one, its alt is empty.
+//   kind is kept for the in-situ case, which describes a different image
+//   (a framed print in a room) and so never inherits the artwork's alt text.
 function altText(title, kind, custom) {
-  // A hand-written alt_text from the admin panel always wins.
   if (custom && String(custom).trim()) return String(custom).trim();
-  const t = (title || '').trim();
-  switch (kind) {
-    case 'print':
-      return t ? `${t} — fine art photography print by Bharat Bhatia`
-               : 'Fine art photography print by Bharat Bhatia';
-    case 'mockup':
-      return t ? `${t} print shown with its white border margins on fine art paper`
-               : 'Print shown with its white border margins on fine art paper';
-    case 'insitu':
-      return t ? `${t} fine art print framed and hanging on a wall`
-               : 'Fine art print framed and hanging on a wall';
-    case 'photo':
-    default:
-      return t ? `${t} — fine art photograph by Bharat Bhatia`
-               : 'Fine art photograph by Bharat Bhatia';
-  }
+  if (kind === 'insitu') return 'Fine art print framed and hanging on a wall';
+  return '';
 }
 
 // Detect image orientation then build feed — a w_50 thumb answers
