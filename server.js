@@ -2555,7 +2555,81 @@ app.post('/api/admin/stats/reset', requireAuth, async (req, res) => {
 // ── SEO FILES ─────────────────────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
-  res.send('User-agent: *\nAllow: /\nSitemap: https://bharatbhatia.photography/sitemap.xml');
+  // Middle-ground AI policy (owner's decision):
+  //  · ALLOW normal search engines and AI *retrieval* bots — these make the site
+  //    discoverable when someone asks an AI e.g. "giclée printing in Zürich".
+  //  · DISALLOW AI *training* crawlers — the photographs are the product and the
+  //    owner does not consent to them being used as training material.
+  // Caveats: robots.txt is voluntary (scrapers ignore it), it is not retroactive,
+  // and the images themselves are served from Cloudinary (a domain not covered by
+  // this file). Crawler names change — revisit periodically.
+  res.send([
+    '# Default: everything is crawlable.',
+    'User-agent: *',
+    'Allow: /',
+    '',
+    '# ── Search engines (always allowed) ─────────────────────────────',
+    'User-agent: Googlebot',
+    'Allow: /',
+    '',
+    'User-agent: Bingbot',
+    'Allow: /',
+    '',
+    'User-agent: Applebot',
+    'Allow: /',
+    '',
+    '# ── AI retrieval / answer engines (allowed — discoverability) ───',
+    '# These fetch pages to answer a user question, rather than to train.',
+    'User-agent: OAI-SearchBot',
+    'Allow: /',
+    '',
+    'User-agent: ChatGPT-User',
+    'Allow: /',
+    '',
+    'User-agent: Claude-User',
+    'Allow: /',
+    '',
+    'User-agent: Claude-SearchBot',
+    'Allow: /',
+    '',
+    'User-agent: PerplexityBot',
+    'Allow: /',
+    '',
+    '# ── AI training crawlers (disallowed) ───────────────────────────',
+    '# Blocking these does not affect normal search ranking.',
+    'User-agent: GPTBot',
+    'Disallow: /',
+    '',
+    'User-agent: Google-Extended',
+    'Disallow: /',
+    '',
+    'User-agent: ClaudeBot',
+    'Disallow: /',
+    '',
+    'User-agent: Applebot-Extended',
+    'Disallow: /',
+    '',
+    'User-agent: CCBot',
+    'Disallow: /',
+    '',
+    'User-agent: Bytespider',
+    'Disallow: /',
+    '',
+    'User-agent: Amazonbot',
+    'Disallow: /',
+    '',
+    '# ── Meta (disallowed — owner wants no Meta involvement) ─────────',
+    'User-agent: Meta-ExternalAgent',
+    'Disallow: /',
+    '',
+    'User-agent: Meta-ExternalFetcher',
+    'Disallow: /',
+    '',
+    'User-agent: FacebookBot',
+    'Disallow: /',
+    '',
+    'Sitemap: https://bharatbhatia.photography/sitemap.xml',
+  ].join('\n'));
 });
 
 app.get('/sitemap.xml', async (req, res) => {
