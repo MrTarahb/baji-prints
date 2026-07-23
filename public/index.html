@@ -1743,7 +1743,7 @@ nav.on-light .nav-hamburger span,
   <!-- HERO -->
   <div class="intro landscape" id="intro">
     <div class="intro-bg">
-      <img id="intro-img" src="" alt="Bharat Bhatia">
+      <img id="intro-img" src="" alt="Fine art photograph by Bharat Bhatia">
     </div>
     <div class="intro-overlay"></div>
     <div class="intro-text">
@@ -1788,7 +1788,7 @@ nav.on-light .nav-hamburger span,
 <div id="about-page">
   <div class="inner">
     <h1 class="about-heading" id="c-about_heading">About.</h1>
-    <img id="about-photo" src="" alt="Bharat Bhatia" style="display:none;width:100px;height:100px;object-fit:cover;border-radius:50%;margin-bottom:2rem;border:1px solid var(--border)">
+    <img id="about-photo" src="" alt="Portrait of Bharat Bhatia" style="display:none;width:100px;height:100px;object-fit:cover;border-radius:50%;margin-bottom:2rem;border:1px solid var(--border)">
     <div class="about-body">
       <p id="c-about_p1">I make photographs and print them. There's a gap between an image on a screen and an image on paper — in the weight of it, the texture, the light it holds. My work lives in that gap.</p>
       <p id="c-about_p2">I work across ICM, abstract, street, and macro. Most of what I make is in black and white, though colour finds its way in when it earns it.</p>
@@ -2100,7 +2100,7 @@ nav.on-light .nav-hamburger span,
   <button id="lb-prev" onclick="navigateLightbox(-1)" aria-label="Previous photo">&#8592;</button>
   <button id="lb-next" onclick="navigateLightbox(1)" aria-label="Next photo">&#8594;</button>
   <div id="lightbox-inner">
-    <img id="lightbox-img" src="" alt="">
+    <img id="lightbox-img" src="" alt="Fine art photograph by Bharat Bhatia">
     <span id="lightbox-caption"></span>
     <button id="lightbox-desc-toggle" onclick="toggleLightboxDesc()">Read the story</button>
     <div id="lightbox-desc">
@@ -2680,7 +2680,7 @@ function renderFeed() {
     const showBadge = badgeOn && p.for_sale;
     const badgeHtml = showBadge ? `<span class="img-print-badge">Available as print</span>` : '';
     item.innerHTML = `<div class="img-wrap" onclick="openLightbox('${imgUrl.replace(/'/g,"\'")}','${imgTitle.replace(/'/g,"\'")}',${p.id||'null'})">
-      <img src="${cld(imgUrl, 800)}" alt="${imgTitle}" loading="lazy">
+      <img src="${cld(imgUrl, 800)}" alt="${altText(imgTitle, 'photo')}" loading="lazy">
       <span class="img-label">${imgTitle}</span>
       ${badgeHtml}
     </div>`;
@@ -2731,6 +2731,32 @@ function cld(url, w) {
   // night/light images), especially when f_auto served AVIF. :good holds a
   // higher floor so those gradients stay clean, while still compressing well.
   return url.replace('/image/upload/', `/image/upload/w_${targetW},f_auto,q_auto:good/`);
+}
+
+// Builds descriptive alt text. Accessibility first (a screen reader should learn
+// what the image actually is), with the artist/medium context that also helps
+// image search — NOT keyword stuffing. Keep results short (~125 chars).
+//   kind: 'photo'   → a portfolio photograph
+//         'print'   → a photograph offered as a print
+//         'mockup'  → the print shown with its paper margins
+//         'insitu'  → the framed print photographed in a room
+function altText(title, kind) {
+  const t = (title || '').trim();
+  switch (kind) {
+    case 'print':
+      return t ? `${t} — fine art photography print by Bharat Bhatia`
+               : 'Fine art photography print by Bharat Bhatia';
+    case 'mockup':
+      return t ? `${t} print shown with its white border margins on fine art paper`
+               : 'Print shown with its white border margins on fine art paper';
+    case 'insitu':
+      return t ? `${t} fine art print framed and hanging on a wall`
+               : 'Fine art print framed and hanging on a wall';
+    case 'photo':
+    default:
+      return t ? `${t} — fine art photograph by Bharat Bhatia`
+               : 'Fine art photograph by Bharat Bhatia';
+  }
 }
 
 // Detect image orientation then build feed — a w_50 thumb answers
@@ -2998,6 +3024,7 @@ function _renderLightbox(src, title, printId) {
   hiRes.onload = () => { if (img.dataset.baseSrc === src) img.src = hiRes.src; };
   hiRes.src = cld(src, 2000);
   cap.textContent = title || '';
+  img.alt = altText(title, 'photo');
 
   const matchedPrint = printId ? allPrints.find(p => p.id === printId) : null;
   const description = matchedPrint && matchedPrint.description ? matchedPrint.description.trim() : '';
@@ -3284,8 +3311,8 @@ async function loadShopProducts() {
         <div class="shop-card-img-wrap">
           ${allSoldOut ? '<span class="shop-card-soldout">Sold out</span>' : ''}
           ${isLimited ? '<span class="shop-card-limited">Limited edition</span>' : ''}
-          <img class="shop-card-base" src="${cld(p.image_url, 1200)}" alt="${esc(p.title)}" loading="lazy">
-          ${hasInsitu ? `<img class="shop-card-insitu" src="${cld(p.lifestyle_image_url, 1200)}" alt="${esc(p.title)} in situ" loading="lazy">` : ''}
+          <img class="shop-card-base" src="${cld(p.image_url, 1200)}" alt="${esc(altText(p.title, 'print'))}" loading="lazy">
+          ${hasInsitu ? `<img class="shop-card-insitu" src="${cld(p.lifestyle_image_url, 1200)}" alt="${esc(altText(p.title, 'insitu'))}" loading="lazy">` : ''}
         </div>
         <div class="shop-card-title">${esc(p.title)}</div>
         <div class="shop-card-price">From ${fmtCHF(minPrice)}</div>
@@ -3341,7 +3368,7 @@ function pvViewerHtml(p) {
     const note = ((window._content && window._content.shop_no_margin_note) || 'This print is produced full-bleed, without a border — this image is stronger edge to edge.').trim();
     const lifestyleSlide = p.lifestyle_image_url ? `
       <div class="pv-slide pv-life" onclick="pvOpenZoom('life')">
-        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(p.title)} in situ">
+        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(altText(p.title, 'insitu'))}">
       </div>` : '';
     // No-margin: if there's a lifestyle photo we still show a 2-slide swipe
     // (full + in situ); otherwise the original single view.
@@ -3349,7 +3376,7 @@ function pvViewerHtml(p) {
       pvState.slides = ['full', 'life'];
       return pvSwipeShell(p, `
         <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-          <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
+          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
         </div>${lifestyleSlide}`, ['Full image', 'In the home']) +
         `<div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>`;
     }
@@ -3357,7 +3384,7 @@ function pvViewerHtml(p) {
     return `
       <div class="pv-viewer pv-single">
         <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-          <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
+          <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
         </div>
       </div>
       <div class="pv-nomargin-note"><span class="pv-nomargin-tag">Full-bleed print</span>${esc(note)}</div>
@@ -3369,7 +3396,7 @@ function pvViewerHtml(p) {
   const labels = ['Full image', 'Printed · bottom-weighted margins'];
   let slidesHtml = `
     <div class="pv-slide pv-full" onclick="pvOpenZoom('full')">
-      <img src="${cld(p.image_url, 1400)}" alt="${esc(p.title)}">
+      <img src="${cld(p.image_url, 1400)}" alt="${esc(altText(p.title, 'print'))}">
     </div>
     <div class="pv-slide pv-mock" id="pv-mock-slide" onclick="pvOpenZoom('mock')">
       ${pvMockupHtml(p, false)}
@@ -3379,7 +3406,7 @@ function pvViewerHtml(p) {
     labels.push('In the home');
     slidesHtml += `
       <div class="pv-slide pv-life" onclick="pvOpenZoom('life')">
-        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(p.title)} in situ">
+        <img src="${cld(p.lifestyle_image_url, 1400)}" alt="${esc(altText(p.title, 'insitu'))}">
       </div>`;
   }
   pvState.slides = slides;
@@ -3423,7 +3450,7 @@ function pvMockupHtml(p, forZoom) {
   return `
     <div class="pv-paper" style="${sizeStyle}">
       <div class="pv-window" style="left:${g.leftPct}%; top:${g.topPct}%; width:${g.winWPct}%; height:${g.winHPct}%;">
-        <img src="${cld(p.image_url, forZoom ? 2000 : 1400)}" alt="${esc(p.title)}">
+        <img src="${cld(p.image_url, forZoom ? 2000 : 1400)}" alt="${esc(altText(p.title, 'mockup'))}">
       </div>
     </div>`;
 }
@@ -3477,9 +3504,9 @@ function pvOpenZoom(which) {
   if (which === 'mock') {
     inner = `<div class="pv-zoom-inner" id="pv-zoom-inner">${pvMockupHtml(p, true)}</div>`;
   } else if (which === 'life' && p.lifestyle_image_url) {
-    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.lifestyle_image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.lifestyle_image_url, 2000)}" alt="${esc(altText(p.title, 'insitu'))}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
   } else {
-    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
+    inner = `<div class="pv-zoom-inner" id="pv-zoom-inner"><img src="${cld(p.image_url, 2000)}" alt="${esc(altText(p.title, 'print'))}" style="max-width:92vw;max-height:88vh;object-fit:contain;display:block"></div>`;
   }
   stage.innerHTML = inner;
   pvZoom = { scale:1, x:0, y:0, startDist:0, startScale:1, lastTapT:0, dragging:false, sx:0, sy:0, view:which };
@@ -3726,7 +3753,7 @@ async function renderCart() {
     const atMax = remaining !== null && group.count >= remaining;
     return `
     <div class="cart-item">
-      <div class="cart-item-img-wrap"><img src="${cld(group.image_url, 1200)}" alt="${esc(group.title)}"></div>
+      <div class="cart-item-img-wrap"><img src="${cld(group.image_url, 1200)}" alt="${esc(altText(group.title, 'print'))}"></div>
       <div>
         <div class="cart-item-title">${esc(group.title)}</div>
         <div class="cart-item-size">${group.size}</div>
@@ -4205,7 +4232,7 @@ async function loadWorkshopData() {
     if (photos.length) {
       document.getElementById('workshop-gallery-section').style.display = 'block';
       document.getElementById('workshop-gallery').innerHTML = photos.map(p =>
-        `<img src="${cld(p.image_url, 1200)}" alt="" loading="lazy" onclick="openLightbox('${p.image_url}', '')">`
+        `<img src="${cld(p.image_url, 1200)}" alt="Photograph made at a Bharat Bhatia photography workshop in Zürich" loading="lazy" onclick="openLightbox('${p.image_url}', '')">`
       ).join('');
     }
   } catch(e) {}
