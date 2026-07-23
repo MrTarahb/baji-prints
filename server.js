@@ -2253,9 +2253,32 @@ app.get('/', (req, res) => serveWithMeta(res, { ...ROUTE_META['/'], path: '/' })
 app.get('/workshops', (req, res) => serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' }));
 app.get('/shop', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-for (const p of ['/about', '/contact', '/faq']) {
+for (const p of ['/about', '/contact']) {
   app.get(p, (req, res) => serveWithMeta(res, { ...ROUTE_META[p], path: p }));
 }
+// /faq gets FAQPage structured data built from the live FAQ table. Q&A pairs are
+// the most extractable format for AI answer engines (ChatGPT/Gemini/Perplexity/
+// Claude) and are also eligible for Google FAQ rich results.
+app.get('/faq', async (req, res) => {
+  let faqLd = null;
+  try {
+    const { rows } = await pool.query(
+      'SELECT question, answer FROM faqs WHERE enabled = TRUE ORDER BY sort_order ASC, id ASC'
+    );
+    if (rows.length) {
+      faqLd = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": rows.map(r => ({
+          "@type": "Question",
+          "name": r.question,
+          "acceptedAnswer": { "@type": "Answer", "text": r.answer }
+        }))
+      };
+    }
+  } catch (e) { /* fall back to page meta without FAQ schema */ }
+  serveWithMeta(res, { ...ROUTE_META['/faq'], path: '/faq', jsonLd: faqLd });
+});
 for (const p of ['/impressum', '/privacy', '/terms']) {
   app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 }
