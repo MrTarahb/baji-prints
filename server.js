@@ -10,6 +10,7 @@ const PgSession = require('connect-pg-simple')(session);
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
@@ -596,10 +597,6 @@ async function initDB() {
     -- public_id is stored too so it can be deleted/replaced cleanly.
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_image_url TEXT;
     ALTER TABLE prints ADD COLUMN IF NOT EXISTS lifestyle_public_id TEXT;
-    -- Optional hand-written alt text. When set it overrides the auto-generated
-    -- description (see altText() in index.html). Serves both accessibility and
-    -- image search, so it should describe what is actually visible.
-    ALTER TABLE prints ADD COLUMN IF NOT EXISTS alt_text TEXT;
 
     -- ── PAPERS: reusable paper descriptions ────────────────────────────
     CREATE TABLE IF NOT EXISTS papers (
@@ -1044,7 +1041,7 @@ app.get('/api/faqs', async (req, res) => {
 
 app.get('/api/prints', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, for_sale, alt_text, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
+    const { rows } = await pool.query('SELECT id, title, description, image_url, public_id, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, for_sale, created_at FROM prints ORDER BY sort_order ASC, created_at DESC');
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1069,7 +1066,7 @@ app.get('/api/shop/products', async (req, res) => {
   try {
     const { rows: prints } = await pool.query(
       `SELECT p.id, p.title, p.description, p.image_url, p.edition_type, p.edition_size,
-              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin, p.lifestyle_image_url, p.alt_text,
+              p.delivery_ch, p.delivery_personal, p.delivery_intl, p.shop_note, p.no_margin, p.lifestyle_image_url,
               pa.name AS paper_name, pa.description AS paper_description
        FROM prints p
        LEFT JOIN papers pa ON pa.id = p.paper_id
@@ -1352,9 +1349,34 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts — try again in 15 minutes.' },
 });
 
+// Constant-time string compare (SHA-256 both sides so lengths never differ,
+// avoiding both early-exit and length-leak timing). Used only for the legacy
+// plaintext fallback below.
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
+// Admin auth. Prefers a bcrypt hash in ADMIN_PASSWORD_HASH. Until that's set,
+// falls back to a constant-time compare against the plaintext ADMIN_PASSWORD so
+// the existing Railway setup keeps working. Once ADMIN_PASSWORD_HASH is set and
+// verified, delete ADMIN_PASSWORD. If neither is set, login fails closed.
 app.post('/api/admin/login', loginLimiter, async (req, res) => {
   const { password } = req.body;
-  const match = password === (process.env.ADMIN_PASSWORD || 'changeme');
+  const attempt = String(password || '');
+  const hash = process.env.ADMIN_PASSWORD_HASH;
+  const plain = process.env.ADMIN_PASSWORD;
+  let match = false;
+  try {
+    if (hash) {
+      match = await bcrypt.compare(attempt, hash);
+    } else if (plain) {
+      match = safeEqual(attempt, plain);
+    }
+  } catch (e) {
+    match = false;
+  }
   if (match) {
     req.session.admin = true;
     res.json({ ok: true });
@@ -1634,20 +1656,18 @@ app.delete('/api/admin/prints/:id/lifestyle', requireAuth, async (req, res) => {
 });
 
 app.put('/api/admin/prints/:id', requireAuth, async (req, res) => {
-  const { title, description, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories, alt_text } = req.body;
+  const { title, description, sort_order, exclude_from_hero, exclude_from_category_hero, category, categories } = req.body;
   // categories is the new multi-value array; category is the legacy single string kept for compatibility
   const cats = Array.isArray(categories) && categories.length ? categories : [category || 'abstract-bnw'];
   const primaryCat = cats[0]; // keep legacy category column in sync with first selection
-  // Empty string → NULL so the frontend falls back to auto-generated alt text.
-  const alt = (typeof alt_text === 'string' && alt_text.trim()) ? alt_text.trim() : null;
   try {
     let query, params;
     if (sort_order !== undefined) {
-      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, exclude_from_category_hero=$5, category=$6, categories=$7, alt_text=$8 WHERE id=$9 RETURNING *';
-      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), alt, req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, sort_order=$3, exclude_from_hero=$4, exclude_from_category_hero=$5, category=$6, categories=$7 WHERE id=$8 RETURNING *';
+      params = [title, description, parseInt(sort_order) || 0, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), req.params.id];
     } else {
-      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, exclude_from_category_hero=$4, category=$5, categories=$6, alt_text=$7 WHERE id=$8 RETURNING *';
-      params = [title, description, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), alt, req.params.id];
+      query = 'UPDATE prints SET title=$1, description=$2, exclude_from_hero=$3, exclude_from_category_hero=$4, category=$5, categories=$6 WHERE id=$7 RETURNING *';
+      params = [title, description, !!exclude_from_hero, !!exclude_from_category_hero, primaryCat, JSON.stringify(cats), req.params.id];
     }
     const { rows } = await pool.query(query, params);
     res.json(rows[0]);
@@ -2259,32 +2279,9 @@ app.get('/', (req, res) => serveWithMeta(res, { ...ROUTE_META['/'], path: '/' })
 app.get('/workshops', (req, res) => serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' }));
 app.get('/shop', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-for (const p of ['/about', '/contact']) {
+for (const p of ['/about', '/contact', '/faq']) {
   app.get(p, (req, res) => serveWithMeta(res, { ...ROUTE_META[p], path: p }));
 }
-// /faq gets FAQPage structured data built from the live FAQ table. Q&A pairs are
-// the most extractable format for AI answer engines (ChatGPT/Gemini/Perplexity/
-// Claude) and are also eligible for Google FAQ rich results.
-app.get('/faq', async (req, res) => {
-  let faqLd = null;
-  try {
-    const { rows } = await pool.query(
-      'SELECT question, answer FROM faqs WHERE enabled = TRUE ORDER BY sort_order ASC, id ASC'
-    );
-    if (rows.length) {
-      faqLd = {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": rows.map(r => ({
-          "@type": "Question",
-          "name": r.question,
-          "acceptedAnswer": { "@type": "Answer", "text": r.answer }
-        }))
-      };
-    }
-  } catch (e) { /* fall back to page meta without FAQ schema */ }
-  serveWithMeta(res, { ...ROUTE_META['/faq'], path: '/faq', jsonLd: faqLd });
-});
 for (const p of ['/impressum', '/privacy', '/terms']) {
   app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 }
@@ -2561,81 +2558,7 @@ app.post('/api/admin/stats/reset', requireAuth, async (req, res) => {
 // ── SEO FILES ─────────────────────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
-  // Middle-ground AI policy (owner's decision):
-  //  · ALLOW normal search engines and AI *retrieval* bots — these make the site
-  //    discoverable when someone asks an AI e.g. "giclée printing in Zürich".
-  //  · DISALLOW AI *training* crawlers — the photographs are the product and the
-  //    owner does not consent to them being used as training material.
-  // Caveats: robots.txt is voluntary (scrapers ignore it), it is not retroactive,
-  // and the images themselves are served from Cloudinary (a domain not covered by
-  // this file). Crawler names change — revisit periodically.
-  res.send([
-    '# Default: everything is crawlable.',
-    'User-agent: *',
-    'Allow: /',
-    '',
-    '# ── Search engines (always allowed) ─────────────────────────────',
-    'User-agent: Googlebot',
-    'Allow: /',
-    '',
-    'User-agent: Bingbot',
-    'Allow: /',
-    '',
-    'User-agent: Applebot',
-    'Allow: /',
-    '',
-    '# ── AI retrieval / answer engines (allowed — discoverability) ───',
-    '# These fetch pages to answer a user question, rather than to train.',
-    'User-agent: OAI-SearchBot',
-    'Allow: /',
-    '',
-    'User-agent: ChatGPT-User',
-    'Allow: /',
-    '',
-    'User-agent: Claude-User',
-    'Allow: /',
-    '',
-    'User-agent: Claude-SearchBot',
-    'Allow: /',
-    '',
-    'User-agent: PerplexityBot',
-    'Allow: /',
-    '',
-    '# ── AI training crawlers (disallowed) ───────────────────────────',
-    '# Blocking these does not affect normal search ranking.',
-    'User-agent: GPTBot',
-    'Disallow: /',
-    '',
-    'User-agent: Google-Extended',
-    'Disallow: /',
-    '',
-    'User-agent: ClaudeBot',
-    'Disallow: /',
-    '',
-    'User-agent: Applebot-Extended',
-    'Disallow: /',
-    '',
-    'User-agent: CCBot',
-    'Disallow: /',
-    '',
-    'User-agent: Bytespider',
-    'Disallow: /',
-    '',
-    'User-agent: Amazonbot',
-    'Disallow: /',
-    '',
-    '# ── Meta (disallowed — owner wants no Meta involvement) ─────────',
-    'User-agent: Meta-ExternalAgent',
-    'Disallow: /',
-    '',
-    'User-agent: Meta-ExternalFetcher',
-    'Disallow: /',
-    '',
-    'User-agent: FacebookBot',
-    'Disallow: /',
-    '',
-    'Sitemap: https://bharatbhatia.photography/sitemap.xml',
-  ].join('\n'));
+  res.send('User-agent: *\nAllow: /\nSitemap: https://bharatbhatia.photography/sitemap.xml');
 });
 
 app.get('/sitemap.xml', async (req, res) => {
