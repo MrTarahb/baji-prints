@@ -526,7 +526,9 @@ app.use(session({
 }));
 
 
-app.get('/api/debug/cloudinary', (req, res) => {
+// Admin-only diagnostic: reports whether the Cloudinary env vars are set
+// (never their values). Gated behind requireAuth so it isn't publicly reachable.
+app.get('/api/debug/cloudinary', requireAuth, (req, res) => {
   res.json({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? 'set' : 'MISSING',
     api_key: process.env.CLOUDINARY_API_KEY ? 'set' : 'MISSING',
