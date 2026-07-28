@@ -2483,7 +2483,20 @@ app.put('/api/admin/workshop-photos/reorder', requireAuth, async (req, res) => {
 });
 
 // Track visits to the main site (not admin, not API)
-app.post('/api/pageview', async (req, res) => {
+// Throttle the public tracking endpoints: 120 hits per minute per IP, shared
+// across both routes. A real visitor loading pages and clicking through prints
+// never approaches this; it just caps someone scripting fake views. These are
+// fire-and-forget calls (the frontend ignores the response), so a 429 here has
+// zero effect on the visitor's experience.
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false },
+});
+
+app.post('/api/pageview', trackLimiter, async (req, res) => {
   try {
     const { path, referrer } = req.body;
     await pool.query(
@@ -2494,7 +2507,7 @@ app.post('/api/pageview', async (req, res) => {
   } catch(e) { res.json({ ok: false }); }
 });
 
-app.post('/api/photoview', async (req, res) => {
+app.post('/api/photoview', trackLimiter, async (req, res) => {
   try {
     const { print_id } = req.body;
     if (!print_id) return res.json({ ok: false });
