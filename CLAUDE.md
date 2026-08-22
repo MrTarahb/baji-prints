@@ -118,6 +118,13 @@ fall back to defaults, `name` never blanks (`COALESCE` keeps the old value).
   unknown slug, a locked board, and a logged-out visitor so a guessed URL confirms nothing.
 - Approvals are **independent per photo** — approving one candidate never changes the others in
   the same spot. Clicking the active choice again clears it back to `pending`.
+- The client grid is a **justified gallery and nothing is ever cropped**: `flex-basis = ar ×
+  ROW_H` with `flex-grow = ar` makes every photo in a row resolve to the same height. `width` /
+  `height` are captured from Cloudinary at upload so the ratio is known on first paint; older
+  rows without them fall back to 3:2 and self-correct via `adjustRatio()` on load. Each card is
+  capped at `max-width: calc(var(--ar) * 68vh)` — without that a portrait on a narrow viewport
+  lays out ~1.5× the container width and runs off the screen. On mobile `min-width` must stay
+  `0`, because `min-width` beats `max-width` and would defeat that cap.
 - Uploads go to Cloudinary `baji-clients/<slug>/` via `clientStorage`, whose folder is resolved
   per request from `req.uploadClientSlug` — the route must set that *before* multer runs.
 - Deleting a room or spot cascades in Postgres, so the route collects `public_id`s **before**

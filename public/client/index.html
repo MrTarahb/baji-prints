@@ -49,11 +49,11 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
 /* ── HEADER ────────────────────────────────────────────────────────── */
 #board{display:none}
 #board.on{display:block}
-header{border-bottom:1px solid var(--line);padding:26px 0 22px;margin-bottom:34px;background:var(--bg)}
+header{padding:64px 0 46px;margin-bottom:12px;background:var(--bg)}
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
-header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px;line-height:1.15;margin:8px 0 0}
-.intro{margin-top:16px;max-width:62ch;color:#4A453E;font-size:13.5px}
-.tally{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px;font-size:11.5px;letter-spacing:.04em;color:var(--mute)}
+header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px;line-height:1.08;margin:14px 0 0;letter-spacing:-.01em}
+.intro{margin-top:22px;max-width:56ch;color:#4A453E;font-size:14px;line-height:1.75}
+.tally{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;letter-spacing:.04em;color:var(--mute)}
 .tally b{font-weight:500;color:var(--ink)}
 .tally .t-yes b{color:var(--yes)}
 .tally .t-no b{color:var(--no)}
@@ -67,30 +67,48 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 .badge{background:var(--pink);color:var(--ink);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:500}
 
 /* ── ROOMS & SPOTS ─────────────────────────────────────────────────── */
-.room{margin-bottom:56px}
-.room-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:26px}
-.room-head h2{font-family:var(--fi);font-style:italic;font-weight:400;font-size:22px}
-.spot{margin-bottom:36px}
-.spot-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.spot-head h3{font-size:13px;font-weight:500;letter-spacing:.03em}
+.room{margin-bottom:96px}
+.room-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.room-head h2{font-family:var(--fi);font-style:italic;font-weight:400;font-size:30px}
+.room-count{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.spot{margin-bottom:62px}
+.spot-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.spot-head h3{font-size:12px;font-weight:500;letter-spacing:.13em;text-transform:uppercase}
 .adm{display:none;gap:6px;align-items:center}
 .is-admin .adm{display:inline-flex}
 .adm button{padding:4px 9px;font-size:11px;color:var(--mute)}
 .adm button:hover{color:var(--ink)}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
-.card{border:1px solid var(--line);background:#fff;border-radius:2px;overflow:hidden;cursor:pointer;transition:border-color .18s,transform .18s}
-.card:hover{border-color:var(--ink)}
-.card.approved{border-color:var(--yes);border-width:2px}
-.card.declined{opacity:.55}
-.card-img{aspect-ratio:4/3;background:var(--bg2);overflow:hidden}
-.card-img img{width:100%;height:100%;object-fit:cover;-webkit-user-drag:none;user-select:none}
-.card-foot{padding:9px 11px;display:flex;align-items:center;gap:8px;min-height:38px}
-.pill{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;background:var(--bg2);color:var(--mute);white-space:nowrap}
-.pill.approved{background:rgba(94,127,101,.14);color:var(--yes)}
-.pill.declined{background:rgba(168,86,74,.13);color:var(--no)}
-.card-note{font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.card-new{width:6px;height:6px;border-radius:50%;background:var(--pink);flex:none}
+/* Justified gallery: each photo keeps its true proportions, and flex-grow
+   proportional to the aspect ratio makes every photo in a row land on the same
+   height. Nothing is ever cropped. The ::after spacer stops a short final row
+   from stretching its photos to absurd widths. */
+.grid{display:flex;flex-wrap:wrap;gap:22px}
+.grid::after{content:'';flex-grow:9999999}
+/* --ar (set inline per photo) caps every card by VIEWPORT HEIGHT, not a fixed
+   px width. Without it a justified row of two, or a portrait on a narrow
+   screen, resolves far taller than the screen — a portrait at 600px wide is
+   900px tall. Capping width at ar × 68vh bounds the height at 68vh instead,
+   whatever the aspect ratio or viewport. */
+.card{position:relative;cursor:pointer;min-width:170px;transition:opacity .2s;
+  max-width:calc(var(--ar) * 68vh)}
+.card.declined{opacity:.42}
+.card.declined:hover{opacity:.75}
+/* padding-bottom (not aspect-ratio) holds the ratio — an aspect-ratio box with
+   auto width gets stretched by flex in this project's target browsers. */
+.card-img{position:relative;height:0;background:var(--bg2);overflow:hidden}
+.card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  -webkit-user-drag:none;user-select:none;transition:transform .5s cubic-bezier(.2,.6,.2,1)}
+.card:hover .card-img img{transform:scale(1.02)}
+/* Approved: a quiet rule beneath the photo rather than a loud border. */
+.card.approved .card-img{box-shadow:inset 0 -3px 0 var(--yes)}
+.card-foot{padding:9px 1px 0;display:flex;align-items:baseline;gap:9px;min-height:22px}
+.mark{font-size:11px;letter-spacing:.05em;color:var(--mute);white-space:nowrap;flex:none}
+.mark.approved{color:var(--yes)}
+.mark.declined{color:var(--no)}
+.card-note{font-size:11.5px;color:var(--mute);font-style:italic;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.card-new{width:6px;height:6px;border-radius:50%;background:var(--pink);flex:none;align-self:center}
 .empty{color:var(--mute);font-size:12.5px;font-style:italic;padding:12px 0}
 
 /* ── LIGHTBOX ──────────────────────────────────────────────────────── */
@@ -133,8 +151,8 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 /* A note from Bharat — deliberately distinct from the client's own comment:
    terracotta rule on the left, so on a busy board it reads as "he wrote this". */
 .note{border-left:2px solid var(--pink);padding:2px 0 2px 12px;margin:0 0 14px;color:#4A453E;font-size:12.5px;max-width:66ch;white-space:pre-wrap}
-.note.room-note{margin:-14px 0 22px}
-.note.spot-note-block{margin:-4px 0 14px}
+.note.room-note{margin:0 0 34px;font-size:13px}
+.note.spot-note-block{margin:0 0 18px}
 .note.photo-note{margin:0;font-size:12px}
 .note-empty{color:var(--mute);font-style:italic}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:2px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:100}
@@ -142,8 +160,18 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 
 @media(max-width:640px){
   .wrap{padding:0 16px}
-  header h1{font-size:24px}
-  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+  header{padding:34px 0 30px}
+  header h1{font-size:32px}
+  .room-head h2{font-size:24px}
+  .room{margin-bottom:64px}
+  .spot{margin-bottom:44px}
+  /* One photo per row on a phone — a justified row of two is too small to
+     judge a photograph by, which is the whole point of the page. min-width
+     must go to 0: min-width beats max-width in CSS, so leaving it at 100%
+     would defeat the viewport-height cap and stretch portraits off-screen. */
+  .grid{gap:26px;justify-content:center}
+  .grid::after{display:none}
+  .card{min-width:0;flex-basis:100% !important}
   .lb-nav{padding:9px 11px}
   .lb-nav.prev{left:8px}
   .lb-nav.next{right:8px}
@@ -371,9 +399,11 @@ function render() {
 }
 
 function roomHtml(r) {
+  var n = r.spots.reduce(function (t, s) { return t + s.photos.length; }, 0);
   return '<section class="room">' +
     '<div class="room-head">' +
       '<h2>' + esc(r.name) + '</h2>' +
+      (n ? '<span class="room-count">' + n + (n === 1 ? ' Foto' : ' Fotos') + '</span>' : '') +
       '<span class="adm">' +
         '<button onclick="renameRoom(' + r.id + ')">edit</button>' +
         '<button onclick="addSpot(' + r.id + ')">+ Spot</button>' +
@@ -411,17 +441,46 @@ function noteHtml(text, cls) {
   return '<div class="note ' + cls + '">' + esc(text) + '</div>';
 }
 
+// Target row height in px. flex-basis is aspect * this, so a row of photos
+// resolves to roughly this height whatever mix of portrait and landscape it holds.
+var ROW_H = 300;
+
 function cardHtml(p, s) {
-  var label = p.status === 'approved' ? 'Zugesagt' : p.status === 'declined' ? 'Abgelehnt' : 'Offen';
-  return '<div class="card ' + esc(p.status) + '" onclick="openLb(' + s.id + ',' + p.id + ')">' +
-    '<div class="card-img"><img src="' + esc(cld(p.image_url, 420)) + '" alt="" loading="lazy" draggable="false" oncontextmenu="return false"></div>' +
-    (p.note ? '<div class="note photo-note" style="margin:10px 11px 0">' + esc(p.note) + '</div>' : '') +
-    '<div class="card-foot">' +
-      '<span class="pill ' + esc(p.status) + '">' + label + '</span>' +
-      (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">' + esc(p.client_comment) + '</span>' : '') +
-      (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
+  // Dimensions are stored at upload; anything older falls back to 3:2 and gets
+  // corrected by adjustRatio() the moment the image loads.
+  var known = p.width > 0 && p.height > 0;
+  var ar = known ? (p.width / p.height) : 1.5;
+  var mark = p.status === 'approved' ? '✓ zugesagt'
+           : p.status === 'declined' ? '✕ abgelehnt' : '';
+
+  return '<figure class="card ' + esc(p.status) + '"' +
+      ' style="--ar:' + ar.toFixed(4) + ';flex-grow:' + ar.toFixed(4) +
+        ';flex-basis:' + Math.round(ar * ROW_H) + 'px"' +
+      ' onclick="openLb(' + s.id + ',' + p.id + ')">' +
+    '<div class="card-img" style="padding-bottom:' + (100 / ar).toFixed(3) + '%">' +
+      '<img src="' + esc(cld(p.image_url, 720)) + '" alt="" loading="lazy" draggable="false"' +
+        ' oncontextmenu="return false"' + (known ? '' : ' onload="adjustRatio(this)"') + '>' +
     '</div>' +
-  '</div>';
+    (p.note ? '<div class="note photo-note" style="margin:11px 0 0">' + esc(p.note) + '</div>' : '') +
+    '<figcaption class="card-foot">' +
+      (mark ? '<span class="mark ' + esc(p.status) + '">' + mark + '</span>' : '') +
+      (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
+      (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
+    '</figcaption>' +
+  '</figure>';
+}
+
+// Legacy photos uploaded before dimensions were recorded: read the real ratio
+// off the loaded image and correct that card in place.
+function adjustRatio(img) {
+  if (!img.naturalWidth || !img.naturalHeight) return;
+  var ar = img.naturalWidth / img.naturalHeight;
+  var card = img.closest('.card');
+  if (!card) return;
+  card.style.setProperty('--ar', ar.toFixed(4));
+  card.style.flexGrow = ar.toFixed(4);
+  card.style.flexBasis = Math.round(ar * ROW_H) + 'px';
+  img.parentNode.style.paddingBottom = (100 / ar).toFixed(3) + '%';
 }
 
 // ── LIGHTBOX ─────────────────────────────────────────────────────────────────

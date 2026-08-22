@@ -837,6 +837,11 @@ async function initDB() {
       THEN ALTER TABLE client_photos RENAME COLUMN caption TO note; END IF;
     END $$;
     ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS note TEXT;
+    -- Captured from Cloudinary at upload so the gallery can lay each photo out
+    -- at its true aspect ratio on first paint. Measuring in the browser instead
+    -- would reflow the whole grid as images arrive.
+    ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS width INTEGER;
+    ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS height INTEGER;
     CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
     CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
@@ -2823,7 +2828,7 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
         WHERE r.client_id=$1 ORDER BY s.sort_order, s.id`, [client.id]
     );
     const { rows: photos } = await pool.query(
-      `SELECT p.id, p.spot_id, p.image_url, p.note, p.status, p.client_comment,
+      `SELECT p.id, p.spot_id, p.image_url, p.note, p.width, p.height, p.status, p.client_comment,
               p.reacted_at, p.seen_by_admin, p.sort_order
          FROM client_photos p
          JOIN client_spots s ON s.id = p.spot_id
@@ -3074,10 +3079,10 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
     const created = [];
     for (const f of req.files) {
       const { rows } = await pool.query(
-        `INSERT INTO client_photos (spot_id, image_url, public_id, sort_order)
-         VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
-         RETURNING id, spot_id, image_url, note, status, client_comment, reacted_at, seen_by_admin, sort_order`,
-        [req.params.id, f.path, f.filename]
+        `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, sort_order)
+         VALUES ($1,$2,$3,$4,$5,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
+         RETURNING id, spot_id, image_url, note, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
+        [req.params.id, f.path, f.filename, f.width || null, f.height || null]
       );
       created.push(rows[0]);
     }
