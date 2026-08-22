@@ -93,6 +93,14 @@ Schema: `clients` → `client_rooms` → `client_spots` → `client_photos`, wit
 reaction (`status` / `client_comment` / `reacted_at`) written straight onto the photo row —
 one client per board, so there is no separate feedback table.
 
+**The board is bilingual by audience, and this is deliberate.** Anything the client sees is
+**German** (login gate, approve/decline buttons, tallies, status pills, empty states on his
+side). Anything only the admin sees is **English** — the admin bar, all add/edit/delete
+controls, every modal dialog, `confirm()` text, toasts, the lightbox admin strip, and the
+reaction notification email. Where one element serves both audiences (an empty state, a save
+indicator), the admin branch is English and the client branch German. Dialog *labels* are
+English but the *values* typed into them are client-facing, so they get written in German.
+
 Two kinds of text sit side by side and must not be conflated: **`note`** (on rooms, spots and
 photos) is the photographer's own comment shown *to* the client, while **`client_comment`** is
 the client's reply. They render differently on purpose. Header text — `clients.eyebrow`,

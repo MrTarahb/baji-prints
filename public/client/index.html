@@ -170,13 +170,13 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 <div id="board">
   <div id="adminbar">
     <div class="wrap">
-      <span class="eyebrow" style="color:#9C968C">Admin-Ansicht</span>
+      <span class="eyebrow" style="color:#9C968C">Admin view</span>
       <span id="ab-unseen"></span>
-      <button onclick="addRoom()">+ Raum</button>
-      <button onclick="editHeader()">Kopftext</button>
-      <button onclick="setPassword()">Passwort setzen</button>
-      <button onclick="markSeen()">Alles gelesen</button>
-      <button onclick="copyLink()">Link kopieren</button>
+      <button onclick="addRoom()">+ Room</button>
+      <button onclick="editHeader()">Header text</button>
+      <button onclick="setPassword()">Set password</button>
+      <button onclick="markSeen()">Mark all read</button>
+      <button onclick="copyLink()">Copy link</button>
     </div>
   </div>
 
@@ -188,7 +188,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
           <h1 id="b-name"></h1>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <span class="adm"><button onclick="editHeader()">Text bearbeiten</button></span>
+          <span class="adm"><button onclick="editHeader()">Edit text</button></span>
           <button id="logout-btn" onclick="logout()">Abmelden</button>
         </div>
       </div>
@@ -237,8 +237,8 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
     <p id="m-desc"></p>
     <div id="m-fields"></div>
     <div class="modal-row">
-      <button onclick="closeModal()">Abbrechen</button>
-      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">Speichern</button>
+      <button onclick="closeModal()">Cancel</button>
+      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">Save</button>
     </div>
   </div>
 </div>
@@ -357,12 +357,14 @@ function render() {
 
   var unseen = photos.filter(function (p) { return p.reacted_at && !p.seen_by_admin; }).length;
   document.getElementById('ab-unseen').innerHTML = unseen
-    ? '<span class="badge">' + unseen + ' neue Rückmeldung' + (unseen === 1 ? '' : 'en') + '</span>' : '';
+    ? '<span class="badge">' + unseen + ' new response' + (unseen === 1 ? '' : 's') + '</span>' : '';
 
+  // Empty states differ by audience: the admin gets an instruction in English,
+  // the client gets a reassurance in German.
   var html = board.rooms.map(roomHtml).join('');
   if (!board.rooms.length) {
     html = '<div class="empty">' + (isAdmin
-      ? 'Noch keine Räume angelegt — oben auf „+ Raum“ klicken.'
+      ? 'No rooms yet — click “+ Room” above.'
       : 'Die Auswahl wird gerade vorbereitet.') + '</div>';
   }
   document.getElementById('rooms').innerHTML = html;
@@ -373,15 +375,15 @@ function roomHtml(r) {
     '<div class="room-head">' +
       '<h2>' + esc(r.name) + '</h2>' +
       '<span class="adm">' +
-        '<button onclick="renameRoom(' + r.id + ')">bearbeiten</button>' +
-        '<button onclick="addSpot(' + r.id + ')">+ Platz</button>' +
-        '<button onclick="delRoom(' + r.id + ')">löschen</button>' +
+        '<button onclick="renameRoom(' + r.id + ')">edit</button>' +
+        '<button onclick="addSpot(' + r.id + ')">+ Spot</button>' +
+        '<button onclick="delRoom(' + r.id + ')">delete</button>' +
       '</span>' +
     '</div>' +
     noteHtml(r.note, 'room-note') +
     (r.spots.length
       ? r.spots.map(spotHtml).join('')
-      : '<div class="empty">' + (isAdmin ? 'Noch kein Platz in diesem Raum.' : '') + '</div>') +
+      : '<div class="empty">' + (isAdmin ? 'No spots in this room yet.' : '') + '</div>') +
     '</section>';
 }
 
@@ -390,15 +392,15 @@ function spotHtml(s) {
     '<div class="spot-head">' +
       '<h3>' + esc(s.name) + '</h3>' +
       '<span class="adm">' +
-        '<button onclick="uploadTo(' + s.id + ')">+ Fotos</button>' +
-        '<button onclick="renameSpot(' + s.id + ')">bearbeiten</button>' +
-        '<button onclick="delSpot(' + s.id + ')">löschen</button>' +
+        '<button onclick="uploadTo(' + s.id + ')">+ Photos</button>' +
+        '<button onclick="renameSpot(' + s.id + ')">edit</button>' +
+        '<button onclick="delSpot(' + s.id + ')">delete</button>' +
       '</span>' +
     '</div>' +
     noteHtml(s.note, 'spot-note-block') +
     (s.photos.length
       ? '<div class="grid">' + s.photos.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
-      : '<div class="empty">' + (isAdmin ? 'Noch keine Fotos.' : 'Fotos folgen.') + '</div>') +
+      : '<div class="empty">' + (isAdmin ? 'No photos yet.' : 'Fotos folgen.') + '</div>') +
     '</div>';
 }
 
@@ -417,7 +419,7 @@ function cardHtml(p, s) {
     '<div class="card-foot">' +
       '<span class="pill ' + esc(p.status) + '">' + label + '</span>' +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">' + esc(p.client_comment) + '</span>' : '') +
-      (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="neue Rückmeldung"></span>' : '') +
+      (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
     '</div>' +
   '</div>';
 }
@@ -479,13 +481,13 @@ function paintLb() {
   // reaction can be cleared or corrected on the phone with the client present.
   var av = document.getElementById('lb-adminview');
   if (isAdmin) {
-    var btns = ' · <button onclick="editPhotoNote(' + p.id + ')" style="padding:2px 8px;font-size:11px">Kommentar</button>' +
-               ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>';
+    var btns = ' · <button onclick="editPhotoNote(' + p.id + ')" style="padding:2px 8px;font-size:11px">Comment</button>' +
+               ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Delete photo</button>';
     av.innerHTML = (p.reacted_at
-      ? 'Rückmeldung ' + new Date(p.reacted_at).toLocaleDateString('de-CH') +
-        ': <b>' + (p.status === 'approved' ? 'zugesagt' : p.status === 'declined' ? 'abgelehnt' : 'zurückgesetzt') + '</b>' +
-        (p.client_comment ? ' — „' + esc(p.client_comment) + '“' : '')
-      : 'Noch keine Rückmeldung.') + btns;
+      ? 'Responded ' + new Date(p.reacted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+        ': <b>' + (p.status === 'approved' ? 'approved' : p.status === 'declined' ? 'declined' : 'cleared') + '</b>' +
+        (p.client_comment ? ' — “' + esc(p.client_comment) + '”' : '')
+      : 'No response yet.') + btns;
   } else {
     av.innerHTML = '';
   }
@@ -566,35 +568,37 @@ function ask(title, desc, fields, cb) {
 }
 function closeModal() { document.getElementById('modal').classList.remove('on'); }
 
+// NOTE: dialog labels are English (you), but the VALUES you type are shown to
+// the client — write those in German.
 function editHeader() {
-  ask('Kopfbereich bearbeiten', 'Der Text ganz oben auf der Seite.', [
-    { key: 'eyebrow', label: 'Kleine Zeile oben', value: board.client.eyebrow || DEFAULT_EYEBROW },
-    { key: 'name', label: 'Überschrift', value: board.client.name },
-    { key: 'intro', label: 'Begrüssungstext', value: board.client.intro || '', multiline: true },
+  ask('Edit header', 'The text at the very top of the page — shown to the client.', [
+    { key: 'eyebrow', label: 'Small line on top', value: board.client.eyebrow || DEFAULT_EYEBROW },
+    { key: 'name', label: 'Heading', value: board.client.name },
+    { key: 'intro', label: 'Welcome text', value: board.client.intro || '', multiline: true },
   ], function (v) {
-    if (!v.name) return toast('Überschrift darf nicht leer sein');
+    if (!v.name) return toast('Heading cannot be empty');
     api('/api/admin/clients/' + SLUG, { method: 'PUT', body: v })
-      .then(loadBoard).then(function () { toast('Gespeichert'); }).catch(function (e) { toast(e.message); });
+      .then(loadBoard).then(function () { toast('Saved'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function addRoom() {
-  ask('Raum hinzufügen', 'z.B. Empfang, Behandlungsraum 1, Korridor', [
-    { key: 'name', label: 'Name des Raums', value: '' },
-    { key: 'note', label: 'Kommentar von Ihnen (optional)', value: '', multiline: true },
+  ask('Add room', 'e.g. Empfang, Behandlungsraum 1, Korridor', [
+    { key: 'name', label: 'Room name', value: '' },
+    { key: 'note', label: 'Your comment (optional, shown to the client)', value: '', multiline: true },
   ], function (v) {
     if (!v.name) return;
     api('/api/admin/clients/' + SLUG + '/rooms', { method: 'POST', body: v })
-      .then(loadBoard).then(function () { toast('Raum angelegt'); }).catch(function (e) { toast(e.message); });
+      .then(loadBoard).then(function () { toast('Room added'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function renameRoom(id) {
   var r = board.rooms.filter(function (x) { return x.id === id; })[0];
   if (!r) return;
-  ask('Raum bearbeiten', '', [
-    { key: 'name', label: 'Name des Raums', value: r.name },
-    { key: 'note', label: 'Kommentar von Ihnen', value: r.note || '', multiline: true },
+  ask('Edit room', '', [
+    { key: 'name', label: 'Room name', value: r.name },
+    { key: 'note', label: 'Your comment (shown to the client)', value: r.note || '', multiline: true },
   ], function (v) {
     if (!v.name) return;
     api('/api/admin/client-rooms/' + id, { method: 'PUT', body: v })
@@ -603,28 +607,28 @@ function renameRoom(id) {
 }
 
 function delRoom(id) {
-  if (!confirm('Diesen Raum mit allen Plätzen und Fotos löschen?')) return;
+  if (!confirm('Delete this room with all its spots and photos?')) return;
   api('/api/admin/client-rooms/' + id, { method: 'DELETE' })
-    .then(loadBoard).then(function () { toast('Raum gelöscht'); }).catch(function (e) { toast(e.message); });
+    .then(loadBoard).then(function () { toast('Room deleted'); }).catch(function (e) { toast(e.message); });
 }
 
 function addSpot(roomId) {
-  ask('Platz hinzufügen', 'z.B. Wand hinter Tresen, Fensterseite', [
-    { key: 'name', label: 'Name des Platzes', value: '' },
-    { key: 'note', label: 'Kommentar von Ihnen (optional)', value: '', multiline: true },
+  ask('Add spot', 'e.g. Wand hinter Tresen, Fensterseite', [
+    { key: 'name', label: 'Spot name', value: '' },
+    { key: 'note', label: 'Your comment (optional, shown to the client)', value: '', multiline: true },
   ], function (v) {
     if (!v.name) return;
     api('/api/admin/client-rooms/' + roomId + '/spots', { method: 'POST', body: v })
-      .then(loadBoard).then(function () { toast('Platz angelegt'); }).catch(function (e) { toast(e.message); });
+      .then(loadBoard).then(function () { toast('Spot added'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function renameSpot(id) {
   var cur = findSpot(id);
   if (!cur) return;
-  ask('Platz bearbeiten', '', [
-    { key: 'name', label: 'Name des Platzes', value: cur.spot.name },
-    { key: 'note', label: 'Kommentar von Ihnen', value: cur.spot.note || '', multiline: true },
+  ask('Edit spot', '', [
+    { key: 'name', label: 'Spot name', value: cur.spot.name },
+    { key: 'note', label: 'Your comment (shown to the client)', value: cur.spot.note || '', multiline: true },
   ], function (v) {
     if (!v.name) return;
     api('/api/admin/client-spots/' + id, { method: 'PUT', body: v })
@@ -635,28 +639,28 @@ function renameSpot(id) {
 function editPhotoNote(id) {
   var p = lb.list.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
-  ask('Kommentar zum Foto', 'Wird dem Kunden unter dem Foto angezeigt.', [
-    { key: 'note', label: 'Kommentar von Ihnen', value: p.note || '', multiline: true },
+  ask('Comment on photo', 'Shown to the client underneath the photo.', [
+    { key: 'note', label: 'Your comment', value: p.note || '', multiline: true },
   ], function (v) {
     api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
       .then(function (saved) {
         p.note = saved.note;      // keep the open lightbox in sync
-        paintLb(); render(); toast('Gespeichert');
+        paintLb(); render(); toast('Saved');
       }).catch(function (e) { toast(e.message); });
   });
 }
 
 function delSpot(id) {
-  if (!confirm('Diesen Platz mit allen Fotos löschen?')) return;
+  if (!confirm('Delete this spot with all its photos?')) return;
   api('/api/admin/client-spots/' + id, { method: 'DELETE' })
-    .then(loadBoard).then(function () { toast('Platz gelöscht'); }).catch(function (e) { toast(e.message); });
+    .then(loadBoard).then(function () { toast('Spot deleted'); }).catch(function (e) { toast(e.message); });
 }
 
 function delPhoto(id) {
-  if (!confirm('Dieses Foto löschen?')) return;
+  if (!confirm('Delete this photo?')) return;
   api('/api/admin/client-photos/' + id, { method: 'DELETE' })
     .then(function () { closeLb(); return loadBoard(); })
-    .then(function () { toast('Foto gelöscht'); }).catch(function (e) { toast(e.message); });
+    .then(function () { toast('Photo deleted'); }).catch(function (e) { toast(e.message); });
 }
 
 // Hidden file input, reused for every spot.
@@ -673,32 +677,32 @@ function uploadTo(spotId) {
     if (!picker.files.length) return;
     var fd = new FormData();
     for (var i = 0; i < picker.files.length; i++) fd.append('photos', picker.files[i]);
-    toast('Lade ' + picker.files.length + ' Foto' + (picker.files.length === 1 ? '' : 's') + ' hoch…');
+    toast('Uploading ' + picker.files.length + ' photo' + (picker.files.length === 1 ? '' : 's') + '…');
     api('/api/admin/client-spots/' + spotId + '/photos', { method: 'POST', body: fd })
-      .then(loadBoard).then(function () { toast('Hochgeladen'); })
-      .catch(function (e) { toast('Fehler: ' + e.message); });
+      .then(loadBoard).then(function () { toast('Uploaded'); })
+      .catch(function (e) { toast('Error: ' + e.message); });
   };
   picker.click();
 }
 
 function setPassword() {
-  ask('Passwort setzen', 'Mindestens 6 Zeichen. Dieses Passwort erhält der Kunde.', [
-    { key: 'password', label: 'Neues Passwort', value: '' },
+  ask('Set password', 'At least 6 characters. This is the password you give the client.', [
+    { key: 'password', label: 'New password', value: '' },
   ], function (v) {
     if (!v.password) return;
     api('/api/admin/clients/' + SLUG + '/password', { method: 'PUT', body: v })
-      .then(function () { toast('Passwort gesetzt'); }).catch(function (e) { toast(e.message); });
+      .then(function () { toast('Password set'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function markSeen() {
   api('/api/admin/clients/' + SLUG + '/mark-seen', { method: 'POST' })
-    .then(loadBoard).then(function () { toast('Als gelesen markiert'); }).catch(function (e) { toast(e.message); });
+    .then(loadBoard).then(function () { toast('Marked as read'); }).catch(function (e) { toast(e.message); });
 }
 
 function copyLink() {
   var url = location.origin + '/client/' + SLUG;
-  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link kopiert'); });
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); });
   else toast(url);
 }
 </script>

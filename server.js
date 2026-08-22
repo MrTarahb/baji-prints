@@ -2878,15 +2878,17 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
            JOIN client_rooms r ON r.id = s.room_id
           WHERE s.id = (SELECT spot_id FROM client_photos WHERE id=$1)`, [req.params.id]
       );
-      const where = ctx[0] ? `${ctx[0].room} · ${ctx[0].spot}` : 'Unbekannter Platz';
-      const label = status === 'approved' ? '✓ Zugesagt' : status === 'declined' ? '✗ Abgelehnt' : '– Zurückgesetzt';
+      // Addressed to the photographer, so it's in English even though the board
+      // itself is German. The client's own comment is quoted verbatim.
+      const where = ctx[0] ? `${ctx[0].room} · ${ctx[0].spot}` : 'Unknown spot';
+      const label = status === 'approved' ? '✓ Approved' : status === 'declined' ? '✗ Declined' : '– Cleared';
       resend.emails.send({
         from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
         to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
         reply_to: REPLY_TO_EMAIL,
         subject: `${client.name}: ${label} — ${where}`,
         html: emailShell(
-          `<p style="margin:0 0 12px;font-size:15px;color:#1A1714"><strong>${esc(client.name)}</strong> hat reagiert.</p>
+          `<p style="margin:0 0 12px;font-size:15px;color:#1A1714"><strong>${esc(client.name)}</strong> responded.</p>
            <p style="margin:0 0 6px;font-size:14px;color:#4A453E">${esc(where)}</p>
            <p style="margin:0 0 12px;font-size:15px;color:#1A1714">${esc(label)}</p>
            ${comment ? `<p style="margin:0 0 12px;padding:12px;background:#F7F5F1;border-radius:4px;font-size:14px;color:#1A1714">${esc(comment)}</p>` : ''}
@@ -2960,7 +2962,7 @@ app.post('/api/admin/clients/:slug/rooms', requireAuth, async (req, res) => {
     `INSERT INTO client_rooms (client_id, name, note, sort_order)
      VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_rooms WHERE client_id=$1))
      RETURNING id, name, note, sort_order`,
-    [client.id, (req.body.name || 'Neuer Raum').trim(), req.body.note || null]
+    [client.id, (req.body.name || 'New room').trim(), req.body.note || null]
   );
   res.json({ ...rows[0], spots: [] });
 });
@@ -3006,7 +3008,7 @@ app.post('/api/admin/client-rooms/:id/spots', requireAuth, async (req, res) => {
     `INSERT INTO client_spots (room_id, name, note, sort_order)
      VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_spots WHERE room_id=$1))
      RETURNING id, room_id, name, note, sort_order`,
-    [req.params.id, (req.body.name || 'Neuer Platz').trim(), req.body.note || null]
+    [req.params.id, (req.body.name || 'New spot').trim(), req.body.note || null]
   );
   res.json({ ...rows[0], photos: [] });
 });
