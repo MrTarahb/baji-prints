@@ -73,7 +73,6 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 .spot{margin-bottom:36px}
 .spot-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .spot-head h3{font-size:13px;font-weight:500;letter-spacing:.03em}
-.spot-note{color:var(--mute);font-size:12px}
 .adm{display:none;gap:6px;align-items:center}
 .is-admin .adm{display:inline-flex}
 .adm button{padding:4px 9px;font-size:11px;color:var(--mute)}
@@ -127,6 +126,17 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
 .modal-card h4{font-family:var(--fi);font-style:italic;font-weight:400;font-size:19px;margin-bottom:6px}
 .modal-card p{font-size:12px;color:var(--mute);margin-bottom:14px}
 .modal-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.m-label{display:block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:12px 0 5px}
+.m-label:first-child{margin-top:0}
+.modal-card{max-height:86vh;overflow-y:auto}
+
+/* A note from Bharat — deliberately distinct from the client's own comment:
+   terracotta rule on the left, so on a busy board it reads as "he wrote this". */
+.note{border-left:2px solid var(--pink);padding:2px 0 2px 12px;margin:0 0 14px;color:#4A453E;font-size:12.5px;max-width:66ch;white-space:pre-wrap}
+.note.room-note{margin:-14px 0 22px}
+.note.spot-note-block{margin:-4px 0 14px}
+.note.photo-note{margin:0;font-size:12px}
+.note-empty{color:var(--mute);font-style:italic}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:2px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:100}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
@@ -163,7 +173,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
       <span class="eyebrow" style="color:#9C968C">Admin-Ansicht</span>
       <span id="ab-unseen"></span>
       <button onclick="addRoom()">+ Raum</button>
-      <button onclick="editIntro()">Begrüssungstext</button>
+      <button onclick="editHeader()">Kopftext</button>
       <button onclick="setPassword()">Passwort setzen</button>
       <button onclick="markSeen()">Alles gelesen</button>
       <button onclick="copyLink()">Link kopieren</button>
@@ -174,10 +184,13 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
     <div class="wrap">
       <div class="head-row">
         <div>
-          <div class="eyebrow">Bharat Bhatia · Fotografie</div>
+          <div class="eyebrow" id="b-eyebrow"></div>
           <h1 id="b-name"></h1>
         </div>
-        <button id="logout-btn" onclick="logout()">Abmelden</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="adm"><button onclick="editHeader()">Text bearbeiten</button></span>
+          <button id="logout-btn" onclick="logout()">Abmelden</button>
+        </div>
       </div>
       <div class="intro" id="b-intro"></div>
       <div class="tally" id="b-tally"></div>
@@ -203,6 +216,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
   </div>
   <div class="lb-foot">
     <div class="inner">
+      <div id="lb-note"></div>
       <div class="lb-choice" id="lb-choice">
         <button id="lb-yes" onclick="react('approved')">✓ Gefällt mir</button>
         <button id="lb-no" onclick="react('declined')">✕ Eher nicht</button>
@@ -221,10 +235,10 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px
   <div class="modal-card">
     <h4 id="m-title"></h4>
     <p id="m-desc"></p>
-    <input id="m-input">
+    <div id="m-fields"></div>
     <div class="modal-row">
       <button onclick="closeModal()">Abbrechen</button>
-      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">OK</button>
+      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">Speichern</button>
     </div>
   </div>
 </div>
@@ -237,6 +251,7 @@ var SLUG = location.pathname.split('/').filter(Boolean)[1] || '';
 var board = null;      // {client, rooms:[{spots:[{photos:[]}]}]}
 var isAdmin = false;
 var lb = { list: [], i: 0 };   // photos currently open in the lightbox
+var DEFAULT_EYEBROW = 'Bharat Bhatia · Fotografie';
 
 // Cloudinary transform builder — same contract as the main site's cld():
 // width + f_auto + q_auto:good, DPR-aware and capped. Clients only ever get a
@@ -310,6 +325,7 @@ function loadBoard() {
     document.getElementById('board').classList.add('on');
     document.getElementById('b-name').textContent = b.client.name;
     document.title = b.client.name + ' · Bildauswahl';
+    document.getElementById('b-eyebrow').textContent = b.client.eyebrow || DEFAULT_EYEBROW;
     document.getElementById('b-intro').textContent = b.client.intro || '';
     render();
   }).catch(function (e) {
@@ -357,11 +373,12 @@ function roomHtml(r) {
     '<div class="room-head">' +
       '<h2>' + esc(r.name) + '</h2>' +
       '<span class="adm">' +
-        '<button onclick="renameRoom(' + r.id + ')">umbenennen</button>' +
+        '<button onclick="renameRoom(' + r.id + ')">bearbeiten</button>' +
         '<button onclick="addSpot(' + r.id + ')">+ Platz</button>' +
         '<button onclick="delRoom(' + r.id + ')">löschen</button>' +
       '</span>' +
     '</div>' +
+    noteHtml(r.note, 'room-note') +
     (r.spots.length
       ? r.spots.map(spotHtml).join('')
       : '<div class="empty">' + (isAdmin ? 'Noch kein Platz in diesem Raum.' : '') + '</div>') +
@@ -372,23 +389,31 @@ function spotHtml(s) {
   return '<div class="spot">' +
     '<div class="spot-head">' +
       '<h3>' + esc(s.name) + '</h3>' +
-      (s.note ? '<span class="spot-note">' + esc(s.note) + '</span>' : '') +
       '<span class="adm">' +
         '<button onclick="uploadTo(' + s.id + ')">+ Fotos</button>' +
-        '<button onclick="renameSpot(' + s.id + ')">umbenennen</button>' +
+        '<button onclick="renameSpot(' + s.id + ')">bearbeiten</button>' +
         '<button onclick="delSpot(' + s.id + ')">löschen</button>' +
       '</span>' +
     '</div>' +
+    noteHtml(s.note, 'spot-note-block') +
     (s.photos.length
       ? '<div class="grid">' + s.photos.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
       : '<div class="empty">' + (isAdmin ? 'Noch keine Fotos.' : 'Fotos folgen.') + '</div>') +
     '</div>';
 }
 
+// Your comment, at any level. Rendered only when there is one — an empty note
+// leaves no trace on the client's view.
+function noteHtml(text, cls) {
+  if (!text) return '';
+  return '<div class="note ' + cls + '">' + esc(text) + '</div>';
+}
+
 function cardHtml(p, s) {
   var label = p.status === 'approved' ? 'Zugesagt' : p.status === 'declined' ? 'Abgelehnt' : 'Offen';
   return '<div class="card ' + esc(p.status) + '" onclick="openLb(' + s.id + ',' + p.id + ')">' +
     '<div class="card-img"><img src="' + esc(cld(p.image_url, 420)) + '" alt="" loading="lazy" draggable="false" oncontextmenu="return false"></div>' +
+    (p.note ? '<div class="note photo-note" style="margin:10px 11px 0">' + esc(p.note) + '</div>' : '') +
     '<div class="card-foot">' +
       '<span class="pill ' + esc(p.status) + '">' + label + '</span>' +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">' + esc(p.client_comment) + '</span>' : '') +
@@ -446,16 +471,21 @@ function paintLb() {
   document.querySelector('.lb-nav.prev').style.display = nav;
   document.querySelector('.lb-nav.next').style.display = nav;
 
+  document.getElementById('lb-note').innerHTML = p.note
+    ? '<div class="note photo-note" style="margin-bottom:2px">' + esc(p.note) + '</div>'
+    : '';
+
   // Admin sees the reaction as read-only context; the buttons stay live so a
   // reaction can be cleared or corrected on the phone with the client present.
   var av = document.getElementById('lb-adminview');
   if (isAdmin) {
-    av.innerHTML = p.reacted_at
+    var btns = ' · <button onclick="editPhotoNote(' + p.id + ')" style="padding:2px 8px;font-size:11px">Kommentar</button>' +
+               ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>';
+    av.innerHTML = (p.reacted_at
       ? 'Rückmeldung ' + new Date(p.reacted_at).toLocaleDateString('de-CH') +
         ': <b>' + (p.status === 'approved' ? 'zugesagt' : p.status === 'declined' ? 'abgelehnt' : 'zurückgesetzt') + '</b>' +
-        (p.client_comment ? ' — „' + esc(p.client_comment) + '“' : '') +
-        ' · <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>'
-      : 'Noch keine Rückmeldung. · <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>';
+        (p.client_comment ? ' — „' + esc(p.client_comment) + '“' : '')
+      : 'Noch keine Rückmeldung.') + btns;
   } else {
     av.innerHTML = '';
   }
@@ -502,36 +532,72 @@ function saveComment() {
 
 // ── ADMIN ────────────────────────────────────────────────────────────────────
 // One reusable prompt — window.prompt is blocked in some mobile browsers and
-// looks nothing like the rest of the page.
-function ask(title, desc, value, type, cb) {
+// looks nothing like the rest of the page. Fields are
+// [{key, label, value, multiline}]; the callback gets an object keyed by `key`.
+function ask(title, desc, fields, cb) {
   document.getElementById('m-title').textContent = title;
   document.getElementById('m-desc').textContent = desc || '';
-  var input = document.getElementById('m-input');
-  input.value = value || '';
-  input.type = type || 'text';
+  var box = document.getElementById('m-fields');
+  box.innerHTML = fields.map(function (f, i) {
+    return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' +
+      (f.multiline ? '<textarea id="mf-' + i + '"></textarea>' : '<input type="text" id="mf-' + i + '">');
+  }).join('');
+  // Values are assigned as properties, never interpolated into the markup, so
+  // quotes and angle brackets in existing text can't break out of the field.
+  fields.forEach(function (f, i) { document.getElementById('mf-' + i).value = f.value || ''; });
+
   document.getElementById('modal').classList.add('on');
-  input.focus();
+  var first = document.getElementById('mf-0');
+  if (first) first.focus();
+
   var ok = document.getElementById('m-ok');
   var fresh = ok.cloneNode(true);      // drop any previous handler
   ok.parentNode.replaceChild(fresh, ok);
-  fresh.onclick = function () { closeModal(); cb(input.value); };
-  input.onkeydown = function (e) { if (e.key === 'Enter') fresh.click(); };
+  fresh.onclick = function () {
+    var out = {};
+    fields.forEach(function (f, i) { out[f.key] = document.getElementById('mf-' + i).value.trim(); });
+    closeModal();
+    cb(out);
+  };
+  // Enter submits from single-line inputs only — textareas need real newlines.
+  box.querySelectorAll('input').forEach(function (el) {
+    el.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); fresh.click(); } };
+  });
 }
 function closeModal() { document.getElementById('modal').classList.remove('on'); }
 
+function editHeader() {
+  ask('Kopfbereich bearbeiten', 'Der Text ganz oben auf der Seite.', [
+    { key: 'eyebrow', label: 'Kleine Zeile oben', value: board.client.eyebrow || DEFAULT_EYEBROW },
+    { key: 'name', label: 'Überschrift', value: board.client.name },
+    { key: 'intro', label: 'Begrüssungstext', value: board.client.intro || '', multiline: true },
+  ], function (v) {
+    if (!v.name) return toast('Überschrift darf nicht leer sein');
+    api('/api/admin/clients/' + SLUG, { method: 'PUT', body: v })
+      .then(loadBoard).then(function () { toast('Gespeichert'); }).catch(function (e) { toast(e.message); });
+  });
+}
+
 function addRoom() {
-  ask('Raum hinzufügen', 'z.B. Empfang, Behandlungsraum 1, Korridor', '', 'text', function (name) {
-    if (!name) return;
-    api('/api/admin/clients/' + SLUG + '/rooms', { method: 'POST', body: { name: name } })
+  ask('Raum hinzufügen', 'z.B. Empfang, Behandlungsraum 1, Korridor', [
+    { key: 'name', label: 'Name des Raums', value: '' },
+    { key: 'note', label: 'Kommentar von Ihnen (optional)', value: '', multiline: true },
+  ], function (v) {
+    if (!v.name) return;
+    api('/api/admin/clients/' + SLUG + '/rooms', { method: 'POST', body: v })
       .then(loadBoard).then(function () { toast('Raum angelegt'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function renameRoom(id) {
   var r = board.rooms.filter(function (x) { return x.id === id; })[0];
-  ask('Raum umbenennen', '', r ? r.name : '', 'text', function (name) {
-    if (!name) return;
-    api('/api/admin/client-rooms/' + id, { method: 'PUT', body: { name: name } })
+  if (!r) return;
+  ask('Raum bearbeiten', '', [
+    { key: 'name', label: 'Name des Raums', value: r.name },
+    { key: 'note', label: 'Kommentar von Ihnen', value: r.note || '', multiline: true },
+  ], function (v) {
+    if (!v.name) return;
+    api('/api/admin/client-rooms/' + id, { method: 'PUT', body: v })
       .then(loadBoard).catch(function (e) { toast(e.message); });
   });
 }
@@ -543,24 +609,41 @@ function delRoom(id) {
 }
 
 function addSpot(roomId) {
-  ask('Platz hinzufügen', 'z.B. Wand hinter Tresen, Fensterseite', '', 'text', function (name) {
-    if (!name) return;
-    api('/api/admin/client-rooms/' + roomId + '/spots', { method: 'POST', body: { name: name } })
+  ask('Platz hinzufügen', 'z.B. Wand hinter Tresen, Fensterseite', [
+    { key: 'name', label: 'Name des Platzes', value: '' },
+    { key: 'note', label: 'Kommentar von Ihnen (optional)', value: '', multiline: true },
+  ], function (v) {
+    if (!v.name) return;
+    api('/api/admin/client-rooms/' + roomId + '/spots', { method: 'POST', body: v })
       .then(loadBoard).then(function () { toast('Platz angelegt'); }).catch(function (e) { toast(e.message); });
   });
 }
 
 function renameSpot(id) {
   var cur = findSpot(id);
-  ask('Platz umbenennen', 'Notiz optional dahinter mit | trennen, z.B. „Fensterseite | Querformat, ca. 70cm“',
-    cur ? (cur.spot.name + (cur.spot.note ? ' | ' + cur.spot.note : '')) : '', 'text', function (v) {
-      if (!v) return;
-      var parts = v.split('|');
-      api('/api/admin/client-spots/' + id, {
-        method: 'PUT',
-        body: { name: parts[0].trim(), note: parts.slice(1).join('|').trim() || null }
-      }).then(loadBoard).catch(function (e) { toast(e.message); });
-    });
+  if (!cur) return;
+  ask('Platz bearbeiten', '', [
+    { key: 'name', label: 'Name des Platzes', value: cur.spot.name },
+    { key: 'note', label: 'Kommentar von Ihnen', value: cur.spot.note || '', multiline: true },
+  ], function (v) {
+    if (!v.name) return;
+    api('/api/admin/client-spots/' + id, { method: 'PUT', body: v })
+      .then(loadBoard).catch(function (e) { toast(e.message); });
+  });
+}
+
+function editPhotoNote(id) {
+  var p = lb.list.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  ask('Kommentar zum Foto', 'Wird dem Kunden unter dem Foto angezeigt.', [
+    { key: 'note', label: 'Kommentar von Ihnen', value: p.note || '', multiline: true },
+  ], function (v) {
+    api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
+      .then(function (saved) {
+        p.note = saved.note;      // keep the open lightbox in sync
+        paintLb(); render(); toast('Gespeichert');
+      }).catch(function (e) { toast(e.message); });
+  });
 }
 
 function delSpot(id) {
@@ -598,17 +681,12 @@ function uploadTo(spotId) {
   picker.click();
 }
 
-function editIntro() {
-  ask('Begrüssungstext', 'Wird oben auf der Seite angezeigt.', board.client.intro || '', 'text', function (v) {
-    api('/api/admin/clients/' + SLUG, { method: 'PUT', body: { intro: v } })
-      .then(loadBoard).then(function () { toast('Gespeichert'); }).catch(function (e) { toast(e.message); });
-  });
-}
-
 function setPassword() {
-  ask('Passwort setzen', 'Mindestens 6 Zeichen. Dieses Passwort erhält der Kunde.', '', 'text', function (v) {
-    if (!v) return;
-    api('/api/admin/clients/' + SLUG + '/password', { method: 'PUT', body: { password: v } })
+  ask('Passwort setzen', 'Mindestens 6 Zeichen. Dieses Passwort erhält der Kunde.', [
+    { key: 'password', label: 'Neues Passwort', value: '' },
+  ], function (v) {
+    if (!v.password) return;
+    api('/api/admin/clients/' + SLUG + '/password', { method: 'PUT', body: v })
       .then(function () { toast('Passwort gesetzt'); }).catch(function (e) { toast(e.message); });
   });
 }

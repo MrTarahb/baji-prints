@@ -93,6 +93,12 @@ Schema: `clients` → `client_rooms` → `client_spots` → `client_photos`, wit
 reaction (`status` / `client_comment` / `reacted_at`) written straight onto the photo row —
 one client per board, so there is no separate feedback table.
 
+Two kinds of text sit side by side and must not be conflated: **`note`** (on rooms, spots and
+photos) is the photographer's own comment shown *to* the client, while **`client_comment`** is
+the client's reply. They render differently on purpose. Header text — `clients.eyebrow`,
+`clients.name`, `clients.intro` — is editable inline; `eyebrow` and `intro` are nullable and
+fall back to defaults, `name` never blanks (`COALESCE` keeps the old value).
+
 - **The client session is a separate role from admin.** `req.session.client_slug` is scoped to
   one board; `requireBoardAccess` allows that client or any admin. Client login never sets
   `req.session.admin`, and client logout never clears it.
@@ -108,6 +114,11 @@ one client per board, so there is no separate feedback table.
   per request from `req.uploadClientSlug` — the route must set that *before* multer runs.
 - Deleting a room or spot cascades in Postgres, so the route collects `public_id`s **before**
   the delete and destroys the Cloudinary assets afterward, or they orphan.
+- **Renaming a live column** needs a guard — plain `ALTER TABLE … RENAME` is not idempotent and
+  would throw on the next deploy, and a throw in `initDB()` exits the process and takes the
+  whole site down. The `caption` → `note` migration in `initDB()` is the pattern: a `DO $$`
+  block that renames only if the old column exists *and* the new one does not, followed by
+  `ADD COLUMN IF NOT EXISTS` so fresh databases get it too.
 
 ### Frontend gotchas (`public/index.html`)
 

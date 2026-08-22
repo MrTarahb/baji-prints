@@ -780,20 +780,24 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS clients (
       id SERIAL PRIMARY KEY,
       slug TEXT UNIQUE NOT NULL,        -- URL segment, e.g. 'drschuetz'
-      name TEXT NOT NULL,               -- shown as the board heading
+      name TEXT NOT NULL,               -- big heading at the top of the board
+      eyebrow TEXT,                     -- small line above it; NULL = default studio line
       intro TEXT,                       -- optional note to the client, editable inline
       password_hash TEXT,               -- bcrypt; NULL = board locked, nobody can log in
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS eyebrow TEXT;
 
     -- Rooms group spots ("Empfang" → "Wand hinter Tresen", "Fensterseite").
     CREATE TABLE IF NOT EXISTS client_rooms (
       id SERIAL PRIMARY KEY,
       client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
+      note TEXT,                        -- your own comment, shown to the client
       sort_order INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE client_rooms ADD COLUMN IF NOT EXISTS note TEXT;
 
     -- A spot is one physical position that needs one photo. Several candidate
     -- photos hang off it; the client reacts to each one independently.
@@ -814,7 +818,7 @@ async function initDB() {
       spot_id INTEGER REFERENCES client_spots(id) ON DELETE CASCADE,
       image_url TEXT NOT NULL,
       public_id TEXT,
-      caption TEXT,
+      note TEXT,                        -- your own comment, shown to the client
       sort_order INTEGER DEFAULT 0,
       status TEXT DEFAULT 'pending',    -- pending | approved | declined
       client_comment TEXT,
@@ -822,6 +826,17 @@ async function initDB() {
       seen_by_admin BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    -- 'caption' shipped in the first version of this feature but was never
+    -- surfaced in the UI; it becomes 'note' so photos match rooms and spots.
+    -- Guarded so the rename runs at most once and never on a fresh database.
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='client_photos' AND column_name='caption')
+         AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='client_photos' AND column_name='note')
+      THEN ALTER TABLE client_photos RENAME COLUMN caption TO note; END IF;
+    END $$;
+    ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS note TEXT;
     CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
     CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
@@ -2800,7 +2815,7 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
     const client = await getClient(req.params.slug);
     if (!client) return res.status(404).json({ error: 'Not found' });
     const { rows: rooms } = await pool.query(
-      'SELECT id, name, sort_order FROM client_rooms WHERE client_id=$1 ORDER BY sort_order, id', [client.id]
+      'SELECT id, name, note, sort_order FROM client_rooms WHERE client_id=$1 ORDER BY sort_order, id', [client.id]
     );
     const { rows: spots } = await pool.query(
       `SELECT s.id, s.room_id, s.name, s.note, s.sort_order FROM client_spots s
@@ -2808,7 +2823,7 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
         WHERE r.client_id=$1 ORDER BY s.sort_order, s.id`, [client.id]
     );
     const { rows: photos } = await pool.query(
-      `SELECT p.id, p.spot_id, p.image_url, p.caption, p.status, p.client_comment,
+      `SELECT p.id, p.spot_id, p.image_url, p.note, p.status, p.client_comment,
               p.reacted_at, p.seen_by_admin, p.sort_order
          FROM client_photos p
          JOIN client_spots s ON s.id = p.spot_id
@@ -2823,7 +2838,7 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
       })),
     }));
     res.json({
-      client: { slug: client.slug, name: client.name, intro: client.intro },
+      client: { slug: client.slug, name: client.name, eyebrow: client.eyebrow, intro: client.intro },
       isAdmin: !!req.session.admin,
       rooms: byRoom,
     });
@@ -2901,11 +2916,15 @@ app.get('/api/admin/clients', requireAuth, async (req, res) => {
   res.json(rows);
 });
 
+// Header text: name is required (COALESCE keeps the old one if blank), while
+// eyebrow and intro are nullable — clearing them falls back to the defaults.
 app.put('/api/admin/clients/:slug', requireAuth, async (req, res) => {
-  const { name, intro } = req.body;
+  const { name, eyebrow, intro } = req.body;
+  const clean = v => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const { rows } = await pool.query(
-    'UPDATE clients SET name=COALESCE($1,name), intro=$2 WHERE slug=$3 RETURNING slug, name, intro',
-    [name || null, intro ?? null, req.params.slug]
+    `UPDATE clients SET name=COALESCE($1,name), eyebrow=$2, intro=$3
+      WHERE slug=$4 RETURNING slug, name, eyebrow, intro`,
+    [clean(name), clean(eyebrow), clean(intro), req.params.slug]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
@@ -2938,10 +2957,10 @@ app.post('/api/admin/clients/:slug/rooms', requireAuth, async (req, res) => {
   const client = await getClient(req.params.slug);
   if (!client) return res.status(404).json({ error: 'Not found' });
   const { rows } = await pool.query(
-    `INSERT INTO client_rooms (client_id, name, sort_order)
-     VALUES ($1,$2,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_rooms WHERE client_id=$1))
-     RETURNING id, name, sort_order`,
-    [client.id, (req.body.name || 'Neuer Raum').trim()]
+    `INSERT INTO client_rooms (client_id, name, note, sort_order)
+     VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_rooms WHERE client_id=$1))
+     RETURNING id, name, note, sort_order`,
+    [client.id, (req.body.name || 'Neuer Raum').trim(), req.body.note || null]
   );
   res.json({ ...rows[0], spots: [] });
 });
@@ -2957,7 +2976,8 @@ app.put('/api/admin/client-rooms/reorder', requireAuth, async (req, res) => {
 
 app.put('/api/admin/client-rooms/:id', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    'UPDATE client_rooms SET name=$1 WHERE id=$2 RETURNING id, name', [(req.body.name || '').trim(), req.params.id]
+    'UPDATE client_rooms SET name=$1, note=$2 WHERE id=$3 RETURNING id, name, note',
+    [(req.body.name || '').trim(), (req.body.note || '').trim() || null, req.params.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
@@ -3054,7 +3074,7 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
       const { rows } = await pool.query(
         `INSERT INTO client_photos (spot_id, image_url, public_id, sort_order)
          VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
-         RETURNING id, spot_id, image_url, caption, status, client_comment, reacted_at, seen_by_admin, sort_order`,
+         RETURNING id, spot_id, image_url, note, status, client_comment, reacted_at, seen_by_admin, sort_order`,
         [req.params.id, f.path, f.filename]
       );
       created.push(rows[0]);
@@ -3068,8 +3088,8 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
 
 app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    'UPDATE client_photos SET caption=$1 WHERE id=$2 RETURNING id, caption',
-    [req.body.caption || null, req.params.id]
+    'UPDATE client_photos SET note=$1 WHERE id=$2 RETURNING id, note',
+    [(req.body.note || '').trim() || null, req.params.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
