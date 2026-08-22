@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Bildauswahl · Bharat Bhatia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fi:'Playfair Display',Georgia,serif;
+  --fm:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ink:#111110;
+  --bg:#FAFAF8;
+  --bg2:#F0EFEC;
+  --line:#E2E0DA;
+  --mute:#8A857C;
+  --pink:#C8907A;
+  --pink-d:#A87060;
+  --yes:#5E7F65;
+  --no:#A8564A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--fm);font-weight:300;-webkit-font-smoothing:antialiased}
+body{font-size:14px;line-height:1.65;overflow-x:clip}
+img{max-width:100%;display:block}
+button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 14px;border-radius:2px;transition:border-color .18s,background .18s,color .18s}
+button:hover{border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
+input:focus,textarea:focus{outline:none;border-color:var(--ink)}
+textarea{resize:vertical;min-height:76px;line-height:1.6}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+
+/* ── LOGIN ─────────────────────────────────────────────────────────── */
+#gate{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px}
+#gate.on{display:flex}
+.gate-card{width:100%;max-width:360px;text-align:center}
+.gate-card h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:30px;line-height:1.2;margin:14px 0 6px}
+.gate-card p{color:var(--mute);font-size:12.5px;margin-bottom:26px}
+.gate-card form{display:flex;flex-direction:column;gap:10px}
+.gate-card button{background:var(--ink);color:var(--bg);border-color:var(--ink);padding:11px}
+.gate-card button:hover{background:var(--pink-d);border-color:var(--pink-d)}
+#gate-err{color:var(--no);font-size:12px;min-height:18px;margin-top:4px}
+
+/* ── HEADER ────────────────────────────────────────────────────────── */
+#board{display:none}
+#board.on{display:block}
+header{border-bottom:1px solid var(--line);padding:26px 0 22px;margin-bottom:34px;background:var(--bg)}
+.head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:29px;line-height:1.15;margin:8px 0 0}
+.intro{margin-top:16px;max-width:62ch;color:#4A453E;font-size:13.5px}
+.tally{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px;font-size:11.5px;letter-spacing:.04em;color:var(--mute)}
+.tally b{font-weight:500;color:var(--ink)}
+.tally .t-yes b{color:var(--yes)}
+.tally .t-no b{color:var(--no)}
+
+/* ── ADMIN BAR ─────────────────────────────────────────────────────── */
+#adminbar{display:none;background:var(--ink);color:var(--bg);font-size:12px;padding:10px 0}
+#adminbar.on{display:block}
+#adminbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#adminbar button{background:transparent;color:var(--bg);border-color:#3A3733;padding:5px 10px;font-size:11.5px}
+#adminbar button:hover{border-color:var(--bg)}
+.badge{background:var(--pink);color:var(--ink);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:500}
+
+/* ── ROOMS & SPOTS ─────────────────────────────────────────────────── */
+.room{margin-bottom:56px}
+.room-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:26px}
+.room-head h2{font-family:var(--fi);font-style:italic;font-weight:400;font-size:22px}
+.spot{margin-bottom:36px}
+.spot-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.spot-head h3{font-size:13px;font-weight:500;letter-spacing:.03em}
+.spot-note{color:var(--mute);font-size:12px}
+.adm{display:none;gap:6px;align-items:center}
+.is-admin .adm{display:inline-flex}
+.adm button{padding:4px 9px;font-size:11px;color:var(--mute)}
+.adm button:hover{color:var(--ink)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.card{border:1px solid var(--line);background:#fff;border-radius:2px;overflow:hidden;cursor:pointer;transition:border-color .18s,transform .18s}
+.card:hover{border-color:var(--ink)}
+.card.approved{border-color:var(--yes);border-width:2px}
+.card.declined{opacity:.55}
+.card-img{aspect-ratio:4/3;background:var(--bg2);overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover;-webkit-user-drag:none;user-select:none}
+.card-foot{padding:9px 11px;display:flex;align-items:center;gap:8px;min-height:38px}
+.pill{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:10px;background:var(--bg2);color:var(--mute);white-space:nowrap}
+.pill.approved{background:rgba(94,127,101,.14);color:var(--yes)}
+.pill.declined{background:rgba(168,86,74,.13);color:var(--no)}
+.card-note{font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.card-new{width:6px;height:6px;border-radius:50%;background:var(--pink);flex:none}
+.empty{color:var(--mute);font-size:12.5px;font-style:italic;padding:12px 0}
+
+/* ── LIGHTBOX ──────────────────────────────────────────────────────── */
+#lb{position:fixed;inset:0;background:rgba(17,17,16,.96);z-index:80;display:none;flex-direction:column}
+#lb.on{display:flex}
+.lb-top{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 22px;color:var(--bg);flex:none}
+.lb-top .eyebrow{color:#9C968C}
+.lb-x{background:transparent;border-color:#3A3733;color:var(--bg)}
+.lb-x:hover{border-color:var(--bg)}
+.lb-body{flex:1;display:flex;align-items:center;justify-content:center;padding:0 22px;min-height:0;position:relative}
+.lb-body img{max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:transparent;border-color:#3A3733;color:var(--bg);padding:12px 15px;font-size:16px}
+.lb-nav:hover{border-color:var(--bg)}
+.lb-nav.prev{left:22px}
+.lb-nav.next{right:22px}
+.lb-foot{flex:none;background:var(--bg);border-top:1px solid var(--line);padding:16px 22px}
+.lb-foot .inner{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.lb-choice{display:flex;gap:10px;flex-wrap:wrap}
+.lb-choice button{flex:1;min-width:130px;padding:11px}
+.lb-choice button.sel-yes{background:var(--yes);border-color:var(--yes);color:#fff}
+.lb-choice button.sel-no{background:var(--no);border-color:var(--no);color:#fff}
+.lb-save-row{display:flex;gap:10px;align-items:center}
+.lb-save-row button{background:var(--ink);color:var(--bg);border-color:var(--ink);white-space:nowrap}
+.lb-save-row button:hover{background:var(--pink-d);border-color:var(--pink-d)}
+#lb-status{font-size:11.5px;color:var(--mute);min-height:16px}
+.lb-adminview{font-size:12px;color:var(--mute)}
+.lb-adminview b{color:var(--ink);font-weight:500}
+
+/* ── MODAL (admin prompts) ─────────────────────────────────────────── */
+#modal{position:fixed;inset:0;background:rgba(17,17,16,.5);z-index:90;display:none;align-items:center;justify-content:center;padding:22px}
+#modal.on{display:flex}
+.modal-card{background:var(--bg);border-radius:3px;padding:24px;width:100%;max-width:400px}
+.modal-card h4{font-family:var(--fi);font-style:italic;font-weight:400;font-size:19px;margin-bottom:6px}
+.modal-card p{font-size:12px;color:var(--mute);margin-bottom:14px}
+.modal-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:2px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:100}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  .wrap{padding:0 16px}
+  header h1{font-size:24px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+  .lb-nav{padding:9px 11px}
+  .lb-nav.prev{left:8px}
+  .lb-nav.next{right:8px}
+  .lb-body{padding:0 8px}
+  .lb-choice button{min-width:0}
+}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="eyebrow">Bharat Bhatia · Fotografie</div>
+    <h1 id="gate-name">Bildauswahl</h1>
+    <p>Dieser Bereich ist passwortgeschützt.</p>
+    <form id="gate-form">
+      <input type="password" id="gate-pw" placeholder="Passwort" autocomplete="current-password" required>
+      <button type="submit">Anmelden</button>
+    </form>
+    <div id="gate-err"></div>
+  </div>
+</div>
+
+<div id="board">
+  <div id="adminbar">
+    <div class="wrap">
+      <span class="eyebrow" style="color:#9C968C">Admin-Ansicht</span>
+      <span id="ab-unseen"></span>
+      <button onclick="addRoom()">+ Raum</button>
+      <button onclick="editIntro()">Begrüssungstext</button>
+      <button onclick="setPassword()">Passwort setzen</button>
+      <button onclick="markSeen()">Alles gelesen</button>
+      <button onclick="copyLink()">Link kopieren</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="wrap">
+      <div class="head-row">
+        <div>
+          <div class="eyebrow">Bharat Bhatia · Fotografie</div>
+          <h1 id="b-name"></h1>
+        </div>
+        <button id="logout-btn" onclick="logout()">Abmelden</button>
+      </div>
+      <div class="intro" id="b-intro"></div>
+      <div class="tally" id="b-tally"></div>
+    </div>
+  </header>
+
+  <div class="wrap" id="rooms"></div>
+  <div style="height:80px"></div>
+</div>
+
+<div id="lb">
+  <div class="lb-top">
+    <div>
+      <div class="eyebrow" id="lb-where"></div>
+      <div id="lb-count" style="font-size:12px;color:#9C968C"></div>
+    </div>
+    <button class="lb-x" onclick="closeLb()">Schliessen ✕</button>
+  </div>
+  <div class="lb-body">
+    <button class="lb-nav prev" onclick="lbGo(-1)">‹</button>
+    <img id="lb-img" alt="" draggable="false" oncontextmenu="return false">
+    <button class="lb-nav next" onclick="lbGo(1)">›</button>
+  </div>
+  <div class="lb-foot">
+    <div class="inner">
+      <div class="lb-choice" id="lb-choice">
+        <button id="lb-yes" onclick="react('approved')">✓ Gefällt mir</button>
+        <button id="lb-no" onclick="react('declined')">✕ Eher nicht</button>
+      </div>
+      <textarea id="lb-comment" placeholder="Kommentar (optional) — z.B. „zu dunkel“, „lieber querformat“"></textarea>
+      <div class="lb-save-row">
+        <button onclick="saveComment()">Kommentar speichern</button>
+        <span id="lb-status"></span>
+      </div>
+      <div class="lb-adminview" id="lb-adminview"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal">
+  <div class="modal-card">
+    <h4 id="m-title"></h4>
+    <p id="m-desc"></p>
+    <input id="m-input">
+    <div class="modal-row">
+      <button onclick="closeModal()">Abbrechen</button>
+      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+var SLUG = location.pathname.split('/').filter(Boolean)[1] || '';
+var board = null;      // {client, rooms:[{spots:[{photos:[]}]}]}
+var isAdmin = false;
+var lb = { list: [], i: 0 };   // photos currently open in the lightbox
+
+// Cloudinary transform builder — same contract as the main site's cld():
+// width + f_auto + q_auto:good, DPR-aware and capped. Clients only ever get a
+// derivative, never the original upload URL.
+function cld(url, w) {
+  if (!url || url.indexOf('/image/upload/') === -1 || url.indexOf('/upload/w_') !== -1) return url;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var width = Math.min(Math.round(w * dpr), 2600);
+  return url.replace('/image/upload/', '/image/upload/w_' + width + ',f_auto,q_auto:good/');
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function api(path, opts) {
+  opts = opts || {};
+  if (opts.body && !(opts.body instanceof FormData)) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(opts.body);
+  }
+  opts.credentials = 'same-origin';
+  return fetch(path, opts).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    });
+  });
+}
+
+var toastTimer;
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('on'); }, 2200);
+}
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+// The server withholds the client's name until authenticated, so the gate stays
+// anonymous — a guessed URL reveals nothing about whose board this is.
+api('/api/client/' + SLUG + '/session').then(function (s) {
+  if (s.client || s.admin) { loadBoard(); }
+  else { document.getElementById('gate').classList.add('on'); }
+}).catch(function () {
+  document.getElementById('gate').classList.add('on');
+});
+
+document.getElementById('gate-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var err = document.getElementById('gate-err');
+  err.textContent = '';
+  api('/api/client/' + SLUG + '/login', { method: 'POST', body: { password: document.getElementById('gate-pw').value } })
+    .then(function () { document.getElementById('gate').classList.remove('on'); loadBoard(); })
+    .catch(function (e) { err.textContent = e.message; });
+});
+
+function logout() {
+  api('/api/client/' + SLUG + '/logout', { method: 'POST' }).then(function () { location.reload(); });
+}
+
+function loadBoard() {
+  return api('/api/client/' + SLUG + '/board').then(function (b) {
+    board = b;
+    isAdmin = b.isAdmin;
+    document.body.classList.toggle('is-admin', isAdmin);
+    document.getElementById('adminbar').classList.toggle('on', isAdmin);
+    document.getElementById('logout-btn').style.display = isAdmin ? 'none' : '';
+    document.getElementById('board').classList.add('on');
+    document.getElementById('b-name').textContent = b.client.name;
+    document.title = b.client.name + ' · Bildauswahl';
+    document.getElementById('b-intro').textContent = b.client.intro || '';
+    render();
+  }).catch(function (e) {
+    document.getElementById('gate').classList.add('on');
+    document.getElementById('gate-err').textContent = e.message;
+  });
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function allPhotos() {
+  var out = [];
+  board.rooms.forEach(function (r) {
+    r.spots.forEach(function (s) { s.photos.forEach(function (p) { out.push(p); }); });
+  });
+  return out;
+}
+
+function render() {
+  var photos = allPhotos();
+  var yes = photos.filter(function (p) { return p.status === 'approved'; }).length;
+  var no = photos.filter(function (p) { return p.status === 'declined'; }).length;
+  var open = photos.length - yes - no;
+  document.getElementById('b-tally').innerHTML = photos.length
+    ? '<span><b>' + photos.length + '</b> Fotos</span>' +
+      '<span class="t-yes"><b>' + yes + '</b> zugesagt</span>' +
+      '<span class="t-no"><b>' + no + '</b> abgelehnt</span>' +
+      '<span><b>' + open + '</b> offen</span>'
+    : '';
+
+  var unseen = photos.filter(function (p) { return p.reacted_at && !p.seen_by_admin; }).length;
+  document.getElementById('ab-unseen').innerHTML = unseen
+    ? '<span class="badge">' + unseen + ' neue Rückmeldung' + (unseen === 1 ? '' : 'en') + '</span>' : '';
+
+  var html = board.rooms.map(roomHtml).join('');
+  if (!board.rooms.length) {
+    html = '<div class="empty">' + (isAdmin
+      ? 'Noch keine Räume angelegt — oben auf „+ Raum“ klicken.'
+      : 'Die Auswahl wird gerade vorbereitet.') + '</div>';
+  }
+  document.getElementById('rooms').innerHTML = html;
+}
+
+function roomHtml(r) {
+  return '<section class="room">' +
+    '<div class="room-head">' +
+      '<h2>' + esc(r.name) + '</h2>' +
+      '<span class="adm">' +
+        '<button onclick="renameRoom(' + r.id + ')">umbenennen</button>' +
+        '<button onclick="addSpot(' + r.id + ')">+ Platz</button>' +
+        '<button onclick="delRoom(' + r.id + ')">löschen</button>' +
+      '</span>' +
+    '</div>' +
+    (r.spots.length
+      ? r.spots.map(spotHtml).join('')
+      : '<div class="empty">' + (isAdmin ? 'Noch kein Platz in diesem Raum.' : '') + '</div>') +
+    '</section>';
+}
+
+function spotHtml(s) {
+  return '<div class="spot">' +
+    '<div class="spot-head">' +
+      '<h3>' + esc(s.name) + '</h3>' +
+      (s.note ? '<span class="spot-note">' + esc(s.note) + '</span>' : '') +
+      '<span class="adm">' +
+        '<button onclick="uploadTo(' + s.id + ')">+ Fotos</button>' +
+        '<button onclick="renameSpot(' + s.id + ')">umbenennen</button>' +
+        '<button onclick="delSpot(' + s.id + ')">löschen</button>' +
+      '</span>' +
+    '</div>' +
+    (s.photos.length
+      ? '<div class="grid">' + s.photos.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
+      : '<div class="empty">' + (isAdmin ? 'Noch keine Fotos.' : 'Fotos folgen.') + '</div>') +
+    '</div>';
+}
+
+function cardHtml(p, s) {
+  var label = p.status === 'approved' ? 'Zugesagt' : p.status === 'declined' ? 'Abgelehnt' : 'Offen';
+  return '<div class="card ' + esc(p.status) + '" onclick="openLb(' + s.id + ',' + p.id + ')">' +
+    '<div class="card-img"><img src="' + esc(cld(p.image_url, 420)) + '" alt="" loading="lazy" draggable="false" oncontextmenu="return false"></div>' +
+    '<div class="card-foot">' +
+      '<span class="pill ' + esc(p.status) + '">' + label + '</span>' +
+      (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">' + esc(p.client_comment) + '</span>' : '') +
+      (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="neue Rückmeldung"></span>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────────────────────────────
+function findSpot(spotId) {
+  for (var i = 0; i < board.rooms.length; i++) {
+    for (var j = 0; j < board.rooms[i].spots.length; j++) {
+      if (board.rooms[i].spots[j].id === spotId) {
+        return { room: board.rooms[i], spot: board.rooms[i].spots[j] };
+      }
+    }
+  }
+  return null;
+}
+
+// Navigation stays within one spot — the client is comparing candidates for a
+// single wall, so wrapping into the next room's photos would be disorienting.
+function openLb(spotId, photoId) {
+  var f = findSpot(spotId);
+  if (!f) return;
+  lb.list = f.spot.photos;
+  lb.i = Math.max(0, lb.list.map(function (p) { return p.id; }).indexOf(photoId));
+  lb.where = f.room.name + ' · ' + f.spot.name;
+  document.getElementById('lb').classList.add('on');
+  document.body.style.overflow = 'hidden';
+  paintLb();
+}
+
+function closeLb() {
+  document.getElementById('lb').classList.remove('on');
+  document.body.style.overflow = '';
+}
+
+function lbGo(d) {
+  lb.i = (lb.i + d + lb.list.length) % lb.list.length;
+  paintLb();
+}
+
+function paintLb() {
+  var p = lb.list[lb.i];
+  if (!p) return;
+  document.getElementById('lb-img').src = cld(p.image_url, 1400);
+  document.getElementById('lb-where').textContent = lb.where;
+  document.getElementById('lb-count').textContent = 'Foto ' + (lb.i + 1) + ' von ' + lb.list.length;
+  document.getElementById('lb-comment').value = p.client_comment || '';
+  document.getElementById('lb-status').textContent = '';
+  document.getElementById('lb-yes').className = p.status === 'approved' ? 'sel-yes' : '';
+  document.getElementById('lb-no').className = p.status === 'declined' ? 'sel-no' : '';
+  var nav = lb.list.length > 1 ? '' : 'none';
+  document.querySelector('.lb-nav.prev').style.display = nav;
+  document.querySelector('.lb-nav.next').style.display = nav;
+
+  // Admin sees the reaction as read-only context; the buttons stay live so a
+  // reaction can be cleared or corrected on the phone with the client present.
+  var av = document.getElementById('lb-adminview');
+  if (isAdmin) {
+    av.innerHTML = p.reacted_at
+      ? 'Rückmeldung ' + new Date(p.reacted_at).toLocaleDateString('de-CH') +
+        ': <b>' + (p.status === 'approved' ? 'zugesagt' : p.status === 'declined' ? 'abgelehnt' : 'zurückgesetzt') + '</b>' +
+        (p.client_comment ? ' — „' + esc(p.client_comment) + '“' : '') +
+        ' · <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>'
+      : 'Noch keine Rückmeldung. · <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Foto löschen</button>';
+  } else {
+    av.innerHTML = '';
+  }
+}
+
+document.addEventListener('keydown', function (e) {
+  if (!document.getElementById('lb').classList.contains('on')) return;
+  if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') return;
+  if (e.key === 'Escape') closeLb();
+  if (e.key === 'ArrowLeft') lbGo(-1);
+  if (e.key === 'ArrowRight') lbGo(1);
+});
+
+// ── REACTIONS ────────────────────────────────────────────────────────────────
+function sendReaction(p, status, comment) {
+  document.getElementById('lb-status').textContent = 'Speichern…';
+  return api('/api/client/photo/' + p.id + '/react', { method: 'PUT', body: { status: status, comment: comment } })
+    .then(function (saved) {
+      // Mutate the in-memory photo so the grid behind the lightbox updates
+      // without refetching the whole board on every click.
+      p.status = saved.status;
+      p.client_comment = saved.client_comment;
+      p.reacted_at = saved.reacted_at;
+      p.seen_by_admin = saved.seen_by_admin;
+      document.getElementById('lb-status').textContent = 'Gespeichert';
+      paintLb(); render();
+    })
+    .catch(function (e) { document.getElementById('lb-status').textContent = 'Fehler: ' + e.message; });
+}
+
+// Clicking the active choice again clears it back to "offen".
+function react(status) {
+  var p = lb.list[lb.i];
+  if (!p) return;
+  var next = p.status === status ? 'pending' : status;
+  sendReaction(p, next, document.getElementById('lb-comment').value);
+}
+
+function saveComment() {
+  var p = lb.list[lb.i];
+  if (!p) return;
+  sendReaction(p, p.status, document.getElementById('lb-comment').value);
+}
+
+// ── ADMIN ────────────────────────────────────────────────────────────────────
+// One reusable prompt — window.prompt is blocked in some mobile browsers and
+// looks nothing like the rest of the page.
+function ask(title, desc, value, type, cb) {
+  document.getElementById('m-title').textContent = title;
+  document.getElementById('m-desc').textContent = desc || '';
+  var input = document.getElementById('m-input');
+  input.value = value || '';
+  input.type = type || 'text';
+  document.getElementById('modal').classList.add('on');
+  input.focus();
+  var ok = document.getElementById('m-ok');
+  var fresh = ok.cloneNode(true);      // drop any previous handler
+  ok.parentNode.replaceChild(fresh, ok);
+  fresh.onclick = function () { closeModal(); cb(input.value); };
+  input.onkeydown = function (e) { if (e.key === 'Enter') fresh.click(); };
+}
+function closeModal() { document.getElementById('modal').classList.remove('on'); }
+
+function addRoom() {
+  ask('Raum hinzufügen', 'z.B. Empfang, Behandlungsraum 1, Korridor', '', 'text', function (name) {
+    if (!name) return;
+    api('/api/admin/clients/' + SLUG + '/rooms', { method: 'POST', body: { name: name } })
+      .then(loadBoard).then(function () { toast('Raum angelegt'); }).catch(function (e) { toast(e.message); });
+  });
+}
+
+function renameRoom(id) {
+  var r = board.rooms.filter(function (x) { return x.id === id; })[0];
+  ask('Raum umbenennen', '', r ? r.name : '', 'text', function (name) {
+    if (!name) return;
+    api('/api/admin/client-rooms/' + id, { method: 'PUT', body: { name: name } })
+      .then(loadBoard).catch(function (e) { toast(e.message); });
+  });
+}
+
+function delRoom(id) {
+  if (!confirm('Diesen Raum mit allen Plätzen und Fotos löschen?')) return;
+  api('/api/admin/client-rooms/' + id, { method: 'DELETE' })
+    .then(loadBoard).then(function () { toast('Raum gelöscht'); }).catch(function (e) { toast(e.message); });
+}
+
+function addSpot(roomId) {
+  ask('Platz hinzufügen', 'z.B. Wand hinter Tresen, Fensterseite', '', 'text', function (name) {
+    if (!name) return;
+    api('/api/admin/client-rooms/' + roomId + '/spots', { method: 'POST', body: { name: name } })
+      .then(loadBoard).then(function () { toast('Platz angelegt'); }).catch(function (e) { toast(e.message); });
+  });
+}
+
+function renameSpot(id) {
+  var cur = findSpot(id);
+  ask('Platz umbenennen', 'Notiz optional dahinter mit | trennen, z.B. „Fensterseite | Querformat, ca. 70cm“',
+    cur ? (cur.spot.name + (cur.spot.note ? ' | ' + cur.spot.note : '')) : '', 'text', function (v) {
+      if (!v) return;
+      var parts = v.split('|');
+      api('/api/admin/client-spots/' + id, {
+        method: 'PUT',
+        body: { name: parts[0].trim(), note: parts.slice(1).join('|').trim() || null }
+      }).then(loadBoard).catch(function (e) { toast(e.message); });
+    });
+}
+
+function delSpot(id) {
+  if (!confirm('Diesen Platz mit allen Fotos löschen?')) return;
+  api('/api/admin/client-spots/' + id, { method: 'DELETE' })
+    .then(loadBoard).then(function () { toast('Platz gelöscht'); }).catch(function (e) { toast(e.message); });
+}
+
+function delPhoto(id) {
+  if (!confirm('Dieses Foto löschen?')) return;
+  api('/api/admin/client-photos/' + id, { method: 'DELETE' })
+    .then(function () { closeLb(); return loadBoard(); })
+    .then(function () { toast('Foto gelöscht'); }).catch(function (e) { toast(e.message); });
+}
+
+// Hidden file input, reused for every spot.
+var picker = document.createElement('input');
+picker.type = 'file';
+picker.accept = 'image/jpeg,image/png,image/webp';
+picker.multiple = true;
+picker.style.display = 'none';
+document.body.appendChild(picker);
+
+function uploadTo(spotId) {
+  picker.value = '';
+  picker.onchange = function () {
+    if (!picker.files.length) return;
+    var fd = new FormData();
+    for (var i = 0; i < picker.files.length; i++) fd.append('photos', picker.files[i]);
+    toast('Lade ' + picker.files.length + ' Foto' + (picker.files.length === 1 ? '' : 's') + ' hoch…');
+    api('/api/admin/client-spots/' + spotId + '/photos', { method: 'POST', body: fd })
+      .then(loadBoard).then(function () { toast('Hochgeladen'); })
+      .catch(function (e) { toast('Fehler: ' + e.message); });
+  };
+  picker.click();
+}
+
+function editIntro() {
+  ask('Begrüssungstext', 'Wird oben auf der Seite angezeigt.', board.client.intro || '', 'text', function (v) {
+    api('/api/admin/clients/' + SLUG, { method: 'PUT', body: { intro: v } })
+      .then(loadBoard).then(function () { toast('Gespeichert'); }).catch(function (e) { toast(e.message); });
+  });
+}
+
+function setPassword() {
+  ask('Passwort setzen', 'Mindestens 6 Zeichen. Dieses Passwort erhält der Kunde.', '', 'text', function (v) {
+    if (!v) return;
+    api('/api/admin/clients/' + SLUG + '/password', { method: 'PUT', body: { password: v } })
+      .then(function () { toast('Passwort gesetzt'); }).catch(function (e) { toast(e.message); });
+  });
+}
+
+function markSeen() {
+  api('/api/admin/clients/' + SLUG + '/mark-seen', { method: 'POST' })
+    .then(loadBoard).then(function () { toast('Als gelesen markiert'); }).catch(function (e) { toast(e.message); });
+}
+
+function copyLink() {
+  var url = location.origin + '/client/' + SLUG;
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link kopiert'); });
+  else toast(url);
+}
+</script>
+</body>
+</html>

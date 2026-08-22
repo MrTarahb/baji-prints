@@ -253,6 +253,18 @@ const workshopStorage = new CloudinaryStorage({
 const workshopUpload = multer({ storage: workshopStorage });
 const upload = multer({ storage });
 
+// Client proofing photos get their own per-client Cloudinary folder so a
+// client's images never mix with the portfolio. The folder is resolved per
+// request from req.uploadClientSlug, which the route sets before multer runs.
+const clientStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req) => ({
+    folder: `baji-clients/${req.uploadClientSlug || 'misc'}`,
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  }),
+});
+const clientUpload = multer({ storage: clientStorage });
+
 app.use(cors());
 
 // Stripe webhook needs the RAW body for signature verification —
@@ -760,6 +772,59 @@ async function initDB() {
       sort_order INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- ── CLIENT PROOFING ──────────────────────────────────────────────────────
+    -- Private, password-protected review boards for commissioned work, one per
+    -- client, at /client/<slug>. The client sees only their own board; nothing
+    -- here is linked from the public site, indexed, or in the sitemap.
+    CREATE TABLE IF NOT EXISTS clients (
+      id SERIAL PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,        -- URL segment, e.g. 'drschuetz'
+      name TEXT NOT NULL,               -- shown as the board heading
+      intro TEXT,                       -- optional note to the client, editable inline
+      password_hash TEXT,               -- bcrypt; NULL = board locked, nobody can log in
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Rooms group spots ("Empfang" → "Wand hinter Tresen", "Fensterseite").
+    CREATE TABLE IF NOT EXISTS client_rooms (
+      id SERIAL PRIMARY KEY,
+      client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- A spot is one physical position that needs one photo. Several candidate
+    -- photos hang off it; the client reacts to each one independently.
+    CREATE TABLE IF NOT EXISTS client_spots (
+      id SERIAL PRIMARY KEY,
+      room_id INTEGER REFERENCES client_rooms(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      note TEXT,                        -- e.g. "Querformat, ca. 70cm breit"
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Candidate photos. status/comment are the client's own reaction, written
+    -- straight onto the row — one client per board means no separate feedback
+    -- table is needed. reacted_at drives the "new feedback" badge for admin.
+    CREATE TABLE IF NOT EXISTS client_photos (
+      id SERIAL PRIMARY KEY,
+      spot_id INTEGER REFERENCES client_spots(id) ON DELETE CASCADE,
+      image_url TEXT NOT NULL,
+      public_id TEXT,
+      caption TEXT,
+      sort_order INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',    -- pending | approved | declined
+      client_comment TEXT,
+      reacted_at TIMESTAMPTZ,
+      seen_by_admin BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
+    CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
+    CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
   `);
 
   // Step 2: seed default content with parameterised queries
@@ -1010,6 +1075,17 @@ async function initDB() {
     }
   }
 
+  // Seed the first client board once, only on a genuinely empty table, so
+  // deleting it in admin doesn't resurrect it on the next deploy. No password
+  // is set here — the board stays locked until one is set from the admin view.
+  const { rows: clientCount } = await pool.query('SELECT COUNT(*)::int AS n FROM clients');
+  if (clientCount[0].n === 0) {
+    await pool.query(
+      `INSERT INTO clients (slug, name, intro) VALUES ($1,$2,$3) ON CONFLICT (slug) DO NOTHING`,
+      ['drschuetz', 'Dr. Schütz', 'Eine Auswahl möglicher Bilder für Ihre Praxis. Bitte markieren Sie zu jedem Platz, was Ihnen gefällt — ein Kommentar genügt, wenn etwas anders sein soll.']
+    );
+  }
+
   console.log('DB initialised');
 }
 
@@ -1017,6 +1093,35 @@ async function initDB() {
 function requireAuth(req, res, next) {
   if (req.session.admin) return next();
   res.status(401).json({ error: 'Unauthorised' });
+}
+
+// Client-board access. A client session is a SEPARATE role from admin: logging
+// in as a client never grants admin rights, and it is scoped to one slug, so a
+// client session can't read another client's board. Admin sees every board.
+function requireBoardAccess(req, res, next) {
+  const slug = req.params.slug;
+  if (req.session.admin) { req.isBoardAdmin = true; return next(); }
+  if (req.session.client_slug && req.session.client_slug === slug) return next();
+  res.status(401).json({ error: 'Unauthorised' });
+}
+
+// Resolves a client board by slug, 404s if unknown.
+async function getClient(slug) {
+  const { rows } = await pool.query('SELECT * FROM clients WHERE slug=$1', [slug]);
+  return rows[0] || null;
+}
+
+// Walks a photo id back up to its owning client — used to authorise mutations
+// on nested resources, which carry only their own id in the URL.
+async function clientForPhoto(photoId) {
+  const { rows } = await pool.query(
+    `SELECT c.* FROM client_photos p
+       JOIN client_spots s ON s.id = p.spot_id
+       JOIN client_rooms r ON r.id = s.room_id
+       JOIN clients c ON c.id = r.client_id
+      WHERE p.id = $1`, [photoId]
+  );
+  return rows[0] || null;
 }
 
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
@@ -2576,7 +2681,9 @@ app.post('/api/admin/stats/reset', requireAuth, async (req, res) => {
 // ── SEO FILES ─────────────────────────────────────────────────────────────────
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
-  res.send('User-agent: *\nAllow: /\nSitemap: https://bharatbhatia.photography/sitemap.xml');
+  // /client/* are private password-protected proofing boards — keep them out
+  // of every index (the X-Robots-Tag header on those routes backs this up).
+  res.send('User-agent: *\nAllow: /\nDisallow: /client/\nSitemap: https://bharatbhatia.photography/sitemap.xml');
 });
 
 app.get('/sitemap.xml', async (req, res) => {
@@ -2631,6 +2738,366 @@ app.delete('/api/admin/messages/:id', requireAuth, async (req, res) => {
 });
 
 // ── SERVE FRONTEND ────────────────────────────────────────────────────────────
+// ── CLIENT PROOFING BOARDS ────────────────────────────────────────────────────
+// Private per-client review boards at /client/<slug>. Not linked from the site,
+// excluded from robots.txt and the sitemap, and served with noindex headers.
+
+// Same shape as the admin login limiter — slow down password guessing on a
+// board URL, which is the only thing standing between a guesser and the images.
+const clientLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.' },
+});
+
+app.post('/api/client/:slug/login', clientLoginLimiter, async (req, res) => {
+  try {
+    const client = await getClient(req.params.slug);
+    // Same generic response whether the board or the password is wrong, so the
+    // endpoint can't be used to enumerate which client slugs exist.
+    if (!client || !client.password_hash) return res.status(401).json({ error: 'Falsches Passwort' });
+    const ok = await bcrypt.compare(String(req.body.password || ''), client.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Falsches Passwort' });
+    req.session.client_slug = client.slug;
+    req.session.client_id = client.id;
+    res.json({ ok: true, name: client.name });
+  } catch (e) {
+    console.error('Client login error:', e);
+    res.status(500).json({ error: 'Login fehlgeschlagen' });
+  }
+});
+
+app.post('/api/client/:slug/logout', (req, res) => {
+  // Only drop the client role — never touch req.session.admin, so logging a
+  // client out on a shared browser doesn't log the admin out too.
+  delete req.session.client_slug;
+  delete req.session.client_id;
+  res.json({ ok: true });
+});
+
+app.get('/api/client/:slug/session', async (req, res) => {
+  const client = await getClient(req.params.slug);
+  const authed = !!req.session.admin || (client && req.session.client_slug === client.slug);
+  // Deliberately identical response for an unknown slug and a locked board, and
+  // the client's name is withheld until authenticated — otherwise anyone who
+  // guessed a URL could confirm the board exists and learn whose it is.
+  if (!client || !authed) {
+    return res.json({ admin: false, client: false, name: null });
+  }
+  res.json({
+    admin: !!req.session.admin,
+    client: req.session.client_slug === client.slug,
+    name: client.name,
+  });
+});
+
+// The whole board in one call — rooms → spots → photos. Small enough (one
+// practice's worth of photos) that paginating would be premature.
+app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
+  try {
+    const client = await getClient(req.params.slug);
+    if (!client) return res.status(404).json({ error: 'Not found' });
+    const { rows: rooms } = await pool.query(
+      'SELECT id, name, sort_order FROM client_rooms WHERE client_id=$1 ORDER BY sort_order, id', [client.id]
+    );
+    const { rows: spots } = await pool.query(
+      `SELECT s.id, s.room_id, s.name, s.note, s.sort_order FROM client_spots s
+         JOIN client_rooms r ON r.id = s.room_id
+        WHERE r.client_id=$1 ORDER BY s.sort_order, s.id`, [client.id]
+    );
+    const { rows: photos } = await pool.query(
+      `SELECT p.id, p.spot_id, p.image_url, p.caption, p.status, p.client_comment,
+              p.reacted_at, p.seen_by_admin, p.sort_order
+         FROM client_photos p
+         JOIN client_spots s ON s.id = p.spot_id
+         JOIN client_rooms r ON r.id = s.room_id
+        WHERE r.client_id=$1 ORDER BY p.sort_order, p.id`, [client.id]
+    );
+    const byRoom = rooms.map(r => ({
+      ...r,
+      spots: spots.filter(s => s.room_id === r.id).map(s => ({
+        ...s,
+        photos: photos.filter(p => p.spot_id === s.id),
+      })),
+    }));
+    res.json({
+      client: { slug: client.slug, name: client.name, intro: client.intro },
+      isAdmin: !!req.session.admin,
+      rooms: byRoom,
+    });
+  } catch (e) {
+    console.error('Board load error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// The client's reaction. Approve/decline/comment are independent per photo —
+// approving one candidate never changes the others in the same spot.
+app.put('/api/client/photo/:id/react', async (req, res) => {
+  try {
+    const client = await clientForPhoto(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Not found' });
+    const isClient = req.session.client_slug === client.slug;
+    if (!isClient && !req.session.admin) return res.status(401).json({ error: 'Unauthorised' });
+
+    const status = ['approved', 'declined', 'pending'].includes(req.body.status) ? req.body.status : 'pending';
+    const comment = (req.body.comment || '').trim().slice(0, 2000) || null;
+    // seen_by_admin resets to false on every client reaction so a revised
+    // opinion resurfaces in the admin badge; an admin edit doesn't.
+    const { rows } = await pool.query(
+      `UPDATE client_photos
+          SET status=$1, client_comment=$2, reacted_at=NOW(), seen_by_admin=$3
+        WHERE id=$4
+        RETURNING id, status, client_comment, reacted_at, seen_by_admin`,
+      [status, comment, !isClient, req.params.id]
+    );
+    res.json(rows[0]);
+
+    // Notify by email, but only for a real client reaction, and never let a
+    // mail failure fail the request the client is waiting on.
+    if (isClient && resend) {
+      const { rows: ctx } = await pool.query(
+        `SELECT s.name AS spot, r.name AS room FROM client_spots s
+           JOIN client_rooms r ON r.id = s.room_id
+          WHERE s.id = (SELECT spot_id FROM client_photos WHERE id=$1)`, [req.params.id]
+      );
+      const where = ctx[0] ? `${ctx[0].room} · ${ctx[0].spot}` : 'Unbekannter Platz';
+      const label = status === 'approved' ? '✓ Zugesagt' : status === 'declined' ? '✗ Abgelehnt' : '– Zurückgesetzt';
+      resend.emails.send({
+        from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+        to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
+        reply_to: REPLY_TO_EMAIL,
+        subject: `${client.name}: ${label} — ${where}`,
+        html: emailShell(
+          `<p style="margin:0 0 12px;font-size:15px;color:#1A1714"><strong>${esc(client.name)}</strong> hat reagiert.</p>
+           <p style="margin:0 0 6px;font-size:14px;color:#4A453E">${esc(where)}</p>
+           <p style="margin:0 0 12px;font-size:15px;color:#1A1714">${esc(label)}</p>
+           ${comment ? `<p style="margin:0 0 12px;padding:12px;background:#F7F5F1;border-radius:4px;font-size:14px;color:#1A1714">${esc(comment)}</p>` : ''}
+           <p style="margin:16px 0 0;font-size:13px;color:#8A857C">${SITE}/client/${esc(client.slug)}</p>`
+        ),
+      }).catch(e => console.error('Client reaction email failed (non-fatal):', e.message));
+    }
+  } catch (e) {
+    console.error('Reaction save error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── CLIENT BOARD ADMIN ────────────────────────────────────────────────────────
+// Management lives on the client page itself: open /client/<slug> while logged
+// in as admin and these back the inline controls.
+
+app.get('/api/admin/clients', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT c.slug, c.name, (c.password_hash IS NOT NULL) AS has_password,
+            (SELECT COUNT(*)::int FROM client_photos p
+               JOIN client_spots s ON s.id=p.spot_id
+               JOIN client_rooms r ON r.id=s.room_id
+              WHERE r.client_id=c.id AND p.reacted_at IS NOT NULL AND p.seen_by_admin=FALSE) AS unseen
+       FROM clients c ORDER BY c.name`
+  );
+  res.json(rows);
+});
+
+app.put('/api/admin/clients/:slug', requireAuth, async (req, res) => {
+  const { name, intro } = req.body;
+  const { rows } = await pool.query(
+    'UPDATE clients SET name=COALESCE($1,name), intro=$2 WHERE slug=$3 RETURNING slug, name, intro',
+    [name || null, intro ?? null, req.params.slug]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+app.put('/api/admin/clients/:slug/password', requireAuth, async (req, res) => {
+  const pw = String(req.body.password || '');
+  if (pw.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const hash = await bcrypt.hash(pw, 10);
+  const { rows } = await pool.query(
+    'UPDATE clients SET password_hash=$1 WHERE slug=$2 RETURNING slug', [hash, req.params.slug]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+// Clears every unseen flag on the board — the "mark all read" action.
+app.post('/api/admin/clients/:slug/mark-seen', requireAuth, async (req, res) => {
+  await pool.query(
+    `UPDATE client_photos SET seen_by_admin=TRUE
+      WHERE spot_id IN (SELECT s.id FROM client_spots s
+                          JOIN client_rooms r ON r.id=s.room_id
+                          JOIN clients c ON c.id=r.client_id
+                         WHERE c.slug=$1)`, [req.params.slug]
+  );
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/clients/:slug/rooms', requireAuth, async (req, res) => {
+  const client = await getClient(req.params.slug);
+  if (!client) return res.status(404).json({ error: 'Not found' });
+  const { rows } = await pool.query(
+    `INSERT INTO client_rooms (client_id, name, sort_order)
+     VALUES ($1,$2,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_rooms WHERE client_id=$1))
+     RETURNING id, name, sort_order`,
+    [client.id, (req.body.name || 'Neuer Raum').trim()]
+  );
+  res.json({ ...rows[0], spots: [] });
+});
+
+// Literal path before the /:id routes below — Express matches in order.
+app.put('/api/admin/client-rooms/reorder', requireAuth, async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+  for (let i = 0; i < ids.length; i++) {
+    await pool.query('UPDATE client_rooms SET sort_order=$1 WHERE id=$2', [i, ids[i]]);
+  }
+  res.json({ ok: true });
+});
+
+app.put('/api/admin/client-rooms/:id', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE client_rooms SET name=$1 WHERE id=$2 RETURNING id, name', [(req.body.name || '').trim(), req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+app.delete('/api/admin/client-rooms/:id', requireAuth, async (req, res) => {
+  try {
+    // Collect Cloudinary ids before the cascade removes the rows, otherwise the
+    // assets are orphaned in the media library with no way back to them.
+    const { rows: doomed } = await pool.query(
+      `SELECT p.public_id FROM client_photos p
+         JOIN client_spots s ON s.id=p.spot_id
+        WHERE s.room_id=$1 AND p.public_id IS NOT NULL`, [req.params.id]
+    );
+    await pool.query('DELETE FROM client_rooms WHERE id=$1', [req.params.id]);
+    doomed.forEach(d => cloudinary.uploader.destroy(d.public_id)
+      .catch(e => console.error('Client photo cleanup failed (non-fatal):', e.message)));
+    res.json({ ok: true, removed_images: doomed.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/client-rooms/:id/spots', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `INSERT INTO client_spots (room_id, name, note, sort_order)
+     VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_spots WHERE room_id=$1))
+     RETURNING id, room_id, name, note, sort_order`,
+    [req.params.id, (req.body.name || 'Neuer Platz').trim(), req.body.note || null]
+  );
+  res.json({ ...rows[0], photos: [] });
+});
+
+app.put('/api/admin/client-spots/reorder', requireAuth, async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+  for (let i = 0; i < ids.length; i++) {
+    await pool.query('UPDATE client_spots SET sort_order=$1 WHERE id=$2', [i, ids[i]]);
+  }
+  res.json({ ok: true });
+});
+
+app.put('/api/admin/client-spots/:id', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE client_spots SET name=$1, note=$2 WHERE id=$3 RETURNING id, name, note',
+    [(req.body.name || '').trim(), req.body.note || null, req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+app.delete('/api/admin/client-spots/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows: doomed } = await pool.query(
+      'SELECT public_id FROM client_photos WHERE spot_id=$1 AND public_id IS NOT NULL', [req.params.id]
+    );
+    await pool.query('DELETE FROM client_spots WHERE id=$1', [req.params.id]);
+    doomed.forEach(d => cloudinary.uploader.destroy(d.public_id)
+      .catch(e => console.error('Client photo cleanup failed (non-fatal):', e.message)));
+    res.json({ ok: true, removed_images: doomed.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload candidate photos to a spot. The client slug is resolved BEFORE multer
+// runs so clientStorage can route the file into that client's folder.
+app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.slug FROM client_spots s
+         JOIN client_rooms r ON r.id=s.room_id
+         JOIN clients c ON c.id=r.client_id
+        WHERE s.id=$1`, [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Spot not found' });
+    req.uploadClientSlug = rows[0].slug;
+    next();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}, (req, res, next) => {
+  clientUpload.array('photos', 20)(req, res, (err) => {
+    if (err) {
+      console.error('Client photo upload error:', err);
+      return res.status(500).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
+    const created = [];
+    for (const f of req.files) {
+      const { rows } = await pool.query(
+        `INSERT INTO client_photos (spot_id, image_url, public_id, sort_order)
+         VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
+         RETURNING id, spot_id, image_url, caption, status, client_comment, reacted_at, seen_by_admin, sort_order`,
+        [req.params.id, f.path, f.filename]
+      );
+      created.push(rows[0]);
+    }
+    res.json(created);
+  } catch (e) {
+    console.error('Client photo save error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE client_photos SET caption=$1 WHERE id=$2 RETURNING id, caption',
+    [req.body.caption || null, req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
+app.delete('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM client_photos WHERE id=$1 RETURNING public_id', [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    if (rows[0].public_id) {
+      cloudinary.uploader.destroy(rows[0].public_id)
+        .catch(e => console.error('Client photo cleanup failed (non-fatal):', e.message));
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// The board page itself. noindex/nofollow belt-and-braces alongside robots.txt.
+app.get('/client/:slug', (req, res) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'public', 'client', 'index.html'));
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
 app.get('/api/coming-soon', (req, res) => res.json({ active: process.env.COMING_SOON === 'true' }));
 app.get('*', (req, res) => {

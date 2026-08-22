@@ -355,6 +355,8 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn active" onclick="showPanel('stats',this)">Visits</button>
       <span class="sidebar-label">Inbox</span>
       <button class="sidebar-btn" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
+      <span class="sidebar-label">Clients</span>
+      <button class="sidebar-btn" onclick="showPanel('clients',this)">Client boards <span class="badge" id="clients-badge" style="display:none">0</span></button>
       <span class="sidebar-label">Portfolio</span>
       <button class="sidebar-btn" onclick="showPanel('categories',this)">Categories</button>
       <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
@@ -378,6 +380,16 @@ textarea.field-input{resize:vertical;min-height:70px}
     </aside>
 
     <main class="admin-main">
+
+      <!-- CLIENT BOARDS -->
+      <!-- Private proofing boards. Everything is managed inline on the board
+           itself (/client/<slug> while logged in here) — this panel is just the
+           way in, plus the "new feedback" count. -->
+      <div class="panel" id="panel-clients">
+        <h2 class="panel-title">Client boards</h2>
+        <p class="panel-sub">Private, password-protected photo selection pages. Open a board to add rooms, spots and photos, and to read the client's feedback.</p>
+        <div id="clients-list" style="margin-top:1rem">Loading…</div>
+      </div>
 
       <!-- STATS -->
       <div class="panel active" id="panel-stats">
@@ -2063,7 +2075,37 @@ async function loadAll(){
   await loadPapers();
   await loadShopPrints();
   await loadOrders();
+  await loadClientBoards();
   renderMarginReference();
+}
+
+// Client proofing boards — list + unseen-feedback badge. The boards themselves
+// are edited inline at /client/<slug>, so there is nothing to manage here.
+async function loadClientBoards(){
+  const el = document.getElementById('clients-list');
+  try{
+    const r = await fetch('/api/admin/clients');
+    if(!r.ok) throw new Error('Could not load client boards');
+    const list = await r.json();
+    const unseen = list.reduce((n,c)=>n+(c.unseen||0),0);
+    const badge = document.getElementById('clients-badge');
+    badge.textContent = unseen;
+    badge.style.display = unseen ? '' : 'none';
+    if(!list.length){ el.innerHTML = '<p class="panel-sub">No client boards yet.</p>'; return; }
+    el.innerHTML = list.map(c=>`
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.9rem 0;border-bottom:1px solid #E2E0DA">
+        <div style="flex:1;min-width:180px">
+          <strong>${esc(c.name)}</strong>
+          <div class="panel-sub" style="margin:.15rem 0 0">/client/${esc(c.slug)}
+            ${c.has_password ? '' : '· <span style="color:#A8564A">no password set — board is locked</span>'}</div>
+        </div>
+        ${c.unseen ? `<span class="badge">${c.unseen} new</span>` : ''}
+        <a class="btn-order-action" href="/client/${encodeURIComponent(c.slug)}" target="_blank" rel="noopener"
+           style="text-decoration:none">Open board</a>
+      </div>`).join('');
+  }catch(e){
+    el.innerHTML = `<p class="panel-sub" style="color:#A8564A">${esc(e.message)}</p>`;
+  }
 }
 
 // Builds the static margin-geometry reference table (all sizes × orientations).
