@@ -265,6 +265,12 @@ const clientStorage = new CloudinaryStorage({
   params: async (req) => ({
     folder: `baji-clients/${req.uploadClientSlug || 'misc'}`,
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    // Name the Cloudinary asset after the file it came from, so a photo on the
+    // board is findable in the media library too and not just in our own table.
+    // unique_filename keeps a suffix on the end, so two _DSC4821.jpg from
+    // different shoots still can't collide.
+    use_filename: true,
+    unique_filename: true,
   }),
 });
 const clientUpload = multer({ storage: clientStorage });
@@ -2992,6 +2998,43 @@ app.post('/api/admin/clients/:slug/mark-seen', requireAuth, async (req, res) => 
   res.json({ ok: true });
 });
 
+// One-off recovery for photos uploaded before original_name was recorded.
+// Cloudinary keeps the name the file arrived under on the asset itself, as
+// `original_filename` — without the extension, which `format` supplies. Whether
+// it comes back for a given asset is not guaranteed, so this reports what it
+// actually found rather than claiming success; anything it misses can still be
+// typed in by hand from the photo's Edit dialog.
+app.post('/api/admin/clients/:slug/recover-filenames', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.public_id FROM client_photos p
+         JOIN client_spots s ON s.id=p.spot_id
+         JOIN client_rooms r ON r.id=s.room_id
+         JOIN clients c ON c.id=r.client_id
+        WHERE c.slug=$1 AND p.original_name IS NULL AND p.public_id IS NOT NULL`,
+      [req.params.slug]
+    );
+    let recovered = 0;
+    for (const row of rows) {
+      try {
+        const asset = await cloudinary.api.resource(row.public_id);
+        const stem = (asset.original_filename || '').trim();
+        if (!stem) continue;
+        const name = asset.format ? `${stem}.${asset.format}` : stem;
+        await pool.query('UPDATE client_photos SET original_name=$1 WHERE id=$2', [name, row.id]);
+        recovered++;
+      } catch (e) {
+        // One unreadable asset must not abort the rest of the run.
+        console.error('Filename recovery failed for', row.public_id, '-', e.message);
+      }
+    }
+    res.json({ checked: rows.length, recovered });
+  } catch (e) {
+    console.error('Filename recovery error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/admin/clients/:slug/rooms', requireAuth, async (req, res) => {
   const client = await getClient(req.params.slug);
   if (!client) return res.status(404).json({ error: 'Not found' });
@@ -3185,15 +3228,17 @@ app.post('/api/admin/client-rooms/:id/photos', requireAuth, resolveRoomUpload, r
 // from this fixed list, never from the request.
 app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
   const sets = [], vals = [];
-  ['note', 'series'].forEach((col) => {
+  const limits = { note: 2000, series: 80, original_name: 260 };
+  ['note', 'series', 'original_name'].forEach((col) => {
     if (!Object.prototype.hasOwnProperty.call(req.body, col)) return;
-    vals.push((req.body[col] || '').trim().slice(0, col === 'series' ? 80 : 2000) || null);
+    vals.push((req.body[col] || '').trim().slice(0, limits[col]) || null);
     sets.push(`${col}=$${vals.length}`);
   });
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
   vals.push(req.params.id);
   const { rows } = await pool.query(
-    `UPDATE client_photos SET ${sets.join(', ')} WHERE id=$${vals.length} RETURNING id, note, series`, vals
+    `UPDATE client_photos SET ${sets.join(', ')} WHERE id=$${vals.length}
+      RETURNING id, note, series, original_name`, vals
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);

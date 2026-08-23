@@ -247,6 +247,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
       <button onclick="setPassword()">Set password</button>
       <button onclick="markSeen()">Mark all read</button>
       <button onclick="copyLink()">Copy link</button>
+      <button id="ab-recover" onclick="recoverNames()">Recover filenames</button>
     </div>
   </div>
 
@@ -489,6 +490,8 @@ function render() {
       '<span><b>' + open + '</b> offen</span>'
     : '';
 
+  syncRecoverBtn();
+
   // Deliberately unfiltered: this is "anything new anywhere", not "new in the
   // series you happen to be looking at".
   var unseen = allPhotos().filter(function (p) { return p.reacted_at && !p.seen_by_admin; }).length;
@@ -612,12 +615,11 @@ function noteHtml(text, cls) {
 }
 
 // What this photo is called on disk, so a card on the board can be traced back
-// to the original file. Anything uploaded before the filename was recorded falls
-// back to its Cloudinary id — still the thing to search for in the media
-// library. Admin-only: the client's payload carries neither field.
+// to the original file. Only ever the real filename — a Cloudinary id is a hash
+// and tells you nothing, so a photo with no recorded name shows nothing at all.
+// Admin-only: the client's payload carries no such field.
 function fileName(p) {
-  if (p.original_name) return p.original_name;
-  return p.public_id ? p.public_id.split('/').pop() : '';
+  return p.original_name || '';
 }
 
 function fnameHtml(p, cls) {
@@ -905,15 +907,17 @@ function editPhoto(id) {
   var p = lb.list.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
   var known = boardSeries();
-  ask('Edit photo', 'Both are shown to the client. Clearing the series leaves the photo untagged.' +
+  ask('Edit photo', 'Comment and series are shown to the client; the filename is yours alone.' +
     (known.length ? ' Series on this board: ' + known.join(', ') + '.' : ''), [
       { key: 'note', label: 'Your comment', value: p.note || '', multiline: true },
       { key: 'series', label: 'Series', value: p.series || '' },
+      { key: 'original_name', label: 'Filename (never shown to the client)', value: p.original_name || '' },
     ], function (v) {
       api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
         .then(function (saved) {
           p.note = saved.note;      // keep the open lightbox in sync
           p.series = saved.series;
+          p.original_name = saved.original_name;
           paintLb(); render(); toast('Saved');
         }).catch(function (e) { toast(e.message); });
     });
@@ -992,6 +996,34 @@ function setPassword() {
     api('/api/admin/clients/' + SLUG + '/password', { method: 'PUT', body: v })
       .then(function () { toast('Password set'); }).catch(function (e) { toast(e.message); });
   });
+}
+
+// Photos uploaded before the filename was recorded: ask Cloudinary what the
+// file arrived as. It reports honestly rather than claiming success, because the
+// name is not guaranteed to still be on every asset — whatever it misses can be
+// typed in from the photo's Edit dialog instead.
+function recoverNames() {
+  var btn = document.getElementById('ab-recover');
+  btn.disabled = true;
+  toast('Asking Cloudinary…');
+  api('/api/admin/clients/' + SLUG + '/recover-filenames', { method: 'POST' })
+    .then(function (r) {
+      return loadBoard().then(function () {
+        toast(!r.checked ? 'Every photo already has its filename'
+          : 'Recovered ' + r.recovered + ' of ' + r.checked +
+            (r.recovered < r.checked ? ' — add the rest by hand under Edit' : ''));
+      });
+    })
+    .catch(function (e) { toast(e.message); })
+    .then(function () { btn.disabled = false; });
+}
+
+// The button is only worth offering while something is actually missing a name.
+function syncRecoverBtn() {
+  var btn = document.getElementById('ab-recover');
+  var missing = allPhotos().filter(function (p) { return !p.original_name; }).length;
+  btn.style.display = (isAdmin && missing) ? '' : 'none';
+  btn.textContent = 'Recover ' + missing + ' filename' + (missing === 1 ? '' : 's');
 }
 
 function markSeen() {
