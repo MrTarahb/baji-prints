@@ -108,6 +108,14 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .spot-head h3{font-size:12px;font-weight:500;letter-spacing:.13em;text-transform:uppercase}
 .adm{display:none;gap:6px;align-items:center}
 .is-admin .adm{display:inline-flex}
+/* The uploaded filename, for tracing a board photo back to the original. Admin
+   only — and the server never sends it to the client, so there is nothing here
+   to reveal by defeating the CSS. */
+.fname{display:none;font-size:10.5px;color:var(--mute);margin-top:7px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.is-admin .fname{display:block}
+.fname:hover{color:var(--ink)}
+.fname.full{white-space:normal;overflow:visible;text-overflow:clip}
 .adm button{padding:4px 9px;font-size:11px;color:var(--mute)}
 .adm button:hover{color:var(--ink)}
 .adm .move{padding:4px 7px;line-height:1}
@@ -603,6 +611,30 @@ function noteHtml(text, cls) {
   return '<div class="note ' + cls + '">' + esc(text) + '</div>';
 }
 
+// What this photo is called on disk, so a card on the board can be traced back
+// to the original file. Anything uploaded before the filename was recorded falls
+// back to its Cloudinary id — still the thing to search for in the media
+// library. Admin-only: the client's payload carries neither field.
+function fileName(p) {
+  if (p.original_name) return p.original_name;
+  return p.public_id ? p.public_id.split('/').pop() : '';
+}
+
+function fnameHtml(p, cls) {
+  var n = isAdmin ? fileName(p) : '';
+  if (!n) return '';
+  return '<div class="fname' + (cls ? ' ' + cls : '') + '" data-name="' + esc(n) + '"' +
+    ' title="' + esc(n) + ' — click to copy" onclick="copyName(event,this)">' + esc(n) + '</div>';
+}
+
+// The whole card opens the lightbox, so a click on the filename must not bubble.
+function copyName(e, el) {
+  e.stopPropagation();
+  var n = el.getAttribute('data-name') || '';
+  if (navigator.clipboard) navigator.clipboard.writeText(n).then(function () { toast('Copied ' + n); });
+  else toast(n);
+}
+
 // Target row height in px. flex-basis is aspect * this, so a row of photos
 // resolves to roughly this height whatever mix of portrait and landscape it holds.
 var ROW_H = 300;
@@ -633,6 +665,7 @@ function cardHtml(p, s) {
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
       (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
     '</figcaption>' +
+    fnameHtml(p) +
   '</figure>';
 }
 
@@ -712,7 +745,7 @@ function paintLb() {
   if (isAdmin) {
     var btns = ' · <button onclick="editPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Edit</button>' +
                ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Delete photo</button>';
-    av.innerHTML = (p.reacted_at
+    av.innerHTML = fnameHtml(p, 'full') + (p.reacted_at
       ? 'Responded ' + new Date(p.reacted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
         ': <b>' + (p.status === 'approved' ? 'approved' : p.status === 'declined' ? 'declined' : 'cleared') + '</b>' +
         (p.client_comment ? ' — “' + esc(p.client_comment) + '”' : '')

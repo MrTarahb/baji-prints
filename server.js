@@ -825,6 +825,7 @@ async function initDB() {
       note TEXT,                        -- your own comment, shown to the client
       sort_order INTEGER DEFAULT 0,
       series TEXT,                      -- optional series tag; NULL = untagged
+      original_name TEXT,               -- filename as uploaded; admin-only, never sent to the client
       status TEXT DEFAULT 'pending',    -- pending | approved | declined
       client_comment TEXT,
       reacted_at TIMESTAMPTZ,
@@ -852,6 +853,11 @@ async function initDB() {
     -- distinct values actually present, so there is no list to keep in sync and
     -- a typo shows up immediately as an extra chip. NULL = untagged.
     ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS series TEXT;
+    -- The filename as it came off the card ("_DSC4821.jpg"), so a photo on the
+    -- board can be traced back to the original. Shown to the photographer only
+    -- and stripped from the client's payload. NULL on anything uploaded before
+    -- this column existed — the board falls back to the Cloudinary id there.
+    ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS original_name TEXT;
     CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
     CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
@@ -2838,23 +2844,31 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
         WHERE r.client_id=$1 ORDER BY s.sort_order, s.id`, [client.id]
     );
     const { rows: photos } = await pool.query(
-      `SELECT p.id, p.spot_id, p.image_url, p.note, p.series, p.width, p.height, p.status, p.client_comment,
+      `SELECT p.id, p.spot_id, p.image_url, p.note, p.series, p.original_name, p.public_id,
+              p.width, p.height, p.status, p.client_comment,
               p.reacted_at, p.seen_by_admin, p.sort_order
          FROM client_photos p
          JOIN client_spots s ON s.id = p.spot_id
          JOIN client_rooms r ON r.id = s.room_id
         WHERE r.client_id=$1 ORDER BY p.sort_order, p.id`, [client.id]
     );
+    // The filename a photo was uploaded under is a working aid for the
+    // photographer — it can carry a shoot name, a version, a client's surname.
+    // It leaves the payload entirely for the client rather than being hidden in
+    // the page, so the board's JSON gives nothing away either.
+    const isAdmin = !!req.session.admin;
+    const visible = isAdmin ? photos : photos.map(({ original_name, public_id, ...rest }) => rest);
+
     const byRoom = rooms.map(r => ({
       ...r,
       spots: spots.filter(s => s.room_id === r.id).map(s => ({
         ...s,
-        photos: photos.filter(p => p.spot_id === s.id),
+        photos: visible.filter(p => p.spot_id === s.id),
       })),
     }));
     res.json({
       client: { slug: client.slug, name: client.name, eyebrow: client.eyebrow, intro: client.intro },
-      isAdmin: !!req.session.admin,
+      isAdmin,
       rooms: byRoom,
     });
   } catch (e) {
@@ -2889,7 +2903,7 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
     // mail failure fail the request the client is waiting on.
     if (isClient && resend) {
       const { rows: ctx } = await pool.query(
-        `SELECT s.name AS spot, r.name AS room, p.series FROM client_photos p
+        `SELECT s.name AS spot, r.name AS room, p.series, p.original_name FROM client_photos p
            JOIN client_spots s ON s.id = p.spot_id
            JOIN client_rooms r ON r.id = s.room_id
           WHERE p.id = $1`, [req.params.id]
@@ -2913,6 +2927,7 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
           `<p style="margin:0 0 12px;font-size:15px;color:#1A1714"><strong>${esc(client.name)}</strong> responded.</p>
            <p style="margin:0 0 6px;font-size:14px;color:#4A453E">${esc(where)}</p>
            <p style="margin:0 0 12px;font-size:15px;color:#1A1714">${esc(label)}</p>
+           ${ctx[0] && ctx[0].original_name ? `<p style="margin:0 0 12px;font-size:13px;color:#8A857C">${esc(ctx[0].original_name)}</p>` : ''}
            ${comment ? `<p style="margin:0 0 12px;padding:12px;background:#F7F5F1;border-radius:4px;font-size:14px;color:#1A1714">${esc(comment)}</p>` : ''}
            <p style="margin:16px 0 0;font-size:13px;color:#8A857C">${SITE}/client/${esc(client.slug)}</p>`
         ),
@@ -3147,10 +3162,11 @@ const saveClientPhotos = async (req, res) => {
     const created = [];
     for (const f of req.files) {
       const { rows } = await pool.query(
-        `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, series, sort_order)
-         VALUES ($1,$2,$3,$4,$5,$6,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
-         RETURNING id, spot_id, image_url, note, series, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
-        [spotId, f.path, f.filename, f.width || null, f.height || null, series]
+        `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, series, original_name, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
+         RETURNING id, spot_id, image_url, note, series, original_name, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
+        [spotId, f.path, f.filename, f.width || null, f.height || null, series,
+         (f.originalname || '').slice(0, 260) || null]
       );
       created.push(rows[0]);
     }
