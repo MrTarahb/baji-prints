@@ -39,6 +39,10 @@ const DELIVERY_LABELS = {
 // receive mail, so we set this as the reply-to header instead.
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || 'bhartu.bhatia@gmail.com';
 
+// Client proofing-board reactions go to the business inbox, deliberately NOT to
+// EMAIL_TO — that one is the personal address order notifications land in.
+const CLIENT_NOTIFY_EMAIL = process.env.CLIENT_NOTIFY_EMAIL || 'support@bharatbhatia.photography';
+
 // EU country codes (CH and LI handled separately as domestic)
 const EU_COUNTRIES = new Set([
   'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU',
@@ -2892,8 +2896,8 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
       const label = status === 'approved' ? '✓ Approved' : status === 'declined' ? '✗ Declined' : '– Cleared';
       resend.emails.send({
         from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
-        to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
-        reply_to: REPLY_TO_EMAIL,
+        to: CLIENT_NOTIFY_EMAIL,
+        reply_to: CLIENT_NOTIFY_EMAIL,
         subject: `${client.name}: ${label} — ${where}`,
         html: emailShell(
           `<p style="margin:0 0 12px;font-size:15px;color:#1A1714"><strong>${esc(client.name)}</strong> responded.</p>
