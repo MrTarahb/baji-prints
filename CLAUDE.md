@@ -107,6 +107,14 @@ the client's reply. They render differently on purpose. Header text — `clients
 `clients.name`, `clients.intro` — is editable inline; `eyebrow` and `intro` are nullable and
 fall back to defaults, `name` never blanks (`COALESCE` keeps the old value).
 
+- **A spot may be unnamed, and that is the "room with no spots" case.** Photos always
+  belong to a spot in the schema, so a room that needs only one obvious place holds a single
+  spot with `name=''`, rendered with no spot header — its photos read as the room's own. The
+  room head then offers `+ Photos` (`POST /api/admin/client-rooms/:id/photos`), which files
+  them into that unnamed spot, creating it *after* the upload succeeds so a failed upload
+  leaves no empty spot on the board. `POST …/spots` treats a blank `name` as deliberate and
+  only falls back to `'New spot'` when the field is absent. Anything that prints a location
+  (lightbox header, reaction email) must drop the `·` separator when the spot has no name.
 - **The client session is a separate role from admin.** `req.session.client_slug` is scoped to
   one board; `requireBoardAccess` allows that client or any admin. Client login never sets
   `req.session.admin`, and client logout never clears it.

@@ -398,14 +398,26 @@ function render() {
   document.getElementById('rooms').innerHTML = html;
 }
 
+// A room needs spots only when it has more than one place for a picture. Where
+// there is just one obvious place, photos hang straight off the room: they live
+// in a single spot with a blank name, which renders with no header at all.
+function soloSpot(r) {
+  return (r.spots.length === 1 && !r.spots[0].name) ? r.spots[0] : null;
+}
+
 function roomHtml(r) {
   var n = r.spots.reduce(function (t, s) { return t + s.photos.length; }, 0);
+  var solo = soloSpot(r);
+  // "+ Photos" on the room itself is offered while the room still has no spots
+  // of its own — once it is split into named spots, photos belong to a spot.
+  var direct = !r.spots.length || !!solo;
   return '<section class="room">' +
     '<div class="room-head">' +
       '<h2>' + esc(r.name) + '</h2>' +
       (n ? '<span class="room-count">' + n + (n === 1 ? ' Foto' : ' Fotos') + '</span>' : '') +
       '<span class="adm">' +
         '<button onclick="renameRoom(' + r.id + ')">edit</button>' +
+        (direct ? '<button onclick="uploadToRoom(' + r.id + ')">+ Photos</button>' : '') +
         '<button onclick="addSpot(' + r.id + ')">+ Spot</button>' +
         '<button onclick="delRoom(' + r.id + ')">delete</button>' +
       '</span>' +
@@ -413,20 +425,27 @@ function roomHtml(r) {
     noteHtml(r.note, 'room-note') +
     (r.spots.length
       ? r.spots.map(spotHtml).join('')
-      : '<div class="empty">' + (isAdmin ? 'No spots in this room yet.' : '') + '</div>') +
+      : '<div class="empty">' + (isAdmin
+          ? '“+ Photos” to use this room as one place, or “+ Spot” to split it into several.'
+          : '') + '</div>') +
     '</section>';
 }
 
 function spotHtml(s) {
+  // An unnamed spot shows the client no header — its photos read as the room's
+  // own. You still get the controls strip, so it can be named later or removed.
+  var head = (s.name || isAdmin)
+    ? '<div class="spot-head">' +
+        (s.name ? '<h3>' + esc(s.name) + '</h3>' : '') +
+        '<span class="adm">' +
+          '<button onclick="uploadTo(' + s.id + ')">+ Photos</button>' +
+          '<button onclick="renameSpot(' + s.id + ')">' + (s.name ? 'edit' : 'name this spot') + '</button>' +
+          '<button onclick="delSpot(' + s.id + ')">delete</button>' +
+        '</span>' +
+      '</div>'
+    : '';
   return '<div class="spot">' +
-    '<div class="spot-head">' +
-      '<h3>' + esc(s.name) + '</h3>' +
-      '<span class="adm">' +
-        '<button onclick="uploadTo(' + s.id + ')">+ Photos</button>' +
-        '<button onclick="renameSpot(' + s.id + ')">edit</button>' +
-        '<button onclick="delSpot(' + s.id + ')">delete</button>' +
-      '</span>' +
-    '</div>' +
+    head +
     noteHtml(s.note, 'spot-note-block') +
     (s.photos.length
       ? '<div class="grid">' + s.photos.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
@@ -502,7 +521,7 @@ function openLb(spotId, photoId) {
   if (!f) return;
   lb.list = f.spot.photos;
   lb.i = Math.max(0, lb.list.map(function (p) { return p.id; }).indexOf(photoId));
-  lb.where = f.room.name + ' · ' + f.spot.name;
+  lb.where = f.spot.name ? f.room.name + ' · ' + f.spot.name : f.room.name;
   document.getElementById('lb').classList.add('on');
   document.body.style.overflow = 'hidden';
   paintLb();
@@ -672,7 +691,7 @@ function delRoom(id) {
 }
 
 function addSpot(roomId) {
-  ask('Add spot', 'e.g. Wand hinter Tresen, Fensterseite', [
+  ask('Add spot', 'Only for a room with more than one place — e.g. Wand hinter Tresen, Fensterseite.', [
     { key: 'name', label: 'Spot name', value: '' },
     { key: 'note', label: 'Your comment (optional, shown to the client)', value: '', multiline: true },
   ], function (v) {
@@ -682,14 +701,15 @@ function addSpot(roomId) {
   });
 }
 
+// Blanking the name is allowed and meaningful — the spot then has no heading
+// and its photos read as the room's own.
 function renameSpot(id) {
   var cur = findSpot(id);
   if (!cur) return;
-  ask('Edit spot', '', [
-    { key: 'name', label: 'Spot name', value: cur.spot.name },
+  ask('Edit spot', 'Leave the name empty to drop the heading — the photos then sit directly under the room.', [
+    { key: 'name', label: 'Spot name (optional)', value: cur.spot.name },
     { key: 'note', label: 'Your comment (shown to the client)', value: cur.spot.note || '', multiline: true },
   ], function (v) {
-    if (!v.name) return;
     api('/api/admin/client-spots/' + id, { method: 'PUT', body: v })
       .then(loadBoard).catch(function (e) { toast(e.message); });
   });
@@ -730,19 +750,25 @@ picker.multiple = true;
 picker.style.display = 'none';
 document.body.appendChild(picker);
 
-function uploadTo(spotId) {
+function pickPhotos(url) {
   picker.value = '';
   picker.onchange = function () {
     if (!picker.files.length) return;
     var fd = new FormData();
     for (var i = 0; i < picker.files.length; i++) fd.append('photos', picker.files[i]);
     toast('Uploading ' + picker.files.length + ' photo' + (picker.files.length === 1 ? '' : 's') + '…');
-    api('/api/admin/client-spots/' + spotId + '/photos', { method: 'POST', body: fd })
+    api(url, { method: 'POST', body: fd })
       .then(loadBoard).then(function () { toast('Uploaded'); })
       .catch(function (e) { toast('Error: ' + e.message); });
   };
   picker.click();
 }
+
+function uploadTo(spotId) { pickPhotos('/api/admin/client-spots/' + spotId + '/photos'); }
+
+// Straight onto a room that needs no spots — the server files them under the
+// room's unnamed spot, creating it on the first upload.
+function uploadToRoom(roomId) { pickPhotos('/api/admin/client-rooms/' + roomId + '/photos'); }
 
 function setPassword() {
   ask('Set password', 'At least 6 characters. This is the password you give the client.', [

@@ -2885,7 +2885,10 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
       );
       // Addressed to the photographer, so it's in English even though the board
       // itself is German. The client's own comment is quoted verbatim.
-      const where = ctx[0] ? `${ctx[0].room} · ${ctx[0].spot}` : 'Unknown spot';
+      // A room with no spots of its own has an unnamed spot — name the room alone.
+      const where = ctx[0]
+        ? (ctx[0].spot ? `${ctx[0].room} · ${ctx[0].spot}` : ctx[0].room)
+        : 'Unknown spot';
       const label = status === 'approved' ? '✓ Approved' : status === 'declined' ? '✗ Declined' : '– Cleared';
       resend.emails.send({
         from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
@@ -3008,12 +3011,17 @@ app.delete('/api/admin/client-rooms/:id', requireAuth, async (req, res) => {
   }
 });
 
+// A blank name is meaningful, not missing: a room with only one obvious place
+// for a picture gets a single unnamed spot, and the board hangs its photos
+// straight off the room heading with no spot header. Only an ABSENT name falls
+// back to the placeholder.
 app.post('/api/admin/client-rooms/:id/spots', requireAuth, async (req, res) => {
+  const name = req.body.name == null ? 'New spot' : String(req.body.name).trim();
   const { rows } = await pool.query(
     `INSERT INTO client_spots (room_id, name, note, sort_order)
      VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_spots WHERE room_id=$1))
      RETURNING id, room_id, name, note, sort_order`,
-    [req.params.id, (req.body.name || 'New spot').trim(), req.body.note || null]
+    [req.params.id, name, req.body.note || null]
   );
   res.json({ ...rows[0], photos: [] });
 });
@@ -3049,9 +3057,11 @@ app.delete('/api/admin/client-spots/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Upload candidate photos to a spot. The client slug is resolved BEFORE multer
-// runs so clientStorage can route the file into that client's folder.
-app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, next) => {
+// Upload candidate photos. Two entry points — one spot, or a whole room that
+// needs no spots at all — sharing the multer stage and the insert below. The
+// client slug is resolved BEFORE multer runs so clientStorage can route the
+// file into that client's folder.
+const resolveSpotUpload = async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT c.slug FROM client_spots s
@@ -3061,11 +3071,33 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
     );
     if (!rows[0]) return res.status(404).json({ error: 'Spot not found' });
     req.uploadClientSlug = rows[0].slug;
+    req.uploadSpotId = Number(req.params.id);
     next();
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-}, (req, res, next) => {
+};
+
+// Room-level upload: the photos land in the room's unnamed spot, which is
+// created lazily AFTER the files are in (see the insert stage) so a failed
+// upload never leaves an empty spot behind on the client's board.
+const resolveRoomUpload = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.slug FROM client_rooms r
+         JOIN clients c ON c.id=r.client_id
+        WHERE r.id=$1`, [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Room not found' });
+    req.uploadClientSlug = rows[0].slug;
+    req.uploadRoomId = Number(req.params.id);
+    next();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+const runClientUpload = (req, res, next) => {
   clientUpload.array('photos', 20)(req, res, (err) => {
     if (err) {
       console.error('Client photo upload error:', err);
@@ -3073,16 +3105,35 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
     }
     next();
   });
-}, async (req, res) => {
+};
+
+// The room's unnamed spot, created on first use. Reused on every later upload so
+// a room never collects a pile of blank spots.
+async function roomDefaultSpot(roomId) {
+  const { rows } = await pool.query(
+    `SELECT id FROM client_spots WHERE room_id=$1 AND COALESCE(name,'')=''
+      ORDER BY sort_order, id LIMIT 1`, [roomId]
+  );
+  if (rows[0]) return rows[0].id;
+  const { rows: made } = await pool.query(
+    `INSERT INTO client_spots (room_id, name, sort_order)
+     VALUES ($1,'',(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_spots WHERE room_id=$1))
+     RETURNING id`, [roomId]
+  );
+  return made[0].id;
+}
+
+const saveClientPhotos = async (req, res) => {
   try {
     if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
+    const spotId = req.uploadSpotId || await roomDefaultSpot(req.uploadRoomId);
     const created = [];
     for (const f of req.files) {
       const { rows } = await pool.query(
         `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, sort_order)
          VALUES ($1,$2,$3,$4,$5,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
          RETURNING id, spot_id, image_url, note, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
-        [req.params.id, f.path, f.filename, f.width || null, f.height || null]
+        [spotId, f.path, f.filename, f.width || null, f.height || null]
       );
       created.push(rows[0]);
     }
@@ -3091,7 +3142,10 @@ app.post('/api/admin/client-spots/:id/photos', requireAuth, async (req, res, nex
     console.error('Client photo save error:', e);
     res.status(500).json({ error: e.message });
   }
-});
+};
+
+app.post('/api/admin/client-spots/:id/photos', requireAuth, resolveSpotUpload, runClientUpload, saveClientPhotos);
+app.post('/api/admin/client-rooms/:id/photos', requireAuth, resolveRoomUpload, runClientUpload, saveClientPhotos);
 
 app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
