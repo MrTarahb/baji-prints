@@ -115,6 +115,14 @@ fall back to defaults, `name` never blanks (`COALESCE` keeps the old value).
   leaves no empty spot on the board. `POST …/spots` treats a blank `name` as deliberate and
   only falls back to `'New spot'` when the field is absent. Anything that prints a location
   (lightbox header, reaction email) must drop the `·` separator when the spot has no name.
+- **A room with more than one spot lays its spots out as columns** (`.spots.multi`, a
+  `repeat(auto-fit, minmax(min(330px,100%),1fr))` grid). Two guards are load-bearing: the
+  `min()` stops a track from exceeding a narrow container, and `min-width:0` on the column
+  overrides a grid item's `min-width:auto`, which the `.card` `min-width` inside would
+  otherwise inflate — either one missing gives the page a horizontal scrollbar.
+- **Rooms reorder with ↑/↓ buttons, not drag-and-drop** — the board gets used on a phone,
+  where a long-press drag fights the page scroll. `moveRoom()` is optimistic: it rearranges
+  `board.rooms`, repaints, and only reloads if `PUT …/client-rooms/reorder` fails.
 - **The client session is a separate role from admin.** `req.session.client_slug` is scoped to
   one board; `requireBoardAccess` allows that client or any admin. Client login never sets
   `req.session.admin`, and client logout never clears it.

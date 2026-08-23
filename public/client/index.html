@@ -72,12 +72,23 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .room-head h2{font-family:var(--fi);font-style:italic;font-weight:400;font-size:30px}
 .room-count{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
 .spot{margin-bottom:62px}
+/* A room with several spots reads as columns side by side, so the choices for
+   one wall sit next to the choices for the next instead of scrolling past each
+   other. auto-fit collapses to fewer columns as the viewport narrows; the
+   min() keeps the track from ever exceeding the container, which would push a
+   horizontal scrollbar onto the page. min-width:0 on the column is load-bearing
+   — a grid item defaults to min-width:auto, and the .card min-width inside would
+   otherwise widen the track and overflow. */
+.spots.multi{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));
+  gap:58px 44px;align-items:start}
+.spots.multi .spot{margin-bottom:0;min-width:0}
 .spot-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .spot-head h3{font-size:12px;font-weight:500;letter-spacing:.13em;text-transform:uppercase}
 .adm{display:none;gap:6px;align-items:center}
 .is-admin .adm{display:inline-flex}
 .adm button{padding:4px 9px;font-size:11px;color:var(--mute)}
 .adm button:hover{color:var(--ink)}
+.adm .move{padding:4px 7px;line-height:1}
 
 /* Justified gallery: each photo keeps its true proportions, and flex-grow
    proportional to the aspect ratio makes every photo in a row land on the same
@@ -165,6 +176,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   .room-head h2{font-size:24px}
   .room{margin-bottom:64px}
   .spot{margin-bottom:44px}
+  .spots.multi{gap:44px}
   /* One photo per row on a phone — a justified row of two is too small to
      judge a photograph by, which is the whole point of the page. min-width
      must go to 0: min-width beats max-width in CSS, so leaving it at 100%
@@ -405,17 +417,23 @@ function soloSpot(r) {
   return (r.spots.length === 1 && !r.spots[0].name) ? r.spots[0] : null;
 }
 
-function roomHtml(r) {
+function roomHtml(r, i) {
   var n = r.spots.reduce(function (t, s) { return t + s.photos.length; }, 0);
   var solo = soloSpot(r);
   // "+ Photos" on the room itself is offered while the room still has no spots
   // of its own — once it is split into named spots, photos belong to a spot.
   var direct = !r.spots.length || !!solo;
-  return '<section class="room">' +
+  return '<section class="room" data-room="' + r.id + '">' +
     '<div class="room-head">' +
       '<h2>' + esc(r.name) + '</h2>' +
       (n ? '<span class="room-count">' + n + (n === 1 ? ' Foto' : ' Fotos') + '</span>' : '') +
       '<span class="adm">' +
+        // Arrows rather than drag-and-drop: this gets used on a phone, where a
+        // long-press drag fights the page scroll.
+        '<button class="move" title="Move up"' + (i === 0 ? ' disabled' : '') +
+          ' onclick="moveRoom(' + r.id + ',-1)">↑</button>' +
+        '<button class="move" title="Move down"' + (i === board.rooms.length - 1 ? ' disabled' : '') +
+          ' onclick="moveRoom(' + r.id + ',1)">↓</button>' +
         '<button onclick="renameRoom(' + r.id + ')">edit</button>' +
         (direct ? '<button onclick="uploadToRoom(' + r.id + ')">+ Photos</button>' : '') +
         '<button onclick="addSpot(' + r.id + ')">+ Spot</button>' +
@@ -424,11 +442,29 @@ function roomHtml(r) {
     '</div>' +
     noteHtml(r.note, 'room-note') +
     (r.spots.length
-      ? r.spots.map(spotHtml).join('')
+      ? '<div class="spots' + (r.spots.length > 1 ? ' multi' : '') + '">' +
+          r.spots.map(spotHtml).join('') + '</div>'
       : '<div class="empty">' + (isAdmin
           ? '“+ Photos” to use this room as one place, or “+ Spot” to split it into several.'
           : '') + '</div>') +
     '</section>';
+}
+
+// Reorder is optimistic: the array is rearranged and repainted immediately, and
+// only reverts (by reloading) if the save fails — otherwise every click would
+// wait on a round trip before the room visibly moved.
+function moveRoom(id, d) {
+  var i = board.rooms.map(function (r) { return r.id; }).indexOf(id);
+  var j = i + d;
+  if (i < 0 || j < 0 || j >= board.rooms.length) return;
+  board.rooms.splice(j, 0, board.rooms.splice(i, 1)[0]);
+  render();
+  var moved = document.querySelector('[data-room="' + id + '"]');
+  if (moved) moved.scrollIntoView({ block: 'nearest' });
+  api('/api/admin/client-rooms/reorder', {
+    method: 'PUT',
+    body: { ids: board.rooms.map(function (r) { return r.id; }) },
+  }).catch(function (e) { toast('Order not saved: ' + e.message); loadBoard(); });
 }
 
 function spotHtml(s) {
