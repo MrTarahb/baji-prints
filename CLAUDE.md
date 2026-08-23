@@ -20,8 +20,16 @@ No test suite, no linter, no build step. Verification before committing is manua
 ```bash
 node --check server.js
 # For each of the three HTML SPAs: extract the <script> block to a temp file and
-# `node --check` it, and assert the <style> block's { } counts match.
+# `node --check` it, assert the <style> block's { } counts match, and assert the
+# file contains no control characters (see below).
 ```
+
+**Check the HTML files for stray control characters.** A NUL or other control byte written
+into a string literal is valid JavaScript and passes `node --check`, so it ships silently —
+but an HTML parser turns it into U+FFFD, so any round-trip comparison against that literal
+then fails in the browser only. This bit a sentinel value in the client board. Guard with
+`/[\x00-\x08\x0B\x0C\x0E-\x1F]/` over the file; `grep` reporting "Binary file … matches" on a
+source file is the same smell.
 
 Restarting the server is required for `public/index.html` edits to appear on SSR routes
 (`indexHtml()` caches the file in `_indexHtmlCache` at `server.js:2347`).
@@ -166,9 +174,17 @@ also gates rendering on `isAdmin`, but that is belt-and-braces, not the guard.
   purpose: it would duplicate the room/spot geometry once per series, break side-by-side
   comparison of candidates for one wall, and force a second reaction primitive next to the
   per-photo `status`. If asked to "add series properly", this *is* the considered design.
+  - **Tagging is a `<select>` on each card**, admin-only, options built by `seriesOptions()` from
+    the live board plus "no series" and "+ New series…" (sentinel `NEW_OPT`). That one builder
+    feeds the card picker, the upload dialog and the photo dialog so they can't drift. The card
+    picker needs `onclick="event.stopPropagation()"` — the whole card opens the lightbox.
   - One series for a whole upload batch (asked **after** the file picker — putting a modal's OK
-    click between the button press and `picker.click()` gets the file dialog blocked on mobile);
-    corrections happen per photo in the lightbox **Edit** dialog.
+    click between the button press and `picker.click()` gets the file dialog blocked on mobile).
+  - `ask()` supports a `choice` field: pass `options` and it renders a `<select>` plus a
+    "new value" input revealed only when `NEW_OPT` is chosen.
+  - With fewer than two series there is no filter to offer, so the chip row instead carries an
+    admin-only line saying why (nothing tagged / only one series). Without it, "show me one
+    series" reads as broken when the real answer is that no photo carries a tag yet.
   - Chips address values **by index** (`chipVals`), never by interpolating the name into an
     `onclick` — series names are free text and may contain quotes.
   - Filtering **keeps the gaps visible**: a room or spot the current series skips stays on the

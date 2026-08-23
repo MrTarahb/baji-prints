@@ -29,8 +29,8 @@ img{max-width:100%;display:block}
 button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 14px;border-radius:2px;transition:border-color .18s,background .18s,color .18s}
 button:hover{border-color:var(--ink)}
 button:disabled{opacity:.45;cursor:default}
-input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
-input:focus,textarea:focus{outline:none;border-color:var(--ink)}
+input,textarea,select{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--ink)}
 textarea{resize:vertical;min-height:76px;line-height:1.6}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
 .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
@@ -68,6 +68,12 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .chip.untagged{border-style:dashed}
 .chip-note{align-self:center;font-size:11px;font-style:italic;color:var(--mute)}
+/* Per-card series picker. Admin only, and the options are whatever series exist
+   on the board right now, so there is no list to maintain anywhere. */
+.serie-pick{display:none;width:auto;max-width:140px;font-size:10.5px;padding:2px 4px;
+  border-radius:10px;color:var(--mute);flex:none}
+.is-admin .serie-pick{display:inline-block}
+.serie-pick.set{color:var(--ink);border-color:#CFCBC2}
 /* The series a candidate belongs to, on the card and in the lightbox. */
 .serie{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);
   border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap;flex:none}
@@ -452,8 +458,19 @@ function seriesShown() {
 }
 
 function seriesChipsHtml(list) {
-  // One series (or none) is not a choice — no row at all.
-  if (list.length < 2 || !seriesShown()) return '';
+  chipVals = [null];                    // never leave a stale mapping behind
+  if (!seriesShown()) return '';
+  // One series (or none) is not a choice, so there is no filter to offer. Say so
+  // to the admin, though — otherwise "show me one series" just looks broken when
+  // the real answer is that nothing has been tagged yet.
+  if (list.length < 2) {
+    var untagged = allPhotos().filter(function (p) { return !p.series; }).length;
+    if (!isAdmin || (!list.length && !untagged)) return '';
+    return '<span class="chip-note">' + (list.length
+      ? 'Only one series so far — tag photos with a second one and a filter appears here.'
+      : 'No series yet — pick one under any photo to start. ' + untagged + ' untagged.') +
+      '</span>';
+  }
   // Series names are never interpolated into an attribute: chips address the
   // value by index, so a name containing a quote can't break out of the markup.
   chipVals = [null].concat(list);
@@ -479,7 +496,9 @@ function seriesChipsHtml(list) {
 }
 
 function setSeries(i) {
-  seriesFilter = chipVals[i];
+  // Never let an index that no longer maps to a chip through: `undefined` would
+  // match no photo at all and blank the whole board rather than showing "Alle".
+  seriesFilter = (i >= 0 && i < chipVals.length) ? chipVals[i] : null;
   render();
   document.getElementById('rooms').scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
@@ -645,6 +664,43 @@ function fnameHtml(p, cls) {
     ' title="' + esc(n) + ' — click to copy" onclick="copyName(event,this)">' + esc(n) + '</div>';
 }
 
+// Tagging a photo is one tap from the grid — no lightbox, no typing. The options
+// are whatever series exist on the board, so the list maintains itself.
+function seriePickHtml(p) {
+  if (!isAdmin) return '';
+  var opts = seriesOptions(p.series).map(function (o) {
+    return '<option value="' + esc(o.value) + '"' +
+      (o.value === (p.series || '') ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+  }).join('');
+  return '<select class="serie-pick' + (p.series ? ' set' : '') + '"' +
+    ' onclick="event.stopPropagation()" onchange="pickPhotoSeries(event,' + p.id + ')"' +
+    ' title="Series — only you can see this control">' + opts + '</select>';
+}
+
+function pickPhotoSeries(e, id) {
+  e.stopPropagation();
+  var v = e.target.value;
+  if (v !== NEW_OPT) return savePhotoSeries(id, v);
+  ask('New series', 'The client sees this label once the series are released — write it in German.', [
+    { key: 'series', label: 'Series name', value: '' },
+  ], function (out) {
+    // Cancelling leaves the <select> showing the option that was never saved,
+    // so repaint either way to put it back where it was.
+    if (out.series) savePhotoSeries(id, out.series); else render();
+  });
+}
+
+function savePhotoSeries(id, name) {
+  var p = allPhotos().filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  var prev = p.series;
+  p.series = name || null;     // optimistic, so the grid re-tags without a round trip
+  render();
+  api('/api/admin/client-photos/' + id, { method: 'PUT', body: { series: name } })
+    .then(function (saved) { p.series = saved.series; toast(name ? 'Tagged “' + name + '”' : 'Series cleared'); })
+    .catch(function (e) { p.series = prev; render(); toast(e.message); });
+}
+
 // The whole card opens the lightbox, so a click on the filename must not bubble.
 function copyName(e, el) {
   e.stopPropagation();
@@ -675,10 +731,12 @@ function cardHtml(p, s) {
     '</div>' +
     (p.note ? '<div class="note photo-note" style="margin:11px 0 0">' + esc(p.note) + '</div>' : '') +
     '<figcaption class="card-foot">' +
-      // Only worth naming when there is something to tell it apart from, and
-      // never while that series is the only thing on screen anyway.
-      (p.series && seriesFilter === null && seriesList.length > 1 && seriesShown()
-        ? '<span class="serie">' + esc(p.series) + '</span>' : '') +
+      // Admin gets the live picker in place of the label — same information,
+      // one tap to change. The client gets the label, and only when there is
+      // something to tell it apart from.
+      (isAdmin ? seriePickHtml(p)
+        : (p.series && seriesFilter === null && seriesList.length > 1 && seriesShown()
+          ? '<span class="serie">' + esc(p.series) + '</span>' : '')) +
       (mark ? '<span class="mark ' + esc(p.status) + '">' + mark + '</span>' : '') +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
       (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
@@ -815,20 +873,41 @@ function saveComment() {
 // ── ADMIN ────────────────────────────────────────────────────────────────────
 // One reusable prompt — window.prompt is blocked in some mobile browsers and
 // looks nothing like the rest of the page. Fields are
-// [{key, label, value, multiline}]; the callback gets an object keyed by `key`.
+// [{key, label, value, multiline, rows, options}]; the callback gets an object
+// keyed by `key`. A field with `options` renders a <select> instead of a text
+// box, plus a "new value" input that appears only when NEW_OPT is chosen — the
+// pattern for anything picked from a list the board itself defines.
+var NEW_OPT = '__new__';   // can't collide with a real series name
+
 function ask(title, desc, fields, cb) {
   document.getElementById('m-title').textContent = title;
   document.getElementById('m-desc').textContent = desc || '';
   var box = document.getElementById('m-fields');
   box.innerHTML = fields.map(function (f, i) {
-    return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' +
-      (f.multiline
-        ? '<textarea id="mf-' + i + '"' + (f.rows ? ' rows="' + (f.rows | 0) + '"' : '') + '></textarea>'
-        : '<input type="text" id="mf-' + i + '">');
+    var label = '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>';
+    if (f.options) {
+      return label +
+        '<select id="mf-' + i + '" onchange="askChoiceChanged(' + i + ')">' +
+          f.options.map(function (o) {
+            return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>';
+          }).join('') +
+        '</select>' +
+        '<input type="text" id="mf-' + i + '-new" style="display:none;margin-top:7px"' +
+          ' placeholder="' + esc(f.newLabel || 'New name') + '">';
+    }
+    return label + (f.multiline
+      ? '<textarea id="mf-' + i + '"' + (f.rows ? ' rows="' + (f.rows | 0) + '"' : '') + '></textarea>'
+      : '<input type="text" id="mf-' + i + '">');
   }).join('');
   // Values are assigned as properties, never interpolated into the markup, so
   // quotes and angle brackets in existing text can't break out of the field.
-  fields.forEach(function (f, i) { document.getElementById('mf-' + i).value = f.value || ''; });
+  fields.forEach(function (f, i) {
+    var el = document.getElementById('mf-' + i);
+    el.value = f.value || '';
+    // A stored value that is no longer one of the options (its series was
+    // renamed away) would silently select the first entry — offer it explicitly.
+    if (f.options && el.value !== (f.value || '')) el.value = '';
+  });
 
   document.getElementById('modal').classList.add('on');
   var first = document.getElementById('mf-0');
@@ -839,7 +918,12 @@ function ask(title, desc, fields, cb) {
   ok.parentNode.replaceChild(fresh, ok);
   fresh.onclick = function () {
     var out = {};
-    fields.forEach(function (f, i) { out[f.key] = document.getElementById('mf-' + i).value.trim(); });
+    fields.forEach(function (f, i) {
+      var el = document.getElementById('mf-' + i);
+      var v = el.value;
+      if (f.options && v === NEW_OPT) v = document.getElementById('mf-' + i + '-new').value;
+      out[f.key] = v.trim();
+    });
     closeModal();
     cb(out);
   };
@@ -848,7 +932,27 @@ function ask(title, desc, fields, cb) {
     el.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); fresh.click(); } };
   });
 }
+// The "new name" box only exists while the new-value option is selected.
+function askChoiceChanged(i) {
+  var sel = document.getElementById('mf-' + i);
+  var box = document.getElementById('mf-' + i + '-new');
+  if (!box) return;
+  box.style.display = sel.value === NEW_OPT ? '' : 'none';
+  if (sel.value === NEW_OPT) box.focus();
+}
+
 function closeModal() { document.getElementById('modal').classList.remove('on'); }
+
+// The options for any "which series?" picker: whatever exists on the board right
+// now, plus none and a way to add one. Built in one place so the upload dialog,
+// the photo dialog and the per-card picker can never drift apart.
+function seriesOptions(current) {
+  var opts = [{ value: '', label: '— no series —' }];
+  seriesList.forEach(function (name) { opts.push({ value: name, label: name }); });
+  if (current && seriesList.indexOf(current) < 0) opts.push({ value: current, label: current });
+  opts.push({ value: NEW_OPT, label: '+ New series…' });
+  return opts;
+}
 
 // NOTE: dialog labels are English (you), but the VALUES you type are shown to
 // the client — write those in German.
@@ -922,11 +1026,12 @@ function renameSpot(id) {
 function editPhoto(id) {
   var p = lb.list.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
-  var known = boardSeries();
-  ask('Edit photo', 'Comment and series are shown to the client; the filename is yours alone.' +
-    (known.length ? ' Series on this board: ' + known.join(', ') + '.' : ''), [
+  ask('Edit photo', 'Comment and series are shown to the client; the filename is yours alone.', [
       { key: 'note', label: 'Your comment', value: p.note || '', multiline: true },
-      { key: 'series', label: 'Series', value: p.series || '' },
+      {
+        key: 'series', label: 'Series', value: p.series || '',
+        options: seriesOptions(p.series), newLabel: 'Name of the new series',
+      },
       { key: 'original_name', label: 'Filename (never shown to the client)', value: p.original_name || '' },
     ], function (v) {
       api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
@@ -980,11 +1085,12 @@ function pickPhotos(url) {
 // One series for the whole batch. Blank is allowed and means untagged — the
 // board simply shows those photos without a label.
 function askSeries(count, cb) {
-  var known = boardSeries();
   ask('Upload ' + count + ' photo' + (count === 1 ? '' : 's'),
-    'Which series do these belong to? Leave it empty to upload them untagged.' +
-    (known.length ? ' Already on this board: ' + known.join(', ') + '.' : ''), [
-      { key: 'series', label: 'Series — the client sees this label', value: lastSeries },
+    'Which series do these belong to? You can also tag them one by one on the board afterwards.', [
+      {
+        key: 'series', label: 'Series', value: lastSeries,
+        options: seriesOptions(lastSeries), newLabel: 'Name of the new series',
+      },
     ], function (v) { lastSeries = v.series || ''; cb(lastSeries); });
 }
 
