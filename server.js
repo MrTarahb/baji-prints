@@ -824,6 +824,7 @@ async function initDB() {
       public_id TEXT,
       note TEXT,                        -- your own comment, shown to the client
       sort_order INTEGER DEFAULT 0,
+      series TEXT,                      -- optional series tag; NULL = untagged
       status TEXT DEFAULT 'pending',    -- pending | approved | declined
       client_comment TEXT,
       reacted_at TIMESTAMPTZ,
@@ -846,6 +847,11 @@ async function initDB() {
     -- would reflow the whole grid as images arrive.
     ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS width INTEGER;
     ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS height INTEGER;
+    -- Which series ("Serie A", "Schwarzweiss", …) a candidate belongs to. Free
+    -- text rather than its own table: the board's chip row is derived from the
+    -- distinct values actually present, so there is no list to keep in sync and
+    -- a typo shows up immediately as an extra chip. NULL = untagged.
+    ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS series TEXT;
     CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
     CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
@@ -2832,7 +2838,7 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
         WHERE r.client_id=$1 ORDER BY s.sort_order, s.id`, [client.id]
     );
     const { rows: photos } = await pool.query(
-      `SELECT p.id, p.spot_id, p.image_url, p.note, p.width, p.height, p.status, p.client_comment,
+      `SELECT p.id, p.spot_id, p.image_url, p.note, p.series, p.width, p.height, p.status, p.client_comment,
               p.reacted_at, p.seen_by_admin, p.sort_order
          FROM client_photos p
          JOIN client_spots s ON s.id = p.spot_id
@@ -2883,15 +2889,19 @@ app.put('/api/client/photo/:id/react', async (req, res) => {
     // mail failure fail the request the client is waiting on.
     if (isClient && resend) {
       const { rows: ctx } = await pool.query(
-        `SELECT s.name AS spot, r.name AS room FROM client_spots s
+        `SELECT s.name AS spot, r.name AS room, p.series FROM client_photos p
+           JOIN client_spots s ON s.id = p.spot_id
            JOIN client_rooms r ON r.id = s.room_id
-          WHERE s.id = (SELECT spot_id FROM client_photos WHERE id=$1)`, [req.params.id]
+          WHERE p.id = $1`, [req.params.id]
       );
       // Addressed to the photographer, so it's in English even though the board
       // itself is German. The client's own comment is quoted verbatim.
       // A room with no spots of its own has an unnamed spot — name the room alone.
+      // The series is appended when the photo carries one: with two or three in
+      // play, "approved" says little without it.
       const where = ctx[0]
-        ? (ctx[0].spot ? `${ctx[0].room} · ${ctx[0].spot}` : ctx[0].room)
+        ? (ctx[0].spot ? `${ctx[0].room} · ${ctx[0].spot}` : ctx[0].room) +
+          (ctx[0].series ? ` (${ctx[0].series})` : '')
         : 'Unknown spot';
       const label = status === 'approved' ? '✓ Approved' : status === 'declined' ? '✗ Declined' : '– Cleared';
       resend.emails.send({
@@ -3131,13 +3141,16 @@ const saveClientPhotos = async (req, res) => {
   try {
     if (!req.files || !req.files.length) return res.status(400).json({ error: 'No files received' });
     const spotId = req.uploadSpotId || await roomDefaultSpot(req.uploadRoomId);
+    // One series tag for the whole batch — an upload is normally one series'
+    // worth of candidates. multer has parsed the text fields by now.
+    const series = (req.body.series || '').trim().slice(0, 80) || null;
     const created = [];
     for (const f of req.files) {
       const { rows } = await pool.query(
-        `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, sort_order)
-         VALUES ($1,$2,$3,$4,$5,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
-         RETURNING id, spot_id, image_url, note, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
-        [spotId, f.path, f.filename, f.width || null, f.height || null]
+        `INSERT INTO client_photos (spot_id, image_url, public_id, width, height, series, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,(SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1))
+         RETURNING id, spot_id, image_url, note, series, width, height, status, client_comment, reacted_at, seen_by_admin, sort_order`,
+        [spotId, f.path, f.filename, f.width || null, f.height || null, series]
       );
       created.push(rows[0]);
     }
@@ -3151,10 +3164,20 @@ const saveClientPhotos = async (req, res) => {
 app.post('/api/admin/client-spots/:id/photos', requireAuth, resolveSpotUpload, runClientUpload, saveClientPhotos);
 app.post('/api/admin/client-rooms/:id/photos', requireAuth, resolveRoomUpload, runClientUpload, saveClientPhotos);
 
+// Only the keys actually present in the body are written, so a caller that
+// edits the note alone can't silently clear the series tag. Column names come
+// from this fixed list, never from the request.
 app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
+  const sets = [], vals = [];
+  ['note', 'series'].forEach((col) => {
+    if (!Object.prototype.hasOwnProperty.call(req.body, col)) return;
+    vals.push((req.body[col] || '').trim().slice(0, col === 'series' ? 80 : 2000) || null);
+    sets.push(`${col}=$${vals.length}`);
+  });
+  if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(req.params.id);
   const { rows } = await pool.query(
-    'UPDATE client_photos SET note=$1 WHERE id=$2 RETURNING id, note',
-    [(req.body.note || '').trim() || null, req.params.id]
+    `UPDATE client_photos SET ${sets.join(', ')} WHERE id=$${vals.length} RETURNING id, note, series`, vals
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);

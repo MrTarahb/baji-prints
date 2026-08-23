@@ -56,6 +56,25 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
    paragraph breaks (pre-wrap, same as .note). */
 .intro{margin-top:22px;color:#4A453E;font-size:14px;line-height:1.75;white-space:pre-wrap}
 .intro:empty{display:none}
+
+/* ── SERIES ────────────────────────────────────────────────────────── */
+/* Chips are derived from the series actually present on the board — nothing
+   here is a fixed list, so renaming a series in the upload dialog is enough. */
+.series-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px}
+.series-row:empty{display:none}
+.chip{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);
+  border-radius:14px;padding:5px 13px}
+.chip:hover{border-color:var(--ink);color:var(--ink)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip.untagged{border-style:dashed}
+/* The series a candidate belongs to, on the card and in the lightbox. */
+.serie{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);
+  border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap;flex:none}
+/* A room or spot the filtered series has nothing for. Kept on the page instead
+   of hidden, so the gaps in a series are visible rather than silently absent. */
+.gap{color:var(--mute);font-size:12.5px;font-style:italic;margin:2px 0 0;
+  border-left:2px dashed var(--line);padding:2px 0 2px 12px}
+
 .tally{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;letter-spacing:.04em;color:var(--mute)}
 .tally b{font-weight:500;color:var(--ink)}
 .tally .t-yes b{color:var(--yes)}
@@ -236,6 +255,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
         </div>
       </div>
       <div class="intro" id="b-intro"></div>
+      <div class="series-row" id="b-series"></div>
       <div class="tally" id="b-tally"></div>
     </div>
   </header>
@@ -386,8 +406,71 @@ function allPhotos() {
   return out;
 }
 
+// ── SERIES ───────────────────────────────────────────────────────────────────
+// A series is a whole-space concept ("Serie A"), not a per-wall choice, so the
+// tag lives on the photo and the rooms stay a single structure. Filtering to one
+// series re-reads the very same board as that series alone.
+//   null = everything · 'Serie A' = that one · '' = untagged (admin only)
+var seriesFilter = null;
+var chipVals = [null];
+var seriesList = [];    // recomputed once per render, read by cardHtml/paintLb
+
+function boardSeries() {
+  var seen = {}, out = [];
+  allPhotos().forEach(function (p) {
+    if (p.series && !seen[p.series]) { seen[p.series] = true; out.push(p.series); }
+  });
+  // Alphabetical, not order of appearance — the latter would shuffle whenever a
+  // room moves. localeCompare so umlauts sort where a German reader expects.
+  return out.sort(function (a, b) { return a.localeCompare(b, 'de'); });
+}
+
+// The photos of one spot under the current filter.
+function visible(photos) {
+  if (seriesFilter === null) return photos;
+  if (seriesFilter === '') return photos.filter(function (p) { return !p.series; });
+  return photos.filter(function (p) { return p.series === seriesFilter; });
+}
+
+function seriesChipsHtml(list) {
+  // One series (or none) is not a choice — no row at all.
+  if (list.length < 2) return '';
+  // Series names are never interpolated into an attribute: chips address the
+  // value by index, so a name containing a quote can't break out of the markup.
+  chipVals = [null].concat(list);
+  var html = '<button class="chip' + (seriesFilter === null ? ' on' : '') +
+    '" onclick="setSeries(0)">Alle</button>';
+  list.forEach(function (name, i) {
+    html += '<button class="chip' + (seriesFilter === name ? ' on' : '') +
+      '" onclick="setSeries(' + (i + 1) + ')">' + esc(name) + '</button>';
+  });
+  // Admin-only, and English like the rest of the admin surface: a way to find
+  // candidates that never got a tag. The client just sees them under "Alle".
+  if (isAdmin && allPhotos().some(function (p) { return !p.series; })) {
+    chipVals.push('');
+    html += '<button class="chip untagged' + (seriesFilter === '' ? ' on' : '') +
+      '" onclick="setSeries(' + (chipVals.length - 1) + ')">Untagged</button>';
+  }
+  return html;
+}
+
+function setSeries(i) {
+  seriesFilter = chipVals[i];
+  render();
+  document.getElementById('rooms').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
 function render() {
-  var photos = allPhotos();
+  var series = seriesList = boardSeries();
+  // A filter can outlive its series — the last photo tagged with it gets deleted
+  // or retagged. Falling back to "Alle" beats showing a board that is all gaps.
+  if (seriesFilter && series.indexOf(seriesFilter) < 0) seriesFilter = null;
+  if (seriesFilter === '' && !isAdmin) seriesFilter = null;
+  document.getElementById('b-series').innerHTML = seriesChipsHtml(series);
+
+  // The tally counts what is on screen: filtered to a series, it reads as that
+  // series' own score.
+  var photos = visible(allPhotos());
   var yes = photos.filter(function (p) { return p.status === 'approved'; }).length;
   var no = photos.filter(function (p) { return p.status === 'declined'; }).length;
   var open = photos.length - yes - no;
@@ -398,7 +481,9 @@ function render() {
       '<span><b>' + open + '</b> offen</span>'
     : '';
 
-  var unseen = photos.filter(function (p) { return p.reacted_at && !p.seen_by_admin; }).length;
+  // Deliberately unfiltered: this is "anything new anywhere", not "new in the
+  // series you happen to be looking at".
+  var unseen = allPhotos().filter(function (p) { return p.reacted_at && !p.seen_by_admin; }).length;
   document.getElementById('ab-unseen').innerHTML = unseen
     ? '<span class="badge">' + unseen + ' new response' + (unseen === 1 ? '' : 's') + '</span>' : '';
 
@@ -420,9 +505,22 @@ function soloSpot(r) {
   return (r.spots.length === 1 && !r.spots[0].name) ? r.spots[0] : null;
 }
 
+// The German line shown where the filtered series has nothing to offer. The
+// room stays on the page — a series that skips a wall is information, and
+// hiding the room would quietly hide the hole in the proposal.
+function gapHtml(scope) {
+  return '<div class="gap">' + (scope === 'room'
+    ? 'In dieser Serie ist für diesen Raum kein Bild vorgesehen.'
+    : 'In dieser Serie kein Vorschlag für diesen Platz.') + '</div>';
+}
+
 function roomHtml(r, i) {
-  var n = r.spots.reduce(function (t, s) { return t + s.photos.length; }, 0);
+  var n = r.spots.reduce(function (t, s) { return t + visible(s.photos).length; }, 0);
   var solo = soloSpot(r);
+  // A room the current series skips entirely: one line, not the same line
+  // repeated under every spot.
+  var roomGap = seriesFilter !== null && n === 0 &&
+    r.spots.some(function (s) { return s.photos.length; });
   // "+ Photos" on the room itself is offered while the room still has no spots
   // of its own — once it is split into named spots, photos belong to a spot.
   var direct = !r.spots.length || !!solo;
@@ -444,7 +542,7 @@ function roomHtml(r, i) {
       '</span>' +
     '</div>' +
     noteHtml(r.note, 'room-note') +
-    (r.spots.length
+    (roomGap ? gapHtml('room') : r.spots.length
       ? '<div class="spots' + (r.spots.length > 1 ? ' multi' : '') + '">' +
           r.spots.map(spotHtml).join('') + '</div>'
       : '<div class="empty">' + (isAdmin
@@ -483,12 +581,18 @@ function spotHtml(s) {
         '</span>' +
       '</div>'
     : '';
+  // Under a series filter an otherwise-stocked spot that this series skips gets
+  // the gap line rather than "Fotos folgen", which would read as a promise.
+  var shown = visible(s.photos);
+  var empty = (seriesFilter !== null && s.photos.length)
+    ? gapHtml('spot')
+    : '<div class="empty">' + (isAdmin ? 'No photos yet.' : 'Fotos folgen.') + '</div>';
   return '<div class="spot">' +
     head +
     noteHtml(s.note, 'spot-note-block') +
-    (s.photos.length
-      ? '<div class="grid">' + s.photos.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
-      : '<div class="empty">' + (isAdmin ? 'No photos yet.' : 'Fotos folgen.') + '</div>') +
+    (shown.length
+      ? '<div class="grid">' + shown.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
+      : empty) +
     '</div>';
 }
 
@@ -521,6 +625,10 @@ function cardHtml(p, s) {
     '</div>' +
     (p.note ? '<div class="note photo-note" style="margin:11px 0 0">' + esc(p.note) + '</div>' : '') +
     '<figcaption class="card-foot">' +
+      // Only worth naming when there is something to tell it apart from, and
+      // never while that series is the only thing on screen anyway.
+      (p.series && seriesFilter === null && seriesList.length > 1
+        ? '<span class="serie">' + esc(p.series) + '</span>' : '') +
       (mark ? '<span class="mark ' + esc(p.status) + '">' + mark + '</span>' : '') +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
       (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
@@ -558,7 +666,9 @@ function findSpot(spotId) {
 function openLb(spotId, photoId) {
   var f = findSpot(spotId);
   if (!f) return;
-  lb.list = f.spot.photos;
+  // Only what the grid is showing: with a series filtered on, arrowing into a
+  // candidate from another series would quietly leave that series.
+  lb.list = visible(f.spot.photos);
   lb.i = Math.max(0, lb.list.map(function (p) { return p.id; }).indexOf(photoId));
   lb.where = f.spot.name ? f.room.name + ' · ' + f.spot.name : f.room.name;
   document.getElementById('lb').classList.add('on');
@@ -581,7 +691,9 @@ function paintLb() {
   if (!p) return;
   document.getElementById('lb-img').src = cld(p.image_url, 1400);
   document.getElementById('lb-where').textContent = lb.where;
-  document.getElementById('lb-count').textContent = 'Foto ' + (lb.i + 1) + ' von ' + lb.list.length;
+  document.getElementById('lb-count').textContent =
+    (p.series && seriesList.length > 1 ? p.series + ' · ' : '') +
+    'Foto ' + (lb.i + 1) + ' von ' + lb.list.length;
   document.getElementById('lb-comment').value = p.client_comment || '';
   document.getElementById('lb-status').textContent = '';
   document.getElementById('lb-yes').className = p.status === 'approved' ? 'sel-yes' : '';
@@ -598,7 +710,7 @@ function paintLb() {
   // reaction can be cleared or corrected on the phone with the client present.
   var av = document.getElementById('lb-adminview');
   if (isAdmin) {
-    var btns = ' · <button onclick="editPhotoNote(' + p.id + ')" style="padding:2px 8px;font-size:11px">Comment</button>' +
+    var btns = ' · <button onclick="editPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Edit</button>' +
                ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Delete photo</button>';
     av.innerHTML = (p.reacted_at
       ? 'Responded ' + new Date(p.reacted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
@@ -756,18 +868,22 @@ function renameSpot(id) {
   });
 }
 
-function editPhotoNote(id) {
+function editPhoto(id) {
   var p = lb.list.filter(function (x) { return x.id === id; })[0];
   if (!p) return;
-  ask('Comment on photo', 'Shown to the client underneath the photo.', [
-    { key: 'note', label: 'Your comment', value: p.note || '', multiline: true },
-  ], function (v) {
-    api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
-      .then(function (saved) {
-        p.note = saved.note;      // keep the open lightbox in sync
-        paintLb(); render(); toast('Saved');
-      }).catch(function (e) { toast(e.message); });
-  });
+  var known = boardSeries();
+  ask('Edit photo', 'Both are shown to the client. Clearing the series leaves the photo untagged.' +
+    (known.length ? ' Series on this board: ' + known.join(', ') + '.' : ''), [
+      { key: 'note', label: 'Your comment', value: p.note || '', multiline: true },
+      { key: 'series', label: 'Series', value: p.series || '' },
+    ], function (v) {
+      api('/api/admin/client-photos/' + id, { method: 'PUT', body: v })
+        .then(function (saved) {
+          p.note = saved.note;      // keep the open lightbox in sync
+          p.series = saved.series;
+          paintLb(); render(); toast('Saved');
+        }).catch(function (e) { toast(e.message); });
+    });
 }
 
 function delSpot(id) {
@@ -791,18 +907,42 @@ picker.multiple = true;
 picker.style.display = 'none';
 document.body.appendChild(picker);
 
+// Carried between uploads: loading one series into several spots in a row is the
+// normal rhythm, so the field comes back prefilled with the last one used.
+var lastSeries = '';
+
+// Files first, series second. Asking before the picker would put the modal's OK
+// click between the button press and picker.click(), and a file dialog opened
+// that far from a real tap gets blocked on mobile.
 function pickPhotos(url) {
   picker.value = '';
   picker.onchange = function () {
     if (!picker.files.length) return;
-    var fd = new FormData();
-    for (var i = 0; i < picker.files.length; i++) fd.append('photos', picker.files[i]);
-    toast('Uploading ' + picker.files.length + ' photo' + (picker.files.length === 1 ? '' : 's') + '…');
-    api(url, { method: 'POST', body: fd })
-      .then(loadBoard).then(function () { toast('Uploaded'); })
-      .catch(function (e) { toast('Error: ' + e.message); });
+    var files = Array.prototype.slice.call(picker.files);
+    askSeries(files.length, function (series) { sendPhotos(url, files, series); });
   };
   picker.click();
+}
+
+// One series for the whole batch. Blank is allowed and means untagged — the
+// board simply shows those photos without a label.
+function askSeries(count, cb) {
+  var known = boardSeries();
+  ask('Upload ' + count + ' photo' + (count === 1 ? '' : 's'),
+    'Which series do these belong to? Leave it empty to upload them untagged.' +
+    (known.length ? ' Already on this board: ' + known.join(', ') + '.' : ''), [
+      { key: 'series', label: 'Series — the client sees this label', value: lastSeries },
+    ], function (v) { lastSeries = v.series || ''; cb(lastSeries); });
+}
+
+function sendPhotos(url, files, series) {
+  var fd = new FormData();
+  if (series) fd.append('series', series);
+  files.forEach(function (f) { fd.append('photos', f); });
+  toast('Uploading ' + files.length + ' photo' + (files.length === 1 ? '' : 's') + '…');
+  api(url, { method: 'POST', body: fd })
+    .then(loadBoard).then(function () { toast('Uploaded'); })
+    .catch(function (e) { toast('Error: ' + e.message); });
 }
 
 function uploadTo(spotId) { pickPhotos('/api/admin/client-spots/' + spotId + '/photos'); }
