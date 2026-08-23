@@ -169,12 +169,26 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 #lb.on{display:flex}
 .lb-top{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 22px;color:var(--bg);flex:none}
 .lb-top .eyebrow{color:#9C968C}
+#lb-count{font-size:12px;color:#9C968C}
+.lb-topbtns{display:flex;gap:8px;flex:none}
 .lb-x{background:transparent;border-color:#3A3733;color:var(--bg)}
 .lb-x:hover{border-color:var(--bg)}
 .lb-body{flex:1;display:flex;align-items:center;justify-content:center;padding:0 22px;min-height:0;position:relative}
 .lb-body img{max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none}
-.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:transparent;border-color:#3A3733;color:var(--bg);padding:12px 15px;font-size:16px}
-.lb-nav:hover{border-color:var(--bg)}
+/* The arrows overlay the photograph itself whenever it is wide enough to fill
+   the body, so they cannot borrow contrast from the dark backdrop — transparent
+   with a light glyph, they vanished completely over a bright frame. Each one
+   carries its own scrim instead. Not mix-blend-mode: it detaches position:fixed
+   on Android Chrome, the same trap the public site's nav is guarded against. */
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);
+  background:rgba(17,17,16,.62);border-color:rgba(255,255,255,.3);color:var(--bg);
+  width:46px;height:46px;padding:0;font-size:20px;line-height:1;border-radius:50%;
+  display:flex;align-items:center;justify-content:center}
+.lb-nav:hover{background:rgba(17,17,16,.88);border-color:var(--bg)}
+/* Dimmed rather than hidden at the ends: a button that disappears reads as a
+   glitch, one that greys out says „that was the last candidate“. */
+.lb-nav:disabled{opacity:.3}
+.lb-nav:disabled:hover{background:rgba(17,17,16,.62);border-color:rgba(255,255,255,.3)}
 .lb-nav.prev{left:22px}
 .lb-nav.next{right:22px}
 .lb-foot{flex:none;background:var(--bg);border-top:1px solid var(--line);padding:16px 22px}
@@ -189,6 +203,18 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 #lb-status{font-size:11.5px;color:var(--mute);min-height:16px}
 .lb-adminview{font-size:12px;color:var(--mute)}
 .lb-adminview b{color:var(--ink);font-weight:500}
+/* „Grösser“ — the client's escape hatch when the viewport is short. Between the
+   browser's own chrome above and the reaction panel below, a portrait candidate
+   can be left a few hundred pixels tall, which is not enough to judge a print by.
+   Collapsing the panel to the two reaction buttons keeps the answer one tap away
+   while the note, comment box and admin line come back on toggling off. */
+#lb.big .lb-top{padding:8px 14px}
+#lb.big .lb-top .eyebrow{font-size:9.5px}
+#lb.big #lb-count{font-size:11px}
+#lb.big .lb-foot{padding:8px 14px}
+#lb.big .lb-foot .inner{gap:0}
+#lb.big #lb-note,#lb.big #lb-comment,#lb.big .lb-save-row,#lb.big .lb-adminview{display:none}
+#lb.big .lb-choice button{padding:8px}
 
 /* ── MODAL (admin prompts) ─────────────────────────────────────────── */
 #modal{position:fixed;inset:0;background:rgba(17,17,16,.5);z-index:90;display:none;align-items:center;justify-content:center;padding:22px}
@@ -226,11 +252,14 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   .grid{gap:26px;justify-content:center}
   .grid::after{display:none}
   .card{min-width:0;flex-basis:100% !important}
-  .lb-nav{padding:9px 11px}
+  .lb-nav{width:40px;height:40px;font-size:18px}
   .lb-nav.prev{left:8px}
   .lb-nav.next{right:8px}
   .lb-body{padding:0 8px}
   .lb-choice button{min-width:0}
+  .lb-top{padding:12px 14px}
+  .lb-top button{padding:7px 10px;font-size:12px}
+  .lb-topbtns{gap:6px}
 }
 </style>
 </head>
@@ -290,9 +319,12 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   <div class="lb-top">
     <div>
       <div class="eyebrow" id="lb-where"></div>
-      <div id="lb-count" style="font-size:12px;color:#9C968C"></div>
+      <div id="lb-count"></div>
     </div>
-    <button class="lb-x" onclick="closeLb()">Schliessen ✕</button>
+    <div class="lb-topbtns">
+      <button class="lb-x" id="lb-big" onclick="toggleBig()" title="Bild grösser anzeigen">⤢ Grösser</button>
+      <button class="lb-x" onclick="closeLb()">Schliessen ✕</button>
+    </div>
   </div>
   <div class="lb-body">
     <button class="lb-nav prev" onclick="lbGo(-1)">‹</button>
@@ -335,7 +367,10 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 var SLUG = location.pathname.split('/').filter(Boolean)[1] || '';
 var board = null;      // {client, rooms:[{spots:[{photos:[]}]}]}
 var isAdmin = false;
-var lb = { list: [], i: 0 };   // photos currently open in the lightbox
+var lb = { list: [], i: 0, big: false };   // photos currently open in the lightbox
+// Remembered so the client sets it once, not once per photo. localStorage
+// throws outright in some privacy modes, so every access is guarded.
+try { lb.big = localStorage.getItem('bp-lb-big') === '1'; } catch (e) {}
 var DEFAULT_EYEBROW = 'Bharat Bhatia · Fotografie';
 
 // Cloudinary transform builder — same contract as the main site's cld():
@@ -794,23 +829,30 @@ function openLb(spotId, photoId) {
   lb.where = f.spot.name ? f.room.name + ' · ' + f.spot.name : f.room.name;
   document.getElementById('lb').classList.add('on');
   document.body.style.overflow = 'hidden';
+  setBig(lb.big);   // before the first paint, so the image is sized right away
   paintLb();
 }
 
 function closeLb() {
   document.getElementById('lb').classList.remove('on');
   document.body.style.overflow = '';
+  fsExit();
 }
 
+// Deliberately does not wrap. The header counts „Foto 3 von 3“, so wrapping to
+// the first candidate on the next press looked like the board had lost its
+// place — it was the single most confusing thing about the arrows.
 function lbGo(d) {
-  lb.i = (lb.i + d + lb.list.length) % lb.list.length;
+  var n = lb.i + d;
+  if (n < 0 || n >= lb.list.length) return;
+  lb.i = n;
   paintLb();
 }
 
 function paintLb() {
   var p = lb.list[lb.i];
   if (!p) return;
-  document.getElementById('lb-img').src = cld(p.image_url, 1400);
+  document.getElementById('lb-img').src = cld(p.image_url, lbWidth());
   document.getElementById('lb-where').textContent = lb.where;
   document.getElementById('lb-count').textContent =
     (p.series && seriesList.length > 1 && seriesShown() ? p.series + ' · ' : '') +
@@ -820,8 +862,11 @@ function paintLb() {
   document.getElementById('lb-yes').className = p.status === 'approved' ? 'sel-yes' : '';
   document.getElementById('lb-no').className = p.status === 'declined' ? 'sel-no' : '';
   var nav = lb.list.length > 1 ? '' : 'none';
-  document.querySelector('.lb-nav.prev').style.display = nav;
-  document.querySelector('.lb-nav.next').style.display = nav;
+  var prev = document.querySelector('.lb-nav.prev'), next = document.querySelector('.lb-nav.next');
+  prev.style.display = nav;
+  next.style.display = nav;
+  prev.disabled = lb.i === 0;
+  next.disabled = lb.i === lb.list.length - 1;
 
   document.getElementById('lb-note').innerHTML = p.note
     ? '<div class="note photo-note" style="margin-bottom:2px">' + esc(p.note) + '</div>'
@@ -843,10 +888,83 @@ function paintLb() {
   }
 }
 
+// „Grösser“ does two things at once, because the image loses height to two
+// different thieves: the reaction panel below it (collapsed here to just the two
+// buttons) and the browser's own chrome (dropped by going fullscreen where the
+// browser allows it — iOS Safari refuses fullscreen for anything but a <video>,
+// so the panel collapse has to be worth having on its own, and it is).
+function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+
+function fsRequest(el) {
+  var f = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!f) return;
+  try { var r = f.call(el); if (r && r.catch) r.catch(function () {}); } catch (e) {}
+}
+
+function fsExit() {
+  var f = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!f || !fsEl()) return;
+  try { var r = f.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) {}
+}
+
+// Fullscreen on a 1x display would otherwise upscale the panelled 1400px variant
+// and read as soft — the point of the button is to see the photograph better.
+// Two fixed steps, not a viewport-derived number: Cloudinary caches one
+// transform per distinct width, and cld() already multiplies by DPR.
+function lbWidth() { return lb.big ? 1900 : 1400; }
+
+// State, class and label only — anything needing a user gesture belongs in
+// toggleBig(), since this also runs when the remembered preference is applied.
+function setBig(on) {
+  lb.big = !!on;
+  document.getElementById('lb').classList.toggle('big', lb.big);
+  document.getElementById('lb-big').textContent = lb.big ? '⤡ Kleiner' : '⤢ Grösser';
+  try { localStorage.setItem('bp-lb-big', lb.big ? '1' : '0'); } catch (e) {}
+}
+
+function toggleBig() {
+  setBig(!lb.big);
+  if (lb.big) fsRequest(document.getElementById('lb')); else fsExit();
+  swapLbSrc();
+}
+
+// Swap in the sharper (or lighter) variant without a blank frame: let the new
+// URL load off-screen first, and only then point the visible <img> at it. The
+// identity check drops a load that finished after the client arrowed onward.
+function swapLbSrc() {
+  var p = lb.list[lb.i];
+  if (!p) return;
+  var img = document.getElementById('lb-img'), url = cld(p.image_url, lbWidth());
+  if (img.getAttribute('src') === url) return;
+  var pre = new Image();
+  pre.onload = function () { if (lb.list[lb.i] === p) img.src = url; };
+  pre.src = url;
+}
+
+// On a phone the reach-for gesture is a swipe, not a 40px button laid over a
+// photograph. Horizontal-only and past a threshold, so it never steals a
+// vertical drag or the second finger of a pinch-zoom.
+(function () {
+  var x0 = null, y0 = null, body = document.querySelector('.lb-body');
+  body.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, { passive: true });
+  body.addEventListener('touchend', function (e) {
+    if (x0 === null) return;
+    var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    lbGo(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
+
 document.addEventListener('keydown', function (e) {
   if (!document.getElementById('lb').classList.contains('on')) return;
   if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') return;
-  if (e.key === 'Escape') closeLb();
+  // In fullscreen the browser claims Esc for leaving it; closing the lightbox
+  // as well would drop the client out of the photo he was looking at.
+  if (e.key === 'Escape') { if (fsEl()) return; closeLb(); }
   if (e.key === 'ArrowLeft') lbGo(-1);
   if (e.key === 'ArrowRight') lbGo(1);
 });

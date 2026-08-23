@@ -198,6 +198,29 @@ that is belt-and-braces, not the guard.
   - `render()` self-heals a filter pointing at a vanished series, never leaves a non-admin on
     the `''` (untagged) view, and `setSeries()` clamps an out-of-range chip index to "Alle" —
     `undefined` would match no photo and blank the whole board.
+- **The lightbox has a client-facing „Grösser“ toggle** (`toggleBig()`, class `.big` on `#lb`),
+  because the image loses height to two independent thieves: the reaction panel below it and
+  the browser's own chrome. It collapses the panel to just the two reaction buttons — note,
+  comment box, save row and admin line hide — *and* requests fullscreen. iOS Safari refuses
+  fullscreen for anything but a `<video>`, so the collapse must be worth having on its own.
+  `setBig()` holds state/class/label/persistence and is safe to call on open; anything needing
+  a user gesture (the fullscreen request, the image swap) lives in `toggleBig()`. The choice
+  persists in `localStorage` under `bp-lb-big` — guard every access, it throws in private mode.
+  Big mode asks Cloudinary for 1900px instead of 1400 (`lbWidth()`), or fullscreen on a 1×
+  display just upscales the smaller variant and reads as soft; keep it to fixed steps, since
+  `cld()` already multiplies by DPR and each distinct width is another cached transform. The
+  swap preloads off-screen and only then assigns `src`, so there is no blank frame. While
+  fullscreen is active the keydown handler must let `Escape` through to the browser — closing
+  the lightbox as well drops the client out of the photo he was looking at.
+- **The lightbox arrows overlay the photograph**, so they carry their own scrim
+  (`rgba(17,17,16,.62)` + light glyph). They were transparent with a light glyph and became
+  invisible over a bright frame. Not `mix-blend-mode` — it detaches `position:fixed` on
+  Android Chrome, the same trap the public site's nav is guarded against.
+- **Lightbox navigation clamps at both ends and never wraps.** The header counts „Foto 3 von
+  3“, so wrapping to the first candidate on the next press read as the board losing its place.
+  The end arrow goes `disabled` (dimmed, still there) rather than hidden — a control that
+  vanishes reads as a glitch. Swipe is wired on `.lb-body` for the same set, horizontal-only
+  and past a threshold so it never steals a vertical drag or a pinch-zoom.
 - **`client_photos.original_name`** is the filename as uploaded — admin-only, and a working aid
   for tracing a board photo back to the original. Never fall back to the Cloudinary `public_id`
   when it is missing: that is a hash and shows nothing useful. Rows predating the column have
