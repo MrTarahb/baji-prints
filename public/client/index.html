@@ -52,7 +52,10 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
 header{padding:64px 0 46px;margin-bottom:12px;background:var(--bg)}
 .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
 header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px;line-height:1.08;margin:14px 0 0;letter-spacing:-.01em}
-.intro{margin-top:22px;max-width:56ch;color:#4A453E;font-size:14px;line-height:1.75}
+/* Full width, and newlines typed into the "Welcome text" field are kept as
+   paragraph breaks (pre-wrap, same as .note). */
+.intro{margin-top:22px;color:#4A453E;font-size:14px;line-height:1.75;white-space:pre-wrap}
+.intro:empty{display:none}
 .tally{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;letter-spacing:.04em;color:var(--mute)}
 .tally b{font-weight:500;color:var(--ink)}
 .tally .t-yes b{color:var(--yes)}
@@ -656,7 +659,9 @@ function ask(title, desc, fields, cb) {
   var box = document.getElementById('m-fields');
   box.innerHTML = fields.map(function (f, i) {
     return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' +
-      (f.multiline ? '<textarea id="mf-' + i + '"></textarea>' : '<input type="text" id="mf-' + i + '">');
+      (f.multiline
+        ? '<textarea id="mf-' + i + '"' + (f.rows ? ' rows="' + (f.rows | 0) + '"' : '') + '></textarea>'
+        : '<input type="text" id="mf-' + i + '">');
   }).join('');
   // Values are assigned as properties, never interpolated into the markup, so
   // quotes and angle brackets in existing text can't break out of the field.
@@ -688,7 +693,7 @@ function editHeader() {
   ask('Edit header', 'The text at the very top of the page — shown to the client.', [
     { key: 'eyebrow', label: 'Small line on top', value: board.client.eyebrow || DEFAULT_EYEBROW },
     { key: 'name', label: 'Heading', value: board.client.name },
-    { key: 'intro', label: 'Welcome text', value: board.client.intro || '', multiline: true },
+    { key: 'intro', label: 'Welcome text — line breaks become paragraphs', value: board.client.intro || '', multiline: true, rows: 8 },
   ], function (v) {
     if (!v.name) return toast('Heading cannot be empty');
     api('/api/admin/clients/' + SLUG, { method: 'PUT', body: v })
