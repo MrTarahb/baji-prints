@@ -134,11 +134,12 @@ width and `white-space:pre-wrap`, so the newlines typed into its textarea surviv
 (`.note` does the same — keep them consistent).
 
 **Admin-only data is withheld from the client's payload, never merely hidden in the page.**
-`GET /api/client/:slug/board` strips fields from `photos` before serialising, so opening
-devtools on the board reveals nothing: `original_name` and `public_id` always, and `series`
-too unless that board's series have been released. Follow this whenever something is "for the
-photographer only" — a CSS-only `.adm` gate is for *controls*, not for *data*. The frontend
-also gates rendering on `isAdmin`, but that is belt-and-braces, not the guard.
+`GET /api/client/:slug/board` trims `photos` before serialising, so opening devtools on the
+board reveals nothing: photos of an unreleased series are dropped from the array outright,
+`original_name` and `public_id` always stripped, and `series` too unless the names are
+released. Follow this whenever something is "for the photographer only" — a CSS-only `.adm`
+gate is for *controls*, not for *data*. The frontend also gates rendering on `isAdmin`, but
+that is belt-and-braces, not the guard.
 
 - **A spot may be unnamed, and that is the "room with no spots" case.** Photos always
   belong to a spot in the schema, so a room that needs only one obvious place holds a single
@@ -180,8 +181,9 @@ also gates rendering on `isAdmin`, but that is belt-and-braces, not the guard.
     picker needs `onclick="event.stopPropagation()"` — the whole card opens the lightbox.
   - One series for a whole upload batch (asked **after** the file picker — putting a modal's OK
     click between the button press and `picker.click()` gets the file dialog blocked on mobile).
-  - `ask()` supports a `choice` field: pass `options` and it renders a `<select>` plus a
-    "new value" input revealed only when `NEW_OPT` is chosen.
+  - `ask()` supports two field types beyond text: pass `options` for a `<select>` plus a
+    "new value" input revealed only when `NEW_OPT` is chosen, or `checks` for a checkbox list
+    whose answer is an **array** of ticked values rather than a string.
   - With fewer than two series there is no filter to offer, so the chip row instead carries an
     admin-only line saying why (nothing tagged / only one series). Without it, "show me one
     series" reads as broken when the real answer is that no photo carries a tag yet.
@@ -193,10 +195,21 @@ also gates rendering on `isAdmin`, but that is belt-and-braces, not the guard.
     folgen" — a series that skips a wall and a wall not yet shot must read differently.
   - The tally follows the filter (so it reads as that series' score); the admin's unseen-response
     badge deliberately does not. The lightbox navigates within the filtered set.
-  - `clients.series_visible` (default **FALSE**) gates whether the client sees any of it. While
-    off, the admin keeps chips, filter and labels and the chip row says so inline; the client
-    gets the board exactly as it read before series existed. `render()` also self-heals a filter
-    pointing at a vanished series, and never leaves a non-admin on the `''` (untagged) view.
+  - **Two separate controls, and conflating them is the mistake to avoid.**
+    `clients.visible_series` (JSONB array, `''` = untagged, **NULL = no restriction**) decides
+    *which photos reach the client at all* — an unreleased series is filtered out of his payload
+    in the board route, so he cannot see those photos by any means. `clients.series_visible`
+    (bool) only decides whether he is told the *names* (chips + labels) of what he can already
+    see. Hiding names does **not** hide photos; that was a bug once. Both are set from one
+    admin-bar dialog (`editSeriesVisibility()`) whose checkbox list is built from the live
+    series. Ticking everything stores NULL rather than a frozen list, so a series added later
+    stays visible instead of silently vanishing from his board. NULL is also what every board
+    predating the column keeps, so nothing changed underneath an existing client.
+  - Chips for a held-back series render `.held` (dashed + dimmed) for the admin, so the board
+    shows at a glance what the client is not getting.
+  - `render()` self-heals a filter pointing at a vanished series, never leaves a non-admin on
+    the `''` (untagged) view, and `setSeries()` clamps an out-of-range chip index to "Alle" —
+    `undefined` would match no photo and blank the whole board.
 - **`client_photos.original_name`** is the filename as uploaded — admin-only, and a working aid
   for tracing a board photo back to the original. Never fall back to the Cloudinary `public_id`
   when it is missing: that is a hash and shows nothing useful. Rows predating the column have

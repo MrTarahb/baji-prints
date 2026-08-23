@@ -798,12 +798,15 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS eyebrow TEXT;
-    -- Series are a work-in-progress until deliberately released: tagging photos
-    -- and filtering by them is useful long before the client should see that the
-    -- proposal is split into series at all. Defaults to FALSE so nothing reaches
-    -- a client's board by accident — the tags are withheld server-side, not
-    -- merely hidden in the page.
+    -- Whether the client is told the proposal is split into series at all: the
+    -- chip row and the per-photo labels. Independent of WHICH series he can see.
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS series_visible BOOLEAN DEFAULT FALSE;
+    -- Which series actually reach the client, as a JSONB array of series names
+    -- with '' standing for untagged photos. NULL means no restriction — the
+    -- default, and what every board predating this column keeps. An unreleased
+    -- series' photos are filtered out of the client's payload entirely, so a
+    -- half-finished series can sit on the board while he reviews the rest.
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS visible_series JSONB;
 
     -- Rooms group spots ("Empfang" → "Wand hinter Tresen", "Fensterseite").
     CREATE TABLE IF NOT EXISTS client_rooms (
@@ -2865,15 +2868,20 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
          JOIN client_rooms r ON r.id = s.room_id
         WHERE r.client_id=$1 ORDER BY p.sort_order, p.id`, [client.id]
     );
-    // Two things are withheld from the client rather than hidden in the page, so
-    // the board's JSON gives nothing away either:
+    // What the client gets is trimmed here, not hidden in the page, so the
+    // board's JSON gives nothing away either:
+    //   · an unreleased series' photos are dropped from the payload outright;
     //   · the filename a photo was uploaded under — a working aid that can carry
     //     a shoot name, a version, a client's surname;
-    //   · the series tag, until this board's series are deliberately released.
+    //   · the series tag itself, until the names are released.
     const isAdmin = !!req.session.admin;
+    // NULL / anything non-array = no restriction, which is what every board had
+    // before this column existed. '' in the list stands for untagged photos.
+    const released = Array.isArray(client.visible_series) ? client.visible_series : null;
     const showSeries = isAdmin || client.series_visible;
-    const visible = isAdmin ? photos : photos.map(({ original_name, public_id, series, ...rest }) =>
-      showSeries ? { ...rest, series } : rest);
+    const visible = isAdmin ? photos : photos
+      .filter(p => !released || released.indexOf(p.series || '') >= 0)
+      .map(({ original_name, public_id, series, ...rest }) => showSeries ? { ...rest, series } : rest);
 
     const byRoom = rooms.map(r => ({
       ...r,
@@ -2886,6 +2894,9 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
       client: {
         slug: client.slug, name: client.name, eyebrow: client.eyebrow, intro: client.intro,
         series_visible: !!client.series_visible,
+        // Only the admin needs to know what is held back; the client's own copy
+        // simply doesn't contain the withheld photos.
+        visible_series: isAdmin ? released : undefined,
       },
       isAdmin,
       rooms: byRoom,
@@ -3011,13 +3022,18 @@ app.post('/api/admin/clients/:slug/mark-seen', requireAuth, async (req, res) => 
   res.json({ ok: true });
 });
 
-// Release this board's series to the client, or pull them back. Takes the value
-// explicitly rather than flipping, so a double-tap on a phone can't land on the
-// opposite state from the one the button showed.
-app.put('/api/admin/clients/:slug/series-visible', requireAuth, async (req, res) => {
+// Which series the client may see, and whether he is told their names at all.
+// `visible` is an array of series names ('' = untagged photos) or null for no
+// restriction; null is also what you get by ticking everything, so series added
+// later stay visible instead of silently vanishing from his board.
+app.put('/api/admin/clients/:slug/series-visibility', requireAuth, async (req, res) => {
+  const list = Array.isArray(req.body.visible)
+    ? req.body.visible.filter(v => typeof v === 'string').map(v => v.trim().slice(0, 80))
+    : null;
   const { rows } = await pool.query(
-    'UPDATE clients SET series_visible=$1 WHERE slug=$2 RETURNING series_visible',
-    [!!req.body.visible, req.params.slug]
+    `UPDATE clients SET visible_series=$1::jsonb, series_visible=$2
+      WHERE slug=$3 RETURNING series_visible, visible_series`,
+    [list ? JSON.stringify(list) : null, !!req.body.show_names, req.params.slug]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);

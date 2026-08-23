@@ -68,6 +68,11 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .chip.untagged{border-style:dashed}
 .chip-note{align-self:center;font-size:11px;font-style:italic;color:var(--mute)}
+/* A series you are holding back — on the board for you, absent from his page. */
+.chip.held{opacity:.5;border-style:dashed}
+.m-checks{display:flex;flex-direction:column;gap:9px;margin-top:2px}
+.m-check{display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer}
+.m-check input{width:auto;flex:none;margin:0;accent-color:var(--ink)}
 /* Per-card series picker. Admin only, and the options are whatever series exist
    on the board right now, so there is no list to maintain anywhere. */
 .serie-pick{display:none;width:auto;max-width:140px;font-size:10.5px;padding:2px 4px;
@@ -255,7 +260,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
       <button onclick="markSeen()">Mark all read</button>
       <button onclick="copyLink()">Copy link</button>
       <button id="ab-recover" onclick="recoverNames()">Recover filenames</button>
-      <button id="ab-series" onclick="toggleSeriesVisible()">Series</button>
+      <button id="ab-series" onclick="editSeriesVisibility()">Series</button>
     </div>
   </div>
 
@@ -477,20 +482,27 @@ function seriesChipsHtml(list) {
   var html = '<button class="chip' + (seriesFilter === null ? ' on' : '') +
     '" onclick="setSeries(0)">Alle</button>';
   list.forEach(function (name, i) {
-    html += '<button class="chip' + (seriesFilter === name ? ' on' : '') +
-      '" onclick="setSeries(' + (i + 1) + ')">' + esc(name) + '</button>';
+    // A held-back series is dashed and dimmed for you — it is on the board but
+    // its photos are not in the client's payload at all.
+    var held = isAdmin && !isReleased(name);
+    html += '<button class="chip' + (seriesFilter === name ? ' on' : '') + (held ? ' held' : '') +
+      '"' + (held ? ' title="Held back — the client cannot see these photos"' : '') +
+      ' onclick="setSeries(' + (i + 1) + ')">' + esc(name) + '</button>';
   });
   // Admin-only, and English like the rest of the admin surface: a way to find
   // candidates that never got a tag. The client just sees them under "Alle".
   if (isAdmin && allPhotos().some(function (p) { return !p.series; })) {
     chipVals.push('');
+    var heldU = !isReleased('');
     html += '<button class="chip untagged' + (seriesFilter === '' ? ' on' : '') +
-      '" onclick="setSeries(' + (chipVals.length - 1) + ')">Untagged</button>';
+      (heldU ? ' held' : '') + '"' +
+      (heldU ? ' title="Held back — the client cannot see these photos"' : '') +
+      ' onclick="setSeries(' + (chipVals.length - 1) + ')">Untagged</button>';
   }
   // Said right where the chips are, not only up in the admin bar: this row is
-  // the thing that looks like it is on the client's page but isn't yet.
+  // the thing that looks like it is on the client's page but isn't.
   if (isAdmin && !board.client.series_visible) {
-    html += '<span class="chip-note">Your view only — the client sees no series yet</span>';
+    html += '<span class="chip-note">Names hidden — he sees the photos, not the series</span>';
   }
   return html;
 }
@@ -885,6 +897,12 @@ function ask(title, desc, fields, cb) {
   var box = document.getElementById('m-fields');
   box.innerHTML = fields.map(function (f, i) {
     var label = '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>';
+    if (f.checks) {
+      return (f.label ? label : '') + '<div class="m-checks">' + f.checks.map(function (c, j) {
+        return '<label class="m-check"><input type="checkbox" id="mf-' + i + '-c' + j + '"' +
+          (c.checked ? ' checked' : '') + '><span>' + esc(c.label) + '</span></label>';
+      }).join('') + '</div>';
+    }
     if (f.options) {
       return label +
         '<select id="mf-' + i + '" onchange="askChoiceChanged(' + i + ')">' +
@@ -902,6 +920,7 @@ function ask(title, desc, fields, cb) {
   // Values are assigned as properties, never interpolated into the markup, so
   // quotes and angle brackets in existing text can't break out of the field.
   fields.forEach(function (f, i) {
+    if (f.checks) return;              // checkboxes carry their own state
     var el = document.getElementById('mf-' + i);
     el.value = f.value || '';
     // A stored value that is no longer one of the options (its series was
@@ -919,6 +938,13 @@ function ask(title, desc, fields, cb) {
   fresh.onclick = function () {
     var out = {};
     fields.forEach(function (f, i) {
+      // A checks field answers with the array of ticked values, not a string.
+      if (f.checks) {
+        out[f.key] = f.checks.filter(function (c, j) {
+          return document.getElementById('mf-' + i + '-c' + j).checked;
+        }).map(function (c) { return c.value; });
+        return;
+      }
       var el = document.getElementById('mf-' + i);
       var v = el.value;
       if (f.options && v === NEW_OPT) v = document.getElementById('mf-' + i + '-new').value;
@@ -1140,22 +1166,62 @@ function recoverNames() {
     .then(function () { btn.disabled = false; });
 }
 
-// Release the series to the client, or pull them back. Worth offering only once
-// there is more than one series to reveal — below that there is nothing to hide.
-function toggleSeriesVisible() {
-  var on = !(board.client.series_visible);
-  if (on && !confirm('Show the series to the client? He will see the series names on the photos and be able to filter the board by them.')) return;
-  api('/api/admin/clients/' + SLUG + '/series-visible', { method: 'PUT', body: { visible: on } })
-    .then(loadBoard)
-    .then(function () { toast(on ? 'Series are now visible to the client' : 'Series hidden from the client'); })
-    .catch(function (e) { toast(e.message); });
+// Which series the client may see. An unticked series is not merely unlabelled
+// on his page — its photos never reach him. The list is built from the series
+// that exist right now, so it needs no maintaining.
+//   board.client.visible_series: null = no restriction · [] = nothing released
+function releasedSeries() {
+  var v = board.client.visible_series;
+  return Array.isArray(v) ? v : null;
+}
+
+function isReleased(name) {
+  var rel = releasedSeries();
+  return !rel || rel.indexOf(name || '') >= 0;
+}
+
+function editSeriesVisibility() {
+  var list = boardSeries();
+  var checks = list.map(function (name) {
+    return { value: name, label: name, checked: isReleased(name) };
+  });
+  if (allPhotos().some(function (p) { return !p.series; })) {
+    checks.push({ value: '', label: 'Photos with no series', checked: isReleased('') });
+  }
+  if (!checks.length) return toast('Tag some photos with a series first');
+
+  ask('What the client sees',
+    'Untick a series to hold it back — its photos are then left out of his page entirely, ' +
+    'while staying on the board for you. Ticking everything means no restriction at all, so ' +
+    'series you add later stay visible too.', [
+      { key: 'visible', label: 'Visible to the client', checks: checks },
+      {
+        key: 'names', label: '',
+        checks: [{
+          value: 'yes', label: 'Also show him the series names',
+          checked: !!board.client.series_visible,
+        }],
+      },
+    ], function (v) {
+      if (!v.visible.length &&
+          !confirm('Nothing is ticked — the client will see an empty board. Continue?')) return;
+      // All ticked collapses to "no restriction" rather than a frozen list.
+      var all = v.visible.length === checks.length;
+      api('/api/admin/clients/' + SLUG + '/series-visibility', {
+        method: 'PUT',
+        body: { visible: all ? null : v.visible, show_names: v.names.indexOf('yes') >= 0 },
+      }).then(loadBoard).then(function () { toast('Saved'); }).catch(function (e) { toast(e.message); });
+    });
 }
 
 function syncSeriesBtn() {
   var btn = document.getElementById('ab-series');
-  var on = !!board.client.series_visible;
-  btn.style.display = (isAdmin && seriesList.length > 1) ? '' : 'none';
-  btn.textContent = on ? 'Series: visible to client' : 'Series: hidden from client';
+  var rel = releasedSeries();
+  var hasAny = seriesList.length > 0 || !!rel;
+  btn.style.display = (isAdmin && hasAny) ? '' : 'none';
+  btn.textContent = 'Client sees: ' + (!rel ? 'everything'
+    : rel.length ? rel.map(function (s) { return s || 'untagged'; }).join(', ')
+    : 'nothing');
 }
 
 // The button is only worth offering while something is actually missing a name.
