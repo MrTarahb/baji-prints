@@ -1,19 +1,11 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project
 
 Baji Prints — fine art print atelier site for Bharat "Baji" Bhatia (Zürich). Portfolio + shop
 (Stripe checkout) + workshops + admin CMS, live at `bharatbhatia.photography`.
 
 ## Commands
-
-```bash
-npm install
-npm run dev     # nodemon server.js
-npm start       # node server.js
-```
 
 No test suite, no linter, no build step. Verification before committing is manual:
 
@@ -49,10 +41,6 @@ Four tracked source files. Everything else is `node_modules` / config.
 | `public/index.html` | 4,300 | Public site — vanilla-JS SPA, inline `<style>` + `<script>`, no framework, no bundler |
 | `public/admin/index.html` | 2,250 | Admin panel — separate vanilla-JS SPA |
 | `public/client/index.html` | 1,075 | Private client proofing boards — separate vanilla-JS SPA, German UI |
-
-Stack: Node 18+ / Express · PostgreSQL on Railway (raw parameterized SQL, no ORM) ·
-Cloudinary (images + transforms) · Stripe (checkout + webhook) · Resend (email) ·
-express-session + connect-pg-simple · GSAP/ScrollTrigger from CDN.
 
 Request flow: Cloudflare DNS → Railway/Express (serves the SPA with server-injected `<meta>`)
 → images from Cloudinary → purchase → Stripe Checkout → webhook → Postgres → Resend.
