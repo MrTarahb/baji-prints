@@ -198,6 +198,27 @@ that is belt-and-braces, not the guard.
   - `render()` self-heals a filter pointing at a vanished series, never leaves a non-admin on
     the `''` (untagged) view, and `setSeries()` clamps an out-of-range chip index to "Alle" —
     `undefined` would match no photo and blank the whole board.
+- **Cold Cloudinary transforms were the reason board photos loaded slowly or not at all.**
+  Nothing is pre-built, so the *first* request for a given width makes Cloudinary generate it
+  from the full-size camera original — seconds of blank frame, and a timeout leaves an `<img>`
+  permanently empty with no retry. Four defences, and they work together:
+  1. `clientStorage` uploads with `eager` + `eager_async` for `CLIENT_GRID_WIDTHS`
+     (`server.js:263`). Use `raw_transformation` built from the same string the frontend
+     delivers — an eager derivative is only a cache hit when the transformation matches
+     exactly, and that removes any guesswork about an omitted `c_` (Cloudinary defaults to
+     `c_scale`) or parameter order. `eager_async` keeps the upload response off the
+     derivative build, or the admin's upload dialog hangs per photo.
+  2. `POST /api/admin/clients/:slug/warm-images` („Warm images“ in the admin bar) does the
+     same via `uploader.explicit` for boards that predate the eager upload. Idempotent.
+  3. The lightbox loads **progressively** — `showLbPhoto()` paints the 720px variant the grid
+     already cached, then `lbSharpen()` swaps the sharp one in once it has loaded off-screen.
+     Same trick as the public site's `_renderLightbox` (`public/index.html`). The identity
+     guard is load-bearing: without it a slow fetch lands on a photo the client arrowed past.
+  4. `retryImg()` gives a failed `<img>` exactly one more attempt with a throwaway query
+     param, since the browser caches the failure. The budget resets per photo.
+  Keep the width ladder short — grid 720 (×DPR → 1440), lightbox 1400, big 2600. Each distinct
+  width is another derivative someone waits for, and 2600 is `cld()`'s own cap, so on a 2×
+  screen the two lightbox modes resolve to one URL and toggling refetches nothing.
 - **The lightbox has a client-facing „Grösser“ toggle** (`toggleBig()`, class `.big` on `#lb`),
   because the image loses height to two independent thieves: the reaction panel below it and
   the browser's own chrome. It collapses the panel to just the two reaction buttons — note,

@@ -257,6 +257,23 @@ const workshopStorage = new CloudinaryStorage({
 const workshopUpload = multer({ storage: workshopStorage });
 const upload = multer({ storage });
 
+// The board's grid asks Cloudinary for exactly these widths — cld() in the
+// client SPA requests its 720px grid slot multiplied by devicePixelRatio, capped
+// at 2. Unless a derivative is pre-built, the FIRST request for it makes
+// Cloudinary generate it on the spot from the full-size camera original, which
+// takes seconds and is exactly what a client sees as "the photos aren't
+// loading". Pre-building the two grid widths covers a whole board on open. The
+// lightbox widths are deliberately left lazy: its progressive load already masks
+// them behind the cached grid frame, so paying for them up front would spend
+// transformation quota on something nobody waits for.
+//
+// raw_transformation, not {width, crop, quality}: the eager derivative is only a
+// cache hit if its transformation string is identical to the delivery URL's, and
+// building it from the same pieces removes the guesswork about how Cloudinary
+// normalises an omitted c_ (it defaults to c_scale) or orders the parameters.
+const CLIENT_GRID_WIDTHS = [720, 1440];
+const clientEager = CLIENT_GRID_WIDTHS.map((w) => ({ raw_transformation: `w_${w},f_auto,q_auto:good` }));
+
 // Client proofing photos get their own per-client Cloudinary folder so a
 // client's images never mix with the portfolio. The folder is resolved per
 // request from req.uploadClientSlug, which the route sets before multer runs.
@@ -271,6 +288,11 @@ const clientStorage = new CloudinaryStorage({
     // different shoots still can't collide.
     use_filename: true,
     unique_filename: true,
+    // eager_async: the upload response must not wait on the derivatives, or the
+    // admin's upload dialog hangs for seconds per photo. They are built in the
+    // background and are almost always ready before the client opens the board.
+    eager: clientEager,
+    eager_async: true,
   }),
 });
 const clientUpload = multer({ storage: clientStorage });
@@ -3072,6 +3094,40 @@ app.post('/api/admin/clients/:slug/recover-filenames', requireAuth, async (req, 
     res.json({ checked: rows.length, recovered });
   } catch (e) {
     console.error('Filename recovery error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Every board uploaded before the eager transform above still builds its
+// derivatives on first view — including the board a client is waiting on right
+// now. This asks Cloudinary to build them ahead of time. Safe to re-run: a
+// derivative that already exists is returned rather than regenerated.
+app.post('/api/admin/clients/:slug/warm-images', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.public_id FROM client_photos p
+         JOIN client_spots s ON s.id=p.spot_id
+         JOIN client_rooms r ON r.id=s.room_id
+         JOIN clients c ON c.id=r.client_id
+        WHERE c.slug=$1 AND p.public_id IS NOT NULL`,
+      [req.params.slug]
+    );
+    let warmed = 0, failed = 0;
+    for (const row of rows) {
+      try {
+        await cloudinary.uploader.explicit(row.public_id, {
+          type: 'upload', eager: clientEager, eager_async: true,
+        });
+        warmed++;
+      } catch (e) {
+        // One unreadable asset must not abort the rest of the run.
+        failed++;
+        console.error('Warm failed for', row.public_id, '-', e.message);
+      }
+    }
+    res.json({ checked: rows.length, warmed, failed, widths: CLIENT_GRID_WIDTHS });
+  } catch (e) {
+    console.error('Warm images error:', e);
     res.status(500).json({ error: e.message });
   }
 });

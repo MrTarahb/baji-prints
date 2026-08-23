@@ -289,6 +289,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
       <button onclick="markSeen()">Mark all read</button>
       <button onclick="copyLink()">Copy link</button>
       <button id="ab-recover" onclick="recoverNames()">Recover filenames</button>
+      <button id="ab-warm" onclick="warmImages()">Warm images</button>
       <button id="ab-series" onclick="editSeriesVisibility()">Series</button>
     </div>
   </div>
@@ -328,7 +329,8 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   </div>
   <div class="lb-body">
     <button class="lb-nav prev" onclick="lbGo(-1)">‹</button>
-    <img id="lb-img" alt="" draggable="false" oncontextmenu="return false">
+    <img id="lb-img" alt="" draggable="false" decoding="async"
+         oncontextmenu="return false" onerror="retryImg(this)">
     <button class="lb-nav next" onclick="lbGo(1)">›</button>
   </div>
   <div class="lb-foot">
@@ -773,8 +775,9 @@ function cardHtml(p, s) {
         ';flex-basis:' + Math.round(ar * ROW_H) + 'px"' +
       ' onclick="openLb(' + s.id + ',' + p.id + ')">' +
     '<div class="card-img" style="padding-bottom:' + (100 / ar).toFixed(3) + '%">' +
-      '<img src="' + esc(cld(p.image_url, 720)) + '" alt="" loading="lazy" draggable="false"' +
-        ' oncontextmenu="return false"' + (known ? '' : ' onload="adjustRatio(this)"') + '>' +
+      '<img src="' + esc(cld(p.image_url, 720)) + '" alt="" loading="lazy" decoding="async"' +
+        ' draggable="false" oncontextmenu="return false" onerror="retryImg(this)"' +
+        (known ? '' : ' onload="adjustRatio(this)"') + '>' +
     '</div>' +
     (p.note ? '<div class="note photo-note" style="margin:11px 0 0">' + esc(p.note) + '</div>' : '') +
     '<figcaption class="card-foot">' +
@@ -852,7 +855,7 @@ function lbGo(d) {
 function paintLb() {
   var p = lb.list[lb.i];
   if (!p) return;
-  document.getElementById('lb-img').src = cld(p.image_url, lbWidth());
+  showLbPhoto(p);
   document.getElementById('lb-where').textContent = lb.where;
   document.getElementById('lb-count').textContent =
     (p.series && seriesList.length > 1 && seriesShown() ? p.series + ' · ' : '') +
@@ -886,6 +889,8 @@ function paintLb() {
   } else {
     av.innerHTML = '';
   }
+
+  prefetchNeighbours();
 }
 
 // „Grösser“ does two things at once, because the image loses height to two
@@ -907,11 +912,13 @@ function fsExit() {
   try { var r = f.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) {}
 }
 
-// Fullscreen on a 1x display would otherwise upscale the panelled 1400px variant
-// and read as soft — the point of the button is to see the photograph better.
-// Two fixed steps, not a viewport-derived number: Cloudinary caches one
-// transform per distinct width, and cld() already multiplies by DPR.
-function lbWidth() { return lb.big ? 1900 : 1400; }
+// Fullscreen on a 1x display would otherwise upscale the panelled variant and
+// read as soft — the point of the button is to see the photograph better. 2600
+// rather than some in-between number because that is cld()'s own cap, so on a 2x
+// screen both modes resolve to the same URL and toggling refetches nothing. Keep
+// this a short fixed ladder: every distinct width is another derivative
+// Cloudinary has to build from the original the first time anyone asks.
+function lbWidth() { return lb.big ? 2600 : 1400; }
 
 // State, class and label only — anything needing a user gesture belongs in
 // toggleBig(), since this also runs when the remembered preference is applied.
@@ -925,20 +932,58 @@ function setBig(on) {
 function toggleBig() {
   setBig(!lb.big);
   if (lb.big) fsRequest(document.getElementById('lb')); else fsExit();
-  swapLbSrc();
+  lbSharpen(lb.list[lb.i]);
 }
 
-// Swap in the sharper (or lighter) variant without a blank frame: let the new
-// URL load off-screen first, and only then point the visible <img> at it. The
-// identity check drops a load that finished after the client arrowed onward.
-function swapLbSrc() {
-  var p = lb.list[lb.i];
+// Progressive load — the same trick the public site's lightbox uses. The grid's
+// 720px variant is already in the browser cache from the card the client just
+// tapped, so it paints immediately; the sharp one swaps in behind it once it
+// arrives. Without this, opening a photo asks for a width nothing has ever
+// requested, and on a cold Cloudinary transform off a full-size camera original
+// that is seconds of empty frame on a phone.
+function showLbPhoto(p) {
+  var img = document.getElementById('lb-img');
+  img.removeAttribute('data-retried');
+  img.src = cld(p.image_url, 720);
+  lbSharpen(p);
+}
+
+// Let the sharper variant load off-screen and only then point the visible <img>
+// at it, so a slow fetch never blanks a frame the client is already looking at.
+function lbSharpen(p) {
   if (!p) return;
   var img = document.getElementById('lb-img'), url = cld(p.image_url, lbWidth());
   if (img.getAttribute('src') === url) return;
   var pre = new Image();
+  // The identity check drops a load that finished after the client arrowed on.
   pre.onload = function () { if (lb.list[lb.i] === p) img.src = url; };
   pre.src = url;
+}
+
+// Arrowing through candidates for one wall is the whole activity on this page,
+// so the frames either side are fetched while the client is still looking at
+// this one. Only ±1: a spot can hold many candidates and a browser runs about
+// six requests per host, so a wider prefetch would queue behind itself and slow
+// down the photo actually on screen.
+function prefetchNeighbours() {
+  [lb.i - 1, lb.i + 1].forEach(function (n) {
+    var q = lb.list[n];
+    if (q) { var im = new Image(); im.src = cld(q.image_url, lbWidth()); }
+  });
+}
+
+// A transform that times out leaves the <img> permanently blank with no second
+// attempt — the photo that "never loads" however long you wait. One retry, with
+// a throwaway query param to get past the browser's cached failure; more than
+// one would just hammer an asset that is genuinely gone.
+function retryImg(img) {
+  if (img.getAttribute('data-retried')) return;
+  img.setAttribute('data-retried', '1');
+  var src = img.getAttribute('src');
+  if (!src) return;
+  setTimeout(function () {
+    img.src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'r=1';
+  }, 900);
 }
 
 // On a phone the reach-for gesture is a swipe, not a 40px button laid over a
@@ -1268,6 +1313,25 @@ function setPassword() {
 // file arrived as. It reports honestly rather than claiming success, because the
 // name is not guaranteed to still be on every asset — whatever it misses can be
 // typed in from the photo's Edit dialog instead.
+// Admin-only, and English like the rest of the admin bar. Worth pressing once
+// after uploading to a board that predates the eager upload transform — it
+// builds the grid derivatives up front instead of leaving the client to wait
+// while Cloudinary generates each one from the full-size original on first view.
+function warmImages() {
+  var btn = document.getElementById('ab-warm');
+  btn.disabled = true;
+  toast('Asking Cloudinary to build the previews…');
+  api('/api/admin/clients/' + SLUG + '/warm-images', { method: 'POST' })
+    .then(function (r) {
+      toast(!r.checked ? 'No photos to warm'
+        : 'Queued ' + r.warmed + ' of ' + r.checked + ' photo' + (r.checked === 1 ? '' : 's') +
+          (r.failed ? ' — ' + r.failed + ' failed, see the server log' : '') +
+          '. Cloudinary builds them in the background.');
+    })
+    .catch(function (e) { toast(e.message); })
+    .then(function () { btn.disabled = false; });
+}
+
 function recoverNames() {
   var btn = document.getElementById('ab-recover');
   btn.disabled = true;
