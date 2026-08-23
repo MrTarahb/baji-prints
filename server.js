@@ -794,9 +794,16 @@ async function initDB() {
       eyebrow TEXT,                     -- small line above it; NULL = default studio line
       intro TEXT,                       -- optional note to the client, editable inline
       password_hash TEXT,               -- bcrypt; NULL = board locked, nobody can log in
+      series_visible BOOLEAN DEFAULT FALSE,  -- do the series reach the client yet?
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE clients ADD COLUMN IF NOT EXISTS eyebrow TEXT;
+    -- Series are a work-in-progress until deliberately released: tagging photos
+    -- and filtering by them is useful long before the client should see that the
+    -- proposal is split into series at all. Defaults to FALSE so nothing reaches
+    -- a client's board by accident — the tags are withheld server-side, not
+    -- merely hidden in the page.
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS series_visible BOOLEAN DEFAULT FALSE;
 
     -- Rooms group spots ("Empfang" → "Wand hinter Tresen", "Fensterseite").
     CREATE TABLE IF NOT EXISTS client_rooms (
@@ -2858,12 +2865,15 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
          JOIN client_rooms r ON r.id = s.room_id
         WHERE r.client_id=$1 ORDER BY p.sort_order, p.id`, [client.id]
     );
-    // The filename a photo was uploaded under is a working aid for the
-    // photographer — it can carry a shoot name, a version, a client's surname.
-    // It leaves the payload entirely for the client rather than being hidden in
-    // the page, so the board's JSON gives nothing away either.
+    // Two things are withheld from the client rather than hidden in the page, so
+    // the board's JSON gives nothing away either:
+    //   · the filename a photo was uploaded under — a working aid that can carry
+    //     a shoot name, a version, a client's surname;
+    //   · the series tag, until this board's series are deliberately released.
     const isAdmin = !!req.session.admin;
-    const visible = isAdmin ? photos : photos.map(({ original_name, public_id, ...rest }) => rest);
+    const showSeries = isAdmin || client.series_visible;
+    const visible = isAdmin ? photos : photos.map(({ original_name, public_id, series, ...rest }) =>
+      showSeries ? { ...rest, series } : rest);
 
     const byRoom = rooms.map(r => ({
       ...r,
@@ -2873,7 +2883,10 @@ app.get('/api/client/:slug/board', requireBoardAccess, async (req, res) => {
       })),
     }));
     res.json({
-      client: { slug: client.slug, name: client.name, eyebrow: client.eyebrow, intro: client.intro },
+      client: {
+        slug: client.slug, name: client.name, eyebrow: client.eyebrow, intro: client.intro,
+        series_visible: !!client.series_visible,
+      },
       isAdmin,
       rooms: byRoom,
     });
@@ -2996,6 +3009,18 @@ app.post('/api/admin/clients/:slug/mark-seen', requireAuth, async (req, res) => 
                          WHERE c.slug=$1)`, [req.params.slug]
   );
   res.json({ ok: true });
+});
+
+// Release this board's series to the client, or pull them back. Takes the value
+// explicitly rather than flipping, so a double-tap on a phone can't land on the
+// opposite state from the one the button showed.
+app.put('/api/admin/clients/:slug/series-visible', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'UPDATE clients SET series_visible=$1 WHERE slug=$2 RETURNING series_visible',
+    [!!req.body.visible, req.params.slug]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
 });
 
 // One-off recovery for photos uploaded before original_name was recorded.

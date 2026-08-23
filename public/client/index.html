@@ -67,6 +67,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .chip:hover{border-color:var(--ink);color:var(--ink)}
 .chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .chip.untagged{border-style:dashed}
+.chip-note{align-self:center;font-size:11px;font-style:italic;color:var(--mute)}
 /* The series a candidate belongs to, on the card and in the lightbox. */
 .serie{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);
   border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap;flex:none}
@@ -248,6 +249,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
       <button onclick="markSeen()">Mark all read</button>
       <button onclick="copyLink()">Copy link</button>
       <button id="ab-recover" onclick="recoverNames()">Recover filenames</button>
+      <button id="ab-series" onclick="toggleSeriesVisible()">Series</button>
     </div>
   </div>
 
@@ -441,9 +443,17 @@ function visible(photos) {
   return photos.filter(function (p) { return p.series === seriesFilter; });
 }
 
+// Whether the series reach the client at all. You always see them — tagging and
+// filtering is your working tool long before the proposal is ready to be
+// presented as a set of series. Until you release them the server withholds the
+// tag from the client's payload entirely, so this is not a CSS curtain.
+function seriesShown() {
+  return isAdmin || !!(board && board.client && board.client.series_visible);
+}
+
 function seriesChipsHtml(list) {
   // One series (or none) is not a choice — no row at all.
-  if (list.length < 2) return '';
+  if (list.length < 2 || !seriesShown()) return '';
   // Series names are never interpolated into an attribute: chips address the
   // value by index, so a name containing a quote can't break out of the markup.
   chipVals = [null].concat(list);
@@ -459,6 +469,11 @@ function seriesChipsHtml(list) {
     chipVals.push('');
     html += '<button class="chip untagged' + (seriesFilter === '' ? ' on' : '') +
       '" onclick="setSeries(' + (chipVals.length - 1) + ')">Untagged</button>';
+  }
+  // Said right where the chips are, not only up in the admin bar: this row is
+  // the thing that looks like it is on the client's page but isn't yet.
+  if (isAdmin && !board.client.series_visible) {
+    html += '<span class="chip-note">Your view only — the client sees no series yet</span>';
   }
   return html;
 }
@@ -491,6 +506,7 @@ function render() {
     : '';
 
   syncRecoverBtn();
+  syncSeriesBtn();
 
   // Deliberately unfiltered: this is "anything new anywhere", not "new in the
   // series you happen to be looking at".
@@ -661,7 +677,7 @@ function cardHtml(p, s) {
     '<figcaption class="card-foot">' +
       // Only worth naming when there is something to tell it apart from, and
       // never while that series is the only thing on screen anyway.
-      (p.series && seriesFilter === null && seriesList.length > 1
+      (p.series && seriesFilter === null && seriesList.length > 1 && seriesShown()
         ? '<span class="serie">' + esc(p.series) + '</span>' : '') +
       (mark ? '<span class="mark ' + esc(p.status) + '">' + mark + '</span>' : '') +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
@@ -727,7 +743,7 @@ function paintLb() {
   document.getElementById('lb-img').src = cld(p.image_url, 1400);
   document.getElementById('lb-where').textContent = lb.where;
   document.getElementById('lb-count').textContent =
-    (p.series && seriesList.length > 1 ? p.series + ' · ' : '') +
+    (p.series && seriesList.length > 1 && seriesShown() ? p.series + ' · ' : '') +
     'Foto ' + (lb.i + 1) + ' von ' + lb.list.length;
   document.getElementById('lb-comment').value = p.client_comment || '';
   document.getElementById('lb-status').textContent = '';
@@ -1016,6 +1032,24 @@ function recoverNames() {
     })
     .catch(function (e) { toast(e.message); })
     .then(function () { btn.disabled = false; });
+}
+
+// Release the series to the client, or pull them back. Worth offering only once
+// there is more than one series to reveal — below that there is nothing to hide.
+function toggleSeriesVisible() {
+  var on = !(board.client.series_visible);
+  if (on && !confirm('Show the series to the client? He will see the series names on the photos and be able to filter the board by them.')) return;
+  api('/api/admin/clients/' + SLUG + '/series-visible', { method: 'PUT', body: { visible: on } })
+    .then(loadBoard)
+    .then(function () { toast(on ? 'Series are now visible to the client' : 'Series hidden from the client'); })
+    .catch(function (e) { toast(e.message); });
+}
+
+function syncSeriesBtn() {
+  var btn = document.getElementById('ab-series');
+  var on = !!board.client.series_visible;
+  btn.style.display = (isAdmin && seriesList.length > 1) ? '' : 'none';
+  btn.textContent = on ? 'Series: visible to client' : 'Series: hidden from client';
 }
 
 // The button is only worth offering while something is actually missing a name.
