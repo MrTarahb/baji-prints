@@ -163,6 +163,10 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 /* padding-bottom (not aspect-ratio) holds the ratio — an aspect-ratio box with
    auto width gets stretched by flex in this project's target browsers. */
 .card-img{position:relative;height:0;background:var(--bg2);overflow:hidden}
+/* .fit = this frame is too far off the grid's shared box to trim, so it sits
+   inside the box whole, on the box's own ground. The box stays the same size
+   either way — that is the point. */
+.card-img.fit img{object-fit:contain}
 .card-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   -webkit-user-drag:none;user-select:none;transition:transform .5s cubic-bezier(.2,.6,.2,1)}
 .card:hover .card-img img{transform:scale(1.02)}
@@ -699,7 +703,10 @@ function spotHtml(s) {
     head +
     noteHtml(s.note, 'spot-note-block') +
     (shown.length
-      ? '<div class="grid">' + shown.map(function (p) { return cardHtml(p, s); }).join('') + '</div>'
+      ? '<div class="grid">' + (function () {
+          var box = gridBox(shown);
+          return shown.map(function (p) { return cardHtml(p, s, box); }).join('');
+        })() + '</div>'
       : empty) +
     '</div>';
 }
@@ -771,24 +778,76 @@ function copyName(e, el) {
   else toast(n);
 }
 
-function cardHtml(p, s) {
-  // Dimensions are stored at upload; anything older falls back to 3:2 and gets
-  // corrected by adjustRatio() the moment the image loads.
+// Dimensions are stored at upload; anything older falls back to 3:2 until its
+// file arrives and adjustRatio() records the truth.
+function photoAr(p) {
+  return (p.width > 0 && p.height > 0) ? (p.width / p.height) : 1.5;
+}
+
+// How far a frame may be trimmed to fit the shared box before the trim stops
+// being a trim. A panorama among 3:2 frames is past it and gets .fit instead.
+var MAX_TRIM = 0.10;
+
+// EVERY card in one grid renders at the SAME rectangle. Layout takes its shape
+// from a single normalised ratio — never from the individual file's pixels —
+// because two frames off the same camera differ by a percent or two, and at
+// equal height (or equal area) that difference lands on the page as one photo
+// being wider, or taller, than its neighbour. The client is choosing
+// photographs, and a layout that makes one of them bigger has voted.
+//
+// The shape is the MEDIAN ratio of the photos sharing the box, so the trim is
+// split between them and one panorama cannot drag the box away from the rest:
+// 1.41 and 1.50 both settle on 1.45 and give up ~1.5% off opposite edges.
+// object-fit:cover does the trimming, and the lightbox always shows the frame
+// whole, so nothing is decided on a trimmed image.
+//
+// Portraits get their own box — same area, turned 90° — because forcing a
+// portrait into a landscape box is not a trim, it is a re-crop.
+function gridBox(photos) {
+  var land = [], port = [];
+  for (var i = 0; i < photos.length; i++) {
+    var ar = photoAr(photos[i]);
+    (ar < 1 ? port : land).push(ar);
+  }
+  return { land: median(land), port: median(port) };
+}
+
+// Median, and for an even count the geometric mean of the two middles — a
+// ratio's midpoint is multiplicative, so 1.4 and 1.6 meet at 1.497, the point
+// that costs both the same percentage.
+function median(a) {
+  if (!a.length) return null;
+  a = a.slice().sort(function (x, y) { return x - y; });
+  var h = a.length >> 1;
+  return (a.length % 2) ? a[h] : Math.sqrt(a[h - 1] * a[h]);
+}
+
+function boxAr(ar, box) {
+  var t = ar < 1 ? box.port : box.land;
+  return t || ar;
+}
+
+function cardHtml(p, s, box) {
   var known = p.width > 0 && p.height > 0;
-  var ar = known ? (p.width / p.height) : 1.5;
+  var ar = photoAr(p);
+  // t is what gets laid out; ar only decides whether this frame can be trimmed
+  // into the box or has to sit inside it whole.
+  var t = boxAr(ar, box);
+  var fit = (Math.max(ar, t) / Math.min(ar, t) - 1) > MAX_TRIM ? ' fit' : '';
   var mark = p.status === 'approved' ? '✓ zugesagt'
            : p.status === 'declined' ? '✕ abgelehnt' : '';
 
   return '<figure class="card ' + esc(p.status) + '"' +
-      // The two numbers a card carries: --ar for the viewport-height cap, --sar
-      // (its square root) for the equal-area width. sqrt() is computed here
-      // rather than in CSS so nothing depends on a browser having CSS sqrt().
-      ' style="--ar:' + ar.toFixed(4) + ';--sar:' + Math.sqrt(ar).toFixed(4) + '"' +
+      // Both numbers describe the BOX, not the photograph: --ar for the
+      // viewport-height cap, --sar (its square root) for the equal-area width.
+      // sqrt() is computed here rather than in CSS so nothing depends on a
+      // browser having CSS sqrt().
+      ' style="--ar:' + t.toFixed(4) + ';--sar:' + Math.sqrt(t).toFixed(4) + '"' +
       ' onclick="openLb(' + s.id + ',' + p.id + ')">' +
-    '<div class="card-img" style="padding-bottom:' + (100 / ar).toFixed(3) + '%">' +
+    '<div class="card-img' + fit + '" style="padding-bottom:' + (100 / t).toFixed(3) + '%">' +
       '<img src="' + esc(cld(p.image_url, 720)) + '" alt="" loading="lazy" decoding="async"' +
         ' draggable="false" oncontextmenu="return false" onerror="retryImg(this)"' +
-        (known ? '' : ' onload="adjustRatio(this)"') + '>' +
+        (known ? '' : ' onload="adjustRatio(' + s.id + ',' + p.id + ',this)"') + '>' +
     '</div>' +
     (p.note ? '<div class="note photo-note" style="margin:11px 0 0">' + esc(p.note) + '</div>' : '') +
     '<figcaption class="card-foot">' +
@@ -806,16 +865,25 @@ function cardHtml(p, s) {
   '</figure>';
 }
 
-// Legacy photos uploaded before dimensions were recorded: read the real ratio
-// off the loaded image and correct that card in place.
-function adjustRatio(img) {
+// Legacy photos uploaded before dimensions were recorded lay out at the 3:2
+// fallback until their file arrives. The true size goes back onto the photo and
+// through render() rather than onto the one card, because the box is a median
+// over the photos sharing it — correcting a card in place would give that grid
+// two rectangles again. Debounced, so a spot full of legacy rows costs one
+// repaint, and it terminates: once width/height are known cardHtml stops
+// attaching this handler at all.
+var ratioFixT = null;
+function adjustRatio(spotId, photoId, img) {
   if (!img.naturalWidth || !img.naturalHeight) return;
-  var ar = img.naturalWidth / img.naturalHeight;
-  var card = img.closest('.card');
-  if (!card) return;
-  card.style.setProperty('--ar', ar.toFixed(4));
-  card.style.setProperty('--sar', Math.sqrt(ar).toFixed(4));
-  img.parentNode.style.paddingBottom = (100 / ar).toFixed(3) + '%';
+  var hit = findSpot(spotId);
+  if (!hit) return;
+  var ps = hit.spot.photos, p = null;
+  for (var i = 0; i < ps.length; i++) if (ps[i].id === photoId) p = ps[i];
+  if (!p || p.width > 0) return;
+  p.width = img.naturalWidth;
+  p.height = img.naturalHeight;
+  clearTimeout(ratioFixT);
+  ratioFixT = setTimeout(render, 60);
 }
 
 // ── LIGHTBOX ─────────────────────────────────────────────────────────────────
