@@ -251,21 +251,29 @@ that is belt-and-braces, not the guard.
   with `use_filename` + `unique_filename` so new assets are findable in the media library too.
 - `PUT /api/admin/client-photos/:id` writes **only the body keys actually present**, so a caller
   editing one field can't null the others. Column names come from a fixed list, never the request.
-- **Every photo in the grid lays out to the same height, and nothing is ever cropped.** Each
-  card carries only `--ar` inline; the CSS does `flex: 0 1 calc(var(--ar) * var(--rowh))`
-  (`--rowh: 330px` on `.grid`), so width = aspect × row height and every photo is the same
-  height whatever row it lands in. It *was* a justified gallery — `flex-grow: ar` plus a
-  `::after` spacer — and that is the bug to not reintroduce: a row holding one photo stretched
-  it to the full container while the next row's photo stayed at its natural size, so two
-  candidates for the same wall rendered at two different sizes. To a photographer that is
-  justification; to the client it reads as "this one is the bigger picture", which weights a
-  decision that must not be weighted. A ragged right edge is the price, and it is worth it.
-  `flex-shrink` still clamps a card that alone exceeds its container, but that clamp is the
-  container width, identical for every row, so equality survives it. `width` / `height` are
-  captured from Cloudinary at upload so the ratio is known on first paint; older rows without
-  them fall back to 3:2 and self-correct via `adjustRatio()` on load. Each card is also capped
-  at `max-width: min(calc(var(--ar) * 68vh), 100%)` — without the `vh` term a portrait on a
-  short viewport resolves taller than the screen. On mobile the cards go full width
+- **Every photo in the grid covers the same AREA, and nothing is ever cropped.** `--cell`
+  (404px, on `.grid`) is the geometric mean of a card's two sides: each card carries `--ar`
+  and `--sar` (= √ar, computed in JS so nothing depends on CSS `sqrt()` support) and the CSS
+  does `flex: 0 1 calc(var(--sar) * var(--cell))`, giving width = √ar × cell, height =
+  cell ÷ √ar, area = cell² for every shape. **This is the third sizing rule here and the first
+  two are both bugs to not reintroduce:**
+  - *Justified rows* (`flex-grow: ar` + an `::after` spacer) — a row holding one photo
+    stretched it to the full container while the next row's photo kept its natural size, so two
+    candidates for one wall rendered at visibly different sizes.
+  - *Equal height* (width = ar × row height) — fixed that, but a 1.41:1 frame still came out 6%
+    narrower than a 1.5:1 one, and a **portrait covered 45% of a landscape's area**, which is
+    the same bias in a louder form.
+
+  The client is choosing photographs and the layout must not tell him which one matters; equal
+  area is the only sizing that says nothing, since a wider frame is shorter and a taller one
+  narrower. A ragged right edge is the price and it is worth it. `flex-shrink` still clamps a
+  card that alone exceeds its container, but that clamp is the container width, identical for
+  every row, so the degraded case is equal *widths* — aligned edges, which reads as fair too.
+  `width` / `height` are captured from Cloudinary at upload so the ratio is known on first
+  paint; older rows without them fall back to 3:2 and self-correct via `adjustRatio()` on load,
+  which must update **both** custom properties. Each card is also capped at
+  `max-width: min(calc(var(--ar) * 68vh), 100%)` — without the `vh` term a portrait on a short
+  viewport resolves taller than the screen. On mobile the cards go full width
   (`flex-basis:100%`), and `min-width` must stay `0` there, because `min-width` beats
   `max-width` and would defeat that cap.
 - Uploads go to Cloudinary `baji-clients/<slug>/` via `clientStorage`, whose folder is resolved
