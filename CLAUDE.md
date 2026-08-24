@@ -251,13 +251,23 @@ that is belt-and-braces, not the guard.
   with `use_filename` + `unique_filename` so new assets are findable in the media library too.
 - `PUT /api/admin/client-photos/:id` writes **only the body keys actually present**, so a caller
   editing one field can't null the others. Column names come from a fixed list, never the request.
-- The client grid is a **justified gallery and nothing is ever cropped**: `flex-basis = ar ×
-  ROW_H` with `flex-grow = ar` makes every photo in a row resolve to the same height. `width` /
-  `height` are captured from Cloudinary at upload so the ratio is known on first paint; older
-  rows without them fall back to 3:2 and self-correct via `adjustRatio()` on load. Each card is
-  capped at `max-width: calc(var(--ar) * 68vh)` — without that a portrait on a narrow viewport
-  lays out ~1.5× the container width and runs off the screen. On mobile `min-width` must stay
-  `0`, because `min-width` beats `max-width` and would defeat that cap.
+- **Every photo in the grid lays out to the same height, and nothing is ever cropped.** Each
+  card carries only `--ar` inline; the CSS does `flex: 0 1 calc(var(--ar) * var(--rowh))`
+  (`--rowh: 330px` on `.grid`), so width = aspect × row height and every photo is the same
+  height whatever row it lands in. It *was* a justified gallery — `flex-grow: ar` plus a
+  `::after` spacer — and that is the bug to not reintroduce: a row holding one photo stretched
+  it to the full container while the next row's photo stayed at its natural size, so two
+  candidates for the same wall rendered at two different sizes. To a photographer that is
+  justification; to the client it reads as "this one is the bigger picture", which weights a
+  decision that must not be weighted. A ragged right edge is the price, and it is worth it.
+  `flex-shrink` still clamps a card that alone exceeds its container, but that clamp is the
+  container width, identical for every row, so equality survives it. `width` / `height` are
+  captured from Cloudinary at upload so the ratio is known on first paint; older rows without
+  them fall back to 3:2 and self-correct via `adjustRatio()` on load. Each card is also capped
+  at `max-width: min(calc(var(--ar) * 68vh), 100%)` — without the `vh` term a portrait on a
+  short viewport resolves taller than the screen. On mobile the cards go full width
+  (`flex-basis:100%`), and `min-width` must stay `0` there, because `min-width` beats
+  `max-width` and would defeat that cap.
 - Uploads go to Cloudinary `baji-clients/<slug>/` via `clientStorage`, whose folder is resolved
   per request from `req.uploadClientSlug` — the route must set that *before* multer runs.
 - Deleting a room or spot cascades in Postgres, so the route collects `public_id`s **before**

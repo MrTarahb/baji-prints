@@ -132,19 +132,25 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .adm button:hover{color:var(--ink)}
 .adm .move{padding:4px 7px;line-height:1}
 
-/* Justified gallery: each photo keeps its true proportions, and flex-grow
-   proportional to the aspect ratio makes every photo in a row land on the same
-   height. Nothing is ever cropped. The ::after spacer stops a short final row
-   from stretching its photos to absurd widths. */
-.grid{display:flex;flex-wrap:wrap;gap:22px}
-.grid::after{content:'';flex-grow:9999999}
-/* --ar (set inline per photo) caps every card by VIEWPORT HEIGHT, not a fixed
-   px width. Without it a justified row of two, or a portrait on a narrow
-   screen, resolves far taller than the screen — a portrait at 600px wide is
-   900px tall. Capping width at ar × 68vh bounds the height at 68vh instead,
-   whatever the aspect ratio or viewport. */
+/* EVERY photo on the board is laid out to the same height (--rowh), and nothing
+   is ever cropped: width = aspect × --rowh. This was a justified gallery once —
+   flex-grow proportional to the aspect ratio, so each row filled the width — and
+   that is exactly what had to go. A row holding a single photo stretched it to
+   the full container while the next row's photo stayed at its natural size, so
+   two candidates for the same wall rendered at two different sizes and read as
+   "the big one and the small one". The client is choosing photographs; the
+   layout must not weight that choice. A ragged right edge is the price.
+   flex-shrink still clamps a card that alone exceeds its container, but that
+   clamp is the container width, identical for every row, so heights stay equal. */
+.grid{display:flex;flex-wrap:wrap;gap:22px;--rowh:330px}
+/* --ar (set inline per photo) also caps every card by VIEWPORT HEIGHT, not a
+   fixed px width. Without it a portrait on a short viewport resolves taller than
+   the screen. Capping width at ar × 68vh bounds the height at 68vh instead,
+   whatever the aspect ratio or viewport; the min() keeps a card that is wider
+   than its container inside it. */
 .card{position:relative;cursor:pointer;min-width:170px;transition:opacity .2s;
-  max-width:calc(var(--ar) * 68vh)}
+  flex:0 1 calc(var(--ar) * var(--rowh));
+  max-width:min(calc(var(--ar) * 68vh),100%)}
 .card.declined{opacity:.42}
 .card.declined:hover{opacity:.75}
 /* padding-bottom (not aspect-ratio) holds the ratio — an aspect-ratio box with
@@ -245,12 +251,12 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   .room{margin-bottom:64px}
   .spot{margin-bottom:44px}
   .spots.multi{gap:44px}
-  /* One photo per row on a phone — a justified row of two is too small to
-     judge a photograph by, which is the whole point of the page. min-width
+  /* One photo per row on a phone — a row of two is too small to judge a
+     photograph by, which is the whole point of the page. Equal full-bleed
+     widths, so same-shaped photos still render at the same size. min-width
      must go to 0: min-width beats max-width in CSS, so leaving it at 100%
      would defeat the viewport-height cap and stretch portraits off-screen. */
   .grid{gap:26px;justify-content:center}
-  .grid::after{display:none}
   .card{min-width:0;flex-basis:100% !important}
   .lb-nav{width:40px;height:40px;font-size:18px}
   .lb-nav.prev{left:8px}
@@ -758,10 +764,6 @@ function copyName(e, el) {
   else toast(n);
 }
 
-// Target row height in px. flex-basis is aspect * this, so a row of photos
-// resolves to roughly this height whatever mix of portrait and landscape it holds.
-var ROW_H = 300;
-
 function cardHtml(p, s) {
   // Dimensions are stored at upload; anything older falls back to 3:2 and gets
   // corrected by adjustRatio() the moment the image loads.
@@ -771,8 +773,9 @@ function cardHtml(p, s) {
            : p.status === 'declined' ? '✕ abgelehnt' : '';
 
   return '<figure class="card ' + esc(p.status) + '"' +
-      ' style="--ar:' + ar.toFixed(4) + ';flex-grow:' + ar.toFixed(4) +
-        ';flex-basis:' + Math.round(ar * ROW_H) + 'px"' +
+      // --ar is the only geometry a card carries; the CSS turns it into both the
+      // flex-basis (ar × --rowh) and the viewport-height cap.
+      ' style="--ar:' + ar.toFixed(4) + '"' +
       ' onclick="openLb(' + s.id + ',' + p.id + ')">' +
     '<div class="card-img" style="padding-bottom:' + (100 / ar).toFixed(3) + '%">' +
       '<img src="' + esc(cld(p.image_url, 720)) + '" alt="" loading="lazy" decoding="async"' +
@@ -803,8 +806,6 @@ function adjustRatio(img) {
   var card = img.closest('.card');
   if (!card) return;
   card.style.setProperty('--ar', ar.toFixed(4));
-  card.style.flexGrow = ar.toFixed(4);
-  card.style.flexBasis = Math.round(ar * ROW_H) + 'px';
   img.parentNode.style.paddingBottom = (100 / ar).toFixed(3) + '%';
 }
 
