@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Fountain City · Bharat Bhatia</title>
+<meta name="description" content="An ongoing project mapping the public fountains of Zürich.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --fi:'Playfair Display',Georgia,serif;
+  --fm:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ink:#111110;
+  --bg:#FAFAF8;
+  --bg2:#F0EFEC;
+  --line:#E2E0DA;
+  --mute:#8A857C;
+  --pink:#C8907A;
+  --pink-d:#A87060;
+  --no:#A8564A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--fm);font-weight:300;font-size:14px;
+  line-height:1.65;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100dvh}
+button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;
+  color:var(--ink);padding:8px 14px;border-radius:2px;transition:border-color .18s,background .18s,color .18s}
+button:hover{border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+input{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;
+  border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
+input:focus{outline:none;border-color:var(--ink)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px;width:100%}
+.eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+
+/* ── ADMIN BAR ────────────────────────────────────────────────────────
+   Hidden entirely for the public; revealed by .on once /api/fountains
+   says this visitor is the admin. Same idea as the client boards. */
+#adminbar{display:none;background:var(--ink);color:var(--bg);font-size:12px;padding:10px 0;flex:none}
+#adminbar.on{display:block}
+#adminbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#adminbar button{background:transparent;color:var(--bg);border-color:#3A3733;padding:5px 10px;font-size:11.5px}
+#adminbar button:hover{border-color:var(--bg)}
+#ab-hint{color:#9C968C;font-size:11.5px}
+
+/* ── HEADER ───────────────────────────────────────────────────────────── */
+header{flex:none;padding:34px 0 20px}
+.head-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-height:1.15;margin:8px 0 0}
+.intro{color:var(--mute);font-size:12.5px;max-width:62ch;margin-top:10px}
+#count{font-size:11.5px;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
+#count b{font-weight:500;color:var(--ink)}
+
+/* ── MAP ──────────────────────────────────────────────────────────────
+   The map takes the whole remaining viewport rather than a fixed height,
+   so it stays the subject of the page on a laptop and on a phone. */
+.map-wrap{flex:1;min-height:380px;display:flex;padding:0 24px 24px;max-width:1120px;
+  margin:0 auto;width:100%}
+#map{flex:1;border:1px solid var(--line);border-radius:3px;background:var(--bg2)}
+.leaflet-container{font-family:var(--fm);font-weight:300;background:var(--bg2)}
+.leaflet-control-attribution{font-size:10px;background:rgba(250,250,248,.86)}
+
+/* A fountain is a small terracotta disc, not a pin — a few hundred pins read
+   as a pincushion, and a disc keeps its exact point at its own centre. */
+.fmark{width:13px;height:13px;border-radius:50%;background:var(--pink);
+  border:2px solid var(--bg);box-shadow:0 1px 4px rgba(17,17,16,.4);
+  transition:transform .15s,background .15s}
+.fmark:hover{transform:scale(1.35);background:var(--pink-d)}
+.leaflet-popup-content-wrapper{border-radius:3px;box-shadow:0 4px 20px rgba(17,17,16,.18)}
+.leaflet-popup-content{margin:13px 15px;font-size:12.5px;line-height:1.55}
+.pop-name{font-family:var(--fi);font-style:italic;font-size:16px;display:block;margin-bottom:2px}
+.pop-name.none{font-family:var(--fm);font-style:normal;font-size:12.5px;color:var(--mute)}
+.pop-co{color:var(--mute);font-size:11px;letter-spacing:.02em;display:block}
+.pop-del{margin-top:9px;padding:4px 9px;font-size:11px;color:var(--no);border-color:var(--line)}
+.pop-del:hover{border-color:var(--no)}
+
+/* ── MODAL / TOAST (admin only) ───────────────────────────────────────── */
+#modal{position:fixed;inset:0;background:rgba(17,17,16,.5);z-index:1200;display:none;
+  align-items:center;justify-content:center;padding:22px}
+#modal.on{display:flex}
+.modal-card{background:var(--bg);border-radius:3px;padding:24px;width:100%;max-width:400px;
+  max-height:86vh;overflow-y:auto}
+.modal-card h4{font-family:var(--fi);font-style:italic;font-weight:400;font-size:19px;margin-bottom:6px}
+.modal-card p{font-size:12px;color:var(--mute);margin-bottom:14px}
+.modal-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.m-label{display:block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:12px 0 5px}
+.m-label:first-child{margin-top:0}
+.m-hint{font-size:11px;color:var(--mute);margin-top:5px;line-height:1.5}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:2px;font-size:12.5px;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:1300}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  header{padding:24px 0 16px}
+  h1{font-size:27px}
+  .wrap,.map-wrap{padding-left:16px;padding-right:16px}
+  .map-wrap{padding-bottom:16px}
+  .head-row{align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<div id="adminbar">
+  <div class="wrap">
+    <span class="eyebrow" style="color:#9C968C">Admin view</span>
+    <button onclick="addFountain()">+ Fountain</button>
+    <span id="ab-hint">or click anywhere on the map to place one</span>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="head-row">
+      <div>
+        <div class="eyebrow">Zürich · Ongoing</div>
+        <h1>Fountain City</h1>
+      </div>
+      <div id="count"></div>
+    </div>
+    <div class="intro">Zürich runs on drinking water. This is a map of the public fountains,
+      added one at a time as I find and photograph them.</div>
+  </div>
+</header>
+
+<div class="map-wrap"><div id="map"></div></div>
+
+<div id="modal">
+  <div class="modal-card">
+    <h4 id="m-title"></h4>
+    <p id="m-desc"></p>
+    <div id="m-fields"></div>
+    <div class="modal-row">
+      <button onclick="closeModal()">Cancel</button>
+      <button id="m-ok" style="background:#111110;color:#FAFAF8;border-color:#111110">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+var fountains = [];
+var isAdmin = false;
+var map, layer;
+
+// Bürkliplatz-ish — the default view before there is anything to fit to.
+var ZURICH = [47.3717, 8.5423];
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function api(path, opts) {
+  opts = opts || {};
+  if (opts.body) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(opts.body);
+  }
+  opts.credentials = 'same-origin';
+  return fetch(path, opts).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    });
+  });
+}
+
+var toastTimer;
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('on'); }, 2200);
+}
+
+// Accepts what a map app actually hands you when you copy a location:
+// "47.3769, 8.5417", or the same pair separated by a space or a semicolon.
+// Returns null rather than a half-parsed pair — a typo that silently became
+// 0 would drop a fountain in the Gulf of Guinea.
+function parseLatLng(str) {
+  var m = String(str).trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  var lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat: lat, lng: lng };
+}
+
+function fmt(n) { return Number(n).toFixed(5); }
+
+// ── MAP ──────────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', { zoomControl: true, scrollWheelZoom: true }).setView(ZURICH, 13);
+  // A muted greyscale basemap: the fountains are the subject, and standard OSM
+  // tiles' colour would fight the rest of the site.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 20
+  }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+
+  // Placing by click is admin-only, and the handler is attached only for the
+  // admin, so a visitor's stray tap on the map does nothing at all.
+  if (isAdmin) map.on('click', function (e) { addFountain(e.latlng); });
+}
+
+function popupHtml(f) {
+  var name = f.name
+    ? '<span class="pop-name">' + esc(f.name) + '</span>'
+    : '<span class="pop-name none">Unnamed fountain</span>';
+  var admin = isAdmin
+    ? '<button class="pop-del" onclick="delFountain(' + (f.id | 0) + ')">Delete</button>'
+    : '';
+  return name + '<span class="pop-co">' + fmt(f.lat) + ', ' + fmt(f.lng) + '</span>' + admin;
+}
+
+// Repaints every marker from `fountains`. Cheap at this scale, and it keeps one
+// source of truth — no marker is ever mutated in place.
+function render() {
+  layer.clearLayers();
+  fountains.forEach(function (f) {
+    L.marker([f.lat, f.lng], {
+      title: f.name || '',
+      icon: L.divIcon({
+        className: '', html: '<div class="fmark"></div>',
+        iconSize: [13, 13], iconAnchor: [6.5, 6.5], popupAnchor: [0, -8]
+      })
+    }).bindPopup(popupHtml(f)).addTo(layer);
+  });
+  var n = fountains.length;
+  document.getElementById('count').innerHTML = '<b>' + n + '</b> ' + (n === 1 ? 'fountain' : 'fountains');
+}
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+api('/api/fountains').then(function (d) {
+  fountains = d.fountains || [];
+  isAdmin = !!d.admin;
+  if (isAdmin) document.getElementById('adminbar').classList.add('on');
+  initMap();
+  render();
+  // Fit to what exists, but only on load — refitting after every add would yank
+  // the map out from under the admin mid-session.
+  if (fountains.length > 1) {
+    map.fitBounds(fountains.map(function (f) { return [f.lat, f.lng]; }), { padding: [40, 40] });
+  } else if (fountains.length === 1) {
+    map.setView([fountains[0].lat, fountains[0].lng], 16);
+  }
+}).catch(function (e) {
+  // The map is still worth showing without its markers, so the failure is a
+  // toast rather than an empty page.
+  initMap();
+  render();
+  toast('Could not load fountains: ' + e.message);
+});
+
+// ── ADMIN ────────────────────────────────────────────────────────────────────
+// `at` is a LatLng when this came from a map click, undefined from the button.
+function addFountain(at) {
+  ask('Add fountain', at ? 'Coordinates taken from where you clicked.' : '', [
+    { key: 'co', label: 'Coordinates', value: at ? fmt(at.lat) + ', ' + fmt(at.lng) : '',
+      hint: 'Decimal degrees, latitude first — e.g. 47.37690, 8.54170' },
+    { key: 'name', label: 'Name (optional)' }
+  ], function (v) {
+    var ll = parseLatLng(v.co);
+    if (!ll) return toast('Coordinates must read like 47.3769, 8.5417');
+    api('/api/admin/fountains', { method: 'POST', body: { lat: ll.lat, lng: ll.lng, name: v.name } })
+      .then(function (f) {
+        fountains.push(f);
+        render();
+        // Only move the map if the new fountain landed off-screen; otherwise the
+        // view the admin was working in is left exactly as it was.
+        if (!map.getBounds().contains([f.lat, f.lng])) map.panTo([f.lat, f.lng]);
+        toast(f.name ? 'Added ' + f.name : 'Fountain added');
+      })
+      .catch(function (e) { toast(e.message); });
+  });
+}
+
+function delFountain(id) {
+  var f = fountains.filter(function (x) { return x.id === id; })[0];
+  if (!f) return;
+  if (!confirm('Delete ' + (f.name ? '"' + f.name + '"' : 'this fountain') + '?')) return;
+  api('/api/admin/fountains/' + id, { method: 'DELETE' }).then(function () {
+    fountains = fountains.filter(function (x) { return x.id !== id; });
+    map.closePopup();
+    render();
+    toast('Deleted');
+  }).catch(function (e) { toast(e.message); });
+}
+
+// ── MODAL ────────────────────────────────────────────────────────────────────
+// Text fields only — the same shape as the client board's ask(), minus the
+// select and checkbox branches this page has no use for.
+function ask(title, desc, fields, cb) {
+  document.getElementById('m-title').textContent = title;
+  document.getElementById('m-desc').textContent = desc || '';
+  var box = document.getElementById('m-fields');
+  box.innerHTML = fields.map(function (f, i) {
+    return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' +
+      '<input type="text" id="mf-' + i + '">' +
+      (f.hint ? '<div class="m-hint">' + esc(f.hint) + '</div>' : '');
+  }).join('');
+  // Values are assigned as properties, never interpolated into the markup, so a
+  // quote in an existing name can't break out of the field.
+  fields.forEach(function (f, i) { document.getElementById('mf-' + i).value = f.value || ''; });
+
+  document.getElementById('modal').classList.add('on');
+  var first = document.getElementById('mf-0');
+  if (first) { first.focus(); first.select(); }
+
+  var ok = document.getElementById('m-ok');
+  var fresh = ok.cloneNode(true);        // drop any previous handler
+  ok.parentNode.replaceChild(fresh, ok);
+  fresh.onclick = function () {
+    var out = {};
+    fields.forEach(function (f, i) { out[f.key] = document.getElementById('mf-' + i).value.trim(); });
+    closeModal();
+    cb(out);
+  };
+  box.querySelectorAll('input').forEach(function (el) {
+    el.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); fresh.click(); } };
+  });
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('on'); }
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && document.getElementById('modal').classList.contains('on')) closeModal();
+});
+</script>
+</body>
+</html>

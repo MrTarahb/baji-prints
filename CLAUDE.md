@@ -33,7 +33,7 @@ locally is render logic: the client board's `<script>` runs under `node:vm` agai
 
 ## Architecture
 
-Four tracked source files. Everything else is `node_modules` / config.
+Five tracked source files. Everything else is `node_modules` / config.
 
 | File | ~Lines | Role |
 |---|---|---|
@@ -41,6 +41,7 @@ Four tracked source files. Everything else is `node_modules` / config.
 | `public/index.html` | 4,300 | Public site — vanilla-JS SPA, inline `<style>` + `<script>`, no framework, no bundler |
 | `public/admin/index.html` | 2,250 | Admin panel — separate vanilla-JS SPA |
 | `public/client/index.html` | 1,075 | Private client proofing boards — separate vanilla-JS SPA, German UI |
+| `public/project/fountaincity/index.html` | 330 | Fountain City — public Leaflet map of Zürich's fountains, separate vanilla-JS SPA |
 
 Request flow: Cloudflare DNS → Railway/Express (serves the SPA with server-injected `<meta>`)
 → images from Cloudinary → purchase → Stripe Checkout → webhook → Postgres → Resend.
@@ -291,6 +292,38 @@ that is belt-and-braces, not the guard.
   whole site down. The `caption` → `note` migration in `initDB()` is the pattern: a `DO $$`
   block that renames only if the old column exists *and* the new one does not, followed by
   `ADD COLUMN IF NOT EXISTS` so fresh databases get it too.
+
+### Fountain City (`/project/fountaincity`)
+
+A public map of Zürich's public fountains — the first of what the URL implies will be several
+`/project/<name>` pages. One table (`fountains`: `name`, `lat`, `lng`), one page,
+`public/project/fountaincity/index.html`.
+
+- **Public page, admin controls inline** — the same shape as the client boards, minus the gate.
+  `GET /api/fountains` returns the rows plus an `admin` flag telling the page whether *this*
+  visitor may edit; the fountain rows themselves are public, so there is nothing to withhold
+  from the payload the way a client board withholds `public_id`. Log in at `/admin`, then open
+  the map and the admin bar appears.
+- **It is `noindex` for now, not private.** The page is reachable by anyone with the URL but is
+  linked from nowhere, absent from `sitemap.xml`, and carries `X-Robots-Tag: noindex` on the
+  route plus a `<meta name="robots">`. That is a deliberate not-finished-yet state, *not* the
+  client boards' privacy posture — remove both lines and add a sitemap entry when it ships.
+- **Leaflet 1.9.4 from cdnjs**, matching the host the public site already uses for GSAP. Tiles
+  are CARTO Positron: the standard OSM tiles' colour fights the site's palette, and a greyscale
+  basemap leaves the markers as the only saturated thing on the page. Both OSM and CARTO
+  require the attribution control — don't remove it.
+- **A fountain is a `divIcon` disc, not a pin.** A pin's point sits below its own graphic, so a
+  few hundred of them read as a pincushion; a disc marks its exact coordinate at its centre.
+- **Coordinates are parsed, never trusted** — on the page by `parseLatLng()`, which accepts what
+  a map app hands you on copy (`47.3769, 8.5417`, or space/semicolon separated) and returns
+  `null` rather than a half-parsed pair, and again on the server by `parseCoord()`. A typo that
+  silently became `0` would drop a fountain in the Gulf of Guinea.
+- **`render()` repaints the whole layer group from the `fountains` array** rather than mutating
+  markers in place, so there is one source of truth. `fitBounds` runs only on load: refitting
+  after each add would yank the map out from under the admin, and a new fountain pans the view
+  only when it lands off-screen.
+- The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
+  how the parsing, popup-escaping and render behaviour was verified without a browser.
 
 ### Frontend gotchas (`public/index.html`)
 
