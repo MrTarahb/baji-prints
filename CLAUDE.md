@@ -5,6 +5,40 @@
 Baji Prints — fine art print atelier site for Bharat "Baji" Bhatia (Zürich). Portfolio + shop
 (Stripe checkout) + workshops + admin CMS, live at `bharatbhatia.photography`.
 
+## Work in progress — boards refactor (paused 2026-08-26)
+
+A four-stage plan to give projects and workshops the same shape client boards have: a row in a
+table, an overview list in `/admin`, and the page carrying its own admin controls. The full
+plan, including schema and the decisions behind it, is at
+`~/.claude/plans/federated-honking-bee.md` — **read it before continuing.**
+
+**Done and deployed** (`9774252`, `791ceba`):
+- `public/shared/chrome.{css,js}` — the main site's nav, footer, theme toggle, Portfolio
+  dropdown and cursor, for standalone pages. See the header comment in chrome.css for why it is
+  a second copy of what `public/index.html` carries inline, and what is deliberately not copied.
+- Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false })`.
+- `public/index.html` learned `/?cat=<slug>` so the dropdown can link back into a filter.
+
+**Open bug — the desktop nav on `/project/fountaincity` "doesn't look right".** Mobile is fine.
+Ruled out already: both commits are pushed, `/shared/chrome.css` and `/shared/chrome.js` return
+200 live, and the deployed copies contain the latest rules. Suspects, in order:
+1. **Width alignment.** `.ch-nav` spans the full width with its own `padding:1.4rem 2rem`, but
+   everything below it on that page sits inside `.wrap` (`max-width:1120px;margin:0 auto`). On a
+   wide screen the nav name sits hard left while the title starts at the centred wrap's edge.
+   Likely fix: give the in-stack nav the same `.wrap` constraint.
+2. **Scrim opacity.** `#topstack`'s gradient starts at `rgba(250,250,248,.97)` — near-opaque by
+   design, and much heavier than the main site's `rgba(17,17,16,.35)` over the hero.
+3. The theme toggle renders but changes nothing here (tokens are pinned light, see the `:root`
+   block in that page). Offered but not built: a real dark mode via OpenFreeMap's dark style.
+
+**Not started:** Stage 2 (projects table, `/project/:slug`, admin panel), Stage 3 (workshops
+table, per-workshop dates/photos, `/workshop/<slug>` page, 301 from `/workshops`), Stage 4 (slug
+renaming). **Hard constraint carried into all of it: never overwrite the hand-written
+`workshop_*` values in `content`** — per-workshop copy goes in a new overrides table that falls
+back to those keys.
+
+Delete this section once the refactor lands.
+
 ## Commands
 
 No test suite, no linter, no build step. Verification before committing is manual:
