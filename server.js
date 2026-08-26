@@ -297,6 +297,26 @@ const clientStorage = new CloudinaryStorage({
 });
 const clientUpload = multer({ storage: clientStorage });
 
+// Fountain photographs get their own folder, well away from the portfolio and
+// the client boards. The popup asks for 640px (320 CSS px on a 2x screen) and
+// the full-size view for 1600, so both are pre-built — a project page that
+// grows to a few hundred fountains would otherwise generate a derivative on
+// the first click of every single pin. Same eager_async reasoning as the
+// client boards: the upload response must not wait on the derivatives.
+const FOUNTAIN_WIDTHS = [640, 1600];
+const fountainStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'baji-fountains',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    use_filename: true,
+    unique_filename: true,
+    eager: FOUNTAIN_WIDTHS.map((w) => ({ raw_transformation: `w_${w},f_auto,q_auto:good` })),
+    eager_async: true,
+  },
+});
+const fountainUpload = multer({ storage: fountainStorage });
+
 app.use(cors());
 
 // Stripe webhook needs the RAW body for signature verification —
@@ -908,8 +928,24 @@ async function initDB() {
       name TEXT,
       lat DOUBLE PRECISION NOT NULL,
       lng DOUBLE PRECISION NOT NULL,
+      note TEXT,
+      image_url TEXT,
+      image_public_id TEXT,
+      image_width INTEGER,
+      image_height INTEGER,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    -- The first fountains shipped with only a name and a coordinate, so every
+    -- column added since needs its own ALTER: the CREATE above is a no-op on a
+    -- table that already exists and would never reach the live database.
+    -- note is Bharat's own text about the fountain, shown to everyone.
+    ALTER TABLE fountains ADD COLUMN IF NOT EXISTS note TEXT;
+    ALTER TABLE fountains ADD COLUMN IF NOT EXISTS image_url TEXT;
+    ALTER TABLE fountains ADD COLUMN IF NOT EXISTS image_public_id TEXT;
+    -- Captured from Cloudinary at upload so the popup can reserve the right
+    -- shape before the image arrives, rather than reflowing when it lands.
+    ALTER TABLE fountains ADD COLUMN IF NOT EXISTS image_width INTEGER;
+    ALTER TABLE fountains ADD COLUMN IF NOT EXISTS image_height INTEGER;
     CREATE INDEX IF NOT EXISTS idx_client_rooms_client ON client_rooms(client_id);
     CREATE INDEX IF NOT EXISTS idx_client_spots_room ON client_spots(room_id);
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
@@ -3403,7 +3439,7 @@ function parseCoord(v, max) {
 app.get('/api/fountains', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, name, lat, lng FROM fountains ORDER BY id'
+      'SELECT id, name, lat, lng, note, image_url, image_width, image_height FROM fountains ORDER BY id'
     );
     // The admin flag only reveals whether THIS visitor is the admin, so the
     // page can show its controls. The fountain rows themselves are public —
@@ -3421,10 +3457,12 @@ app.post('/api/admin/fountains', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Coordinates must be decimal degrees, e.g. 47.3769, 8.5417' });
   }
   const name = (req.body.name || '').trim().slice(0, 120) || null;
+  const note = (req.body.note || '').trim().slice(0, 2000) || null;
   try {
     const { rows } = await pool.query(
-      'INSERT INTO fountains (name, lat, lng) VALUES ($1,$2,$3) RETURNING id, name, lat, lng',
-      [name, lat, lng]
+      `INSERT INTO fountains (name, lat, lng, note) VALUES ($1,$2,$3,$4)
+        RETURNING id, name, lat, lng, note, image_url, image_width, image_height`,
+      [name, lat, lng, note]
     );
     res.json(rows[0]);
   } catch (e) {
@@ -3432,10 +3470,95 @@ app.post('/api/admin/fountains', requireAuth, async (req, res) => {
   }
 });
 
+// Only the keys actually present are written, so a caller editing the name
+// can't blank the note. Column names come from a fixed list, never the request.
+app.put('/api/admin/fountains/:id', requireAuth, async (req, res) => {
+  const sets = [], vals = [];
+  if (Object.prototype.hasOwnProperty.call(req.body, 'lat') ||
+      Object.prototype.hasOwnProperty.call(req.body, 'lng')) {
+    const lat = parseCoord(req.body.lat, 90), lng = parseCoord(req.body.lng, 180);
+    if (lat === null || lng === null) {
+      return res.status(400).json({ error: 'Coordinates must be decimal degrees, e.g. 47.3769, 8.5417' });
+    }
+    vals.push(lat); sets.push(`lat=${vals.length}`);
+    vals.push(lng); sets.push(`lng=${vals.length}`);
+  }
+  const limits = { name: 120, note: 2000 };
+  ['name', 'note'].forEach((col) => {
+    if (!Object.prototype.hasOwnProperty.call(req.body, col)) return;
+    vals.push((req.body[col] || '').trim().slice(0, limits[col]) || null);
+    sets.push(`${col}=${vals.length}`);
+  });
+  if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(req.params.id);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE fountains SET ${sets.join(', ')} WHERE id=${vals.length}
+        RETURNING id, name, lat, lng, note, image_url, image_width, image_height`, vals
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload or replace a fountain's photograph. The row is updated first and the
+// old asset destroyed after, non-fatally — a Cloudinary outage should leave a
+// stale file in the media library, not refuse the new photo.
+app.post('/api/admin/fountains/:id/photo', requireAuth, fountainUpload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image received' });
+  try {
+    const existing = await pool.query('SELECT image_public_id FROM fountains WHERE id=$1', [req.params.id]);
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const old = existing.rows[0].image_public_id;
+    const { rows } = await pool.query(
+      `UPDATE fountains SET image_url=$1, image_public_id=$2, image_width=$3, image_height=$4
+        WHERE id=$5 RETURNING id, name, lat, lng, note, image_url, image_width, image_height`,
+      [req.file.path, req.file.filename, req.file.width || null, req.file.height || null, req.params.id]
+    );
+    if (old && old !== req.file.filename) {
+      cloudinary.uploader.destroy(old)
+        .catch(e => console.error('Fountain photo cleanup failed (non-fatal):', e.message));
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/fountains/:id/photo', requireAuth, async (req, res) => {
+  try {
+    const existing = await pool.query('SELECT image_public_id FROM fountains WHERE id=$1', [req.params.id]);
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Not found' });
+    const old = existing.rows[0].image_public_id;
+    const { rows } = await pool.query(
+      `UPDATE fountains SET image_url=NULL, image_public_id=NULL, image_width=NULL, image_height=NULL
+        WHERE id=$1 RETURNING id, name, lat, lng, note, image_url, image_width, image_height`,
+      [req.params.id]
+    );
+    if (old) {
+      cloudinary.uploader.destroy(old)
+        .catch(e => console.error('Fountain photo cleanup failed (non-fatal):', e.message));
+    }
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Deleting the fountain takes its photograph with it: the public_id is read in
+// the RETURNING, before the row is gone, then destroyed non-fatally.
 app.delete('/api/admin/fountains/:id', requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query('DELETE FROM fountains WHERE id=$1 RETURNING id', [req.params.id]);
+    const { rows } = await pool.query(
+      'DELETE FROM fountains WHERE id=$1 RETURNING id, image_public_id', [req.params.id]
+    );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    if (rows[0].image_public_id) {
+      cloudinary.uploader.destroy(rows[0].image_public_id)
+        .catch(e => console.error('Fountain photo cleanup failed (non-fatal):', e.message));
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

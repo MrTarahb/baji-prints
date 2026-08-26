@@ -33,7 +33,11 @@ button:hover{border-color:var(--ink)}
 button:disabled{opacity:.45;cursor:default}
 input{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;
   border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
-input:focus{outline:none;border-color:var(--ink)}
+input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;
+  border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
+input:focus,textarea:focus{outline:none;border-color:var(--ink)}
+textarea{resize:vertical;min-height:76px;line-height:1.6}
+input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px;width:100%}
 .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 
@@ -62,11 +66,10 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
   margin:0 auto;width:100%}
 #map{flex:1;border:1px solid var(--line);border-radius:3px;background:var(--bg2)}
 .leaflet-container{font-family:var(--fm);font-weight:300;background:var(--bg2)}
-/* The basemap is desaturated in CSS rather than fetched pre-styled, so the
-   muted look costs no API key. Scoped to the tile pane on purpose: `filter`
-   makes an element a containing block for position:fixed descendants, and the
-   tile pane holds only tiles — the modal and toast live outside the map. */
-.leaflet-tile-pane{filter:grayscale(1) brightness(1.06) contrast(.92)}
+/* No filter on the tile pane: the basemap already arrives grey. A canvas
+   basemap is built to sit under data — it draws land, water, roads and a few
+   faint labels, and no railways or ferry routes, which is what made the plain
+   OSM tiles read as a transit map. */
 .leaflet-control-attribution{font-size:10px;background:rgba(250,250,248,.86)}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
@@ -80,7 +83,15 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 .pop-name{font-family:var(--fi);font-style:italic;font-size:16px;display:block;margin-bottom:2px}
 .pop-name.none{font-family:var(--fm);font-style:normal;font-size:12.5px;color:var(--mute)}
 .pop-co{color:var(--mute);font-size:11px;letter-spacing:.02em;display:block}
-.pop-del{margin-top:9px;padding:4px 9px;font-size:11px;color:var(--no);border-color:var(--line)}
+.pop-note{margin:6px 0 0;color:#4A453E;font-size:12px;white-space:pre-wrap;
+  border-left:2px solid var(--pink);padding-left:9px}
+/* The photograph bleeds to the popup's edges — the negative margins cancel
+   .leaflet-popup-content's own padding rather than fighting it. */
+.pop-img{display:block;margin:-13px -15px 10px;border-radius:3px 3px 0 0;overflow:hidden;background:var(--bg2)}
+.pop-img img{width:100%;height:auto;display:block}
+.pop-adm{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px;padding-top:9px;border-top:1px solid var(--line)}
+.pop-adm button{padding:4px 8px;font-size:11px}
+.pop-del{color:var(--no)}
 .pop-del:hover{border-color:var(--no)}
 
 /* ── MODAL / TOAST (admin only) ───────────────────────────────────────── */
@@ -147,6 +158,10 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
   </div>
 </div>
 
+<!-- Opened directly by the pin's Add/Replace photo button. It lives outside the
+     modal so the click that opens it is the user's own gesture, unmediated. -->
+<input type="file" id="picker" accept="image/*" style="display:none">
+
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -155,6 +170,9 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 var fountains = [];
 var isAdmin = false;
 var map, layer;
+// Markers indexed by fountain id, so an edit can reopen the popup it came from
+// — render() rebuilds every marker, which would otherwise close it silently.
+var markerById = {};
 
 // Bürkliplatz-ish — the default view before there is anything to fit to.
 var ZURICH = [47.3717, 8.5423];
@@ -168,7 +186,9 @@ function esc(s) {
 
 function api(path, opts) {
   opts = opts || {};
-  if (opts.body) {
+  // FormData sets its own multipart Content-Type, boundary and all — setting
+  // one by hand here would corrupt every upload.
+  if (opts.body && !(opts.body instanceof FormData)) {
     opts.headers = { 'Content-Type': 'application/json' };
     opts.body = JSON.stringify(opts.body);
   }
@@ -203,14 +223,29 @@ function parseLatLng(str) {
 
 function fmt(n) { return Number(n).toFixed(5); }
 
+// Cloudinary URL builder — the same shape as cldUrl() in server.js and cld() in
+// the public and admin SPAs. q_auto:good, never bare q_auto, which bands dark
+// gradients once f_auto starts serving AVIF. Keep the widths to the two the
+// upload pre-builds (see FOUNTAIN_WIDTHS), or a visitor waits while Cloudinary
+// generates a fresh derivative on first view.
+function cld(url, w) {
+  if (!url || url.indexOf('/image/upload/') === -1) return url;
+  return url.replace('/image/upload/', '/image/upload/w_' + w + ',f_auto,q_auto:good/');
+}
+
 // ── MAP ──────────────────────────────────────────────────────────────────────
 function initMap() {
   map = L.map('map', { zoomControl: true, scrollWheelZoom: true }).setView(ZURICH, 13);
-  // OpenStreetMap's own tiles: no API key, so nothing stamps a watermark over
-  // the map. Their colour would fight the rest of the site, so the tile pane is
-  // desaturated in CSS instead — see .leaflet-tile-pane above.
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  // Esri's Light Gray Canvas: keyless, and a deliberate data backdrop — no
+  // S-Bahn lines, no lake ferry routes, barely any labels, so the fountains are
+  // the only thing to look at. Note {y} precedes {x} in this URL, unlike OSM.
+  //
+  // It only renders to zoom 16, so maxNativeZoom lets Leaflet upscale the z16
+  // tile for the last few steps: slightly soft when placing a pin at z19, but
+  // the alternative is the map refusing to zoom in at all.
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>',
+    maxNativeZoom: 16,
     maxZoom: 19
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
@@ -221,27 +256,56 @@ function initMap() {
 }
 
 function popupHtml(f) {
+  var id = f.id | 0;
+  // width/height on the <img> reserve the right shape before the file lands, so
+  // the popup doesn't resize under the cursor. Older rows have no dimensions
+  // stored and simply go without.
+  var dims = (f.image_width && f.image_height)
+    ? ' width="' + (f.image_width | 0) + '" height="' + (f.image_height | 0) + '"' : '';
+  var img = f.image_url
+    ? '<a class="pop-img" href="' + esc(cld(f.image_url, 1600)) + '" target="_blank" rel="noopener">' +
+        '<img src="' + esc(cld(f.image_url, 640)) + '"' + dims +
+        ' alt="' + esc(f.name || 'Fountain') + '" loading="lazy"></a>'
+    : '';
   var name = f.name
     ? '<span class="pop-name">' + esc(f.name) + '</span>'
     : '<span class="pop-name none">Unnamed fountain</span>';
+  var note = f.note ? '<div class="pop-note">' + esc(f.note) + '</div>' : '';
   var admin = isAdmin
-    ? '<button class="pop-del" onclick="delFountain(' + (f.id | 0) + ')">Delete</button>'
+    ? '<div class="pop-adm">' +
+        '<button onclick="editFountain(' + id + ')">Edit</button>' +
+        '<button onclick="photoFountain(' + id + ')">' +
+          (f.image_url ? 'Replace photo' : 'Add photo') + '</button>' +
+        (f.image_url ? '<button onclick="removePhoto(' + id + ')">Remove photo</button>' : '') +
+        '<button class="pop-del" onclick="delFountain(' + id + ')">Delete</button>' +
+      '</div>'
     : '';
-  return name + '<span class="pop-co">' + fmt(f.lat) + ', ' + fmt(f.lng) + '</span>' + admin;
+  return img + name + '<span class="pop-co">' + fmt(f.lat) + ', ' + fmt(f.lng) + '</span>' +
+    note + admin;
+}
+
+// One fountain out of the array, and the in-place swap after an edit — the
+// routes all answer with the whole updated row, so nothing is patched by hand.
+function byId(id) {
+  return fountains.filter(function (f) { return f.id === id; })[0];
+}
+function replaceInList(f) {
+  fountains = fountains.map(function (x) { return x.id === f.id ? f : x; });
 }
 
 // Repaints every marker from `fountains`. Cheap at this scale, and it keeps one
 // source of truth — no marker is ever mutated in place.
 function render() {
   layer.clearLayers();
+  markerById = {};
   fountains.forEach(function (f) {
-    L.marker([f.lat, f.lng], {
+    markerById[f.id] = L.marker([f.lat, f.lng], {
       title: f.name || '',
       icon: L.divIcon({
         className: '', html: '<div class="fmark"></div>',
         iconSize: [13, 13], iconAnchor: [6.5, 6.5], popupAnchor: [0, -8]
       })
-    }).bindPopup(popupHtml(f)).addTo(layer);
+    }).bindPopup(popupHtml(f), { maxWidth: 300 }).addTo(layer);
   });
   var n = fountains.length;
   document.getElementById('count').innerHTML = '<b>' + n + '</b> ' + (n === 1 ? 'fountain' : 'fountains');
@@ -275,21 +339,92 @@ function addFountain(at) {
   ask('Add fountain', at ? 'Coordinates taken from where you clicked.' : '', [
     { key: 'co', label: 'Coordinates', value: at ? fmt(at.lat) + ', ' + fmt(at.lng) : '',
       hint: 'Decimal degrees, latitude first — e.g. 47.37690, 8.54170' },
-    { key: 'name', label: 'Name (optional)' }
+    { key: 'name', label: 'Name (optional)' },
+    { key: 'note', label: 'Note (optional)', multiline: true, hint: 'Your own words about this fountain. Shown to everyone, under the photograph.' },
+    { key: 'photo', label: 'Photograph (optional)', file: true }
   ], function (v) {
     var ll = parseLatLng(v.co);
     if (!ll) return toast('Coordinates must read like 47.3769, 8.5417');
-    api('/api/admin/fountains', { method: 'POST', body: { lat: ll.lat, lng: ll.lng, name: v.name } })
+    api('/api/admin/fountains', {
+      method: 'POST', body: { lat: ll.lat, lng: ll.lng, name: v.name, note: v.note }
+    })
       .then(function (f) {
         fountains.push(f);
         render();
         // Only move the map if the new fountain landed off-screen; otherwise the
         // view the admin was working in is left exactly as it was.
         if (!map.getBounds().contains([f.lat, f.lng])) map.panTo([f.lat, f.lng]);
+        // The fountain is created first and the photograph attached after, so a
+        // failed upload costs the photo and not the coordinate — retry it from
+        // the pin's own Add photo button.
+        if (v.photo) return uploadPhoto(f.id, v.photo);
         toast(f.name ? 'Added ' + f.name : 'Fountain added');
       })
       .catch(function (e) { toast(e.message); });
   });
+}
+
+function editFountain(id) {
+  var f = byId(id);
+  if (!f) return;
+  ask('Edit fountain', '', [
+    { key: 'co', label: 'Coordinates', value: fmt(f.lat) + ', ' + fmt(f.lng), hint: 'Decimal degrees, latitude first — e.g. 47.37690, 8.54170' },
+    { key: 'name', label: 'Name', value: f.name || '' },
+    { key: 'note', label: 'Note', value: f.note || '', multiline: true, hint: 'Your own words about this fountain. Shown to everyone, under the photograph.' }
+  ], function (v) {
+    var ll = parseLatLng(v.co);
+    if (!ll) return toast('Coordinates must read like 47.3769, 8.5417');
+    api('/api/admin/fountains/' + id, {
+      method: 'PUT', body: { lat: ll.lat, lng: ll.lng, name: v.name, note: v.note }
+    }).then(function (updated) {
+      replaceInList(updated);
+      render();
+      reopen(id);
+      toast('Saved');
+    }).catch(function (e) { toast(e.message); });
+  });
+}
+
+// The file picker is opened straight from the click, with no dialog in between:
+// a modal's OK click between the button press and picker.click() gets the file
+// dialog blocked on mobile. Same lesson as the client board's uploads.
+function photoFountain(id) {
+  var picker = document.getElementById('picker');
+  picker.value = '';                   // re-picking the same file must still fire change
+  picker.onchange = function () {
+    if (picker.files[0]) uploadPhoto(id, picker.files[0]);
+  };
+  picker.click();
+}
+
+function uploadPhoto(id, file) {
+  var fd = new FormData();
+  fd.append('photo', file);
+  toast('Uploading…');
+  return api('/api/admin/fountains/' + id + '/photo', { method: 'POST', body: fd })
+    .then(function (f) {
+      replaceInList(f);
+      render();
+      reopen(id);
+      toast('Photo saved');
+    })
+    .catch(function (e) { toast('Upload failed: ' + e.message); });
+}
+
+function removePhoto(id) {
+  var f = byId(id);
+  if (!f || !confirm('Remove the photograph from ' + (f.name ? '"' + f.name + '"' : 'this fountain') + '?')) return;
+  api('/api/admin/fountains/' + id + '/photo', { method: 'DELETE' }).then(function (updated) {
+    replaceInList(updated);
+    render();
+    reopen(id);
+    toast('Photo removed');
+  }).catch(function (e) { toast(e.message); });
+}
+
+function reopen(id) {
+  var m = markerById[id];
+  if (m) m.openPopup();
 }
 
 function delFountain(id) {
@@ -312,28 +447,39 @@ function ask(title, desc, fields, cb) {
   document.getElementById('m-desc').textContent = desc || '';
   var box = document.getElementById('m-fields');
   box.innerHTML = fields.map(function (f, i) {
-    return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' +
-      '<input type="text" id="mf-' + i + '">' +
+    var input = f.file ? '<input type="file" accept="image/*" id="mf-' + i + '">'
+      : f.multiline ? '<textarea id="mf-' + i + '"></textarea>'
+      : '<input type="text" id="mf-' + i + '">';
+    return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' + input +
       (f.hint ? '<div class="m-hint">' + esc(f.hint) + '</div>' : '');
   }).join('');
   // Values are assigned as properties, never interpolated into the markup, so a
-  // quote in an existing name can't break out of the field.
-  fields.forEach(function (f, i) { document.getElementById('mf-' + i).value = f.value || ''; });
+  // quote in an existing name can't break out of the field. A file input has no
+  // settable value — the browser forbids it — so it is skipped.
+  fields.forEach(function (f, i) {
+    if (f.file) return;
+    document.getElementById('mf-' + i).value = f.value || '';
+  });
 
   document.getElementById('modal').classList.add('on');
   var first = document.getElementById('mf-0');
-  if (first) { first.focus(); first.select(); }
+  if (first) { first.focus(); if (first.select) first.select(); }
 
   var ok = document.getElementById('m-ok');
   var fresh = ok.cloneNode(true);        // drop any previous handler
   ok.parentNode.replaceChild(fresh, ok);
   fresh.onclick = function () {
     var out = {};
-    fields.forEach(function (f, i) { out[f.key] = document.getElementById('mf-' + i).value.trim(); });
+    fields.forEach(function (f, i) {
+      var el = document.getElementById('mf-' + i);
+      // A file field answers with the File itself, not a string — the caller
+      // hands it straight to FormData.
+      out[f.key] = f.file ? (el.files[0] || null) : el.value.trim();
+    });
     closeModal();
     cb(out);
   };
-  box.querySelectorAll('input').forEach(function (el) {
+  box.querySelectorAll('input[type="text"]').forEach(function (el) {
     el.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); fresh.click(); } };
   });
 }

@@ -77,9 +77,10 @@ before `/api/admin/prints/:id`).
 `UPDATE … WHERE status='pending' RETURNING`. Any duplicate delivery sees zero rows and exits.
 Don't weaken this — it guards edition counters and duplicate emails.
 
-**Cloudinary URL builder is triplicated.** `cldUrl()` in `server.js:286`, `cld()` in
-`public/index.html:2716`, `cld()` in `public/admin/index.html:749`. Keep them in sync. Use
-`q_auto:good`, never bare `q_auto` (bands dark gradients when `f_auto` serves AVIF).
+**Cloudinary URL builder is quadruplicated.** `cldUrl()` in `server.js:286`, `cld()` in
+`public/index.html:2716`, `cld()` in `public/admin/index.html:749`, `cld()` in
+`public/project/fountaincity/index.html`. Keep them in sync. Use `q_auto:good`, never bare
+`q_auto` (bands dark gradients when `f_auto` serves AVIF).
 
 **Cloudinary cleanup is per-route and two routes leak** (known, accepted, left as-is). Deleting
 a row does not delete the asset unless that route says so. `DELETE /api/admin/prints/:id`
@@ -296,8 +297,9 @@ that is belt-and-braces, not the guard.
 ### Fountain City (`/project/fountaincity`)
 
 A public map of Zürich's public fountains — the first of what the URL implies will be several
-`/project/<name>` pages. One table (`fountains`: `name`, `lat`, `lng`), one page,
-`public/project/fountaincity/index.html`.
+`/project/<name>` pages. One table (`fountains`), one page,
+`public/project/fountaincity/index.html`. A fountain is a coordinate, an optional `name`, an
+optional `note` (Bharat's own words, shown to everyone) and at most one photograph.
 
 - **Public page, admin controls inline** — the same shape as the client boards, minus the gate.
   `GET /api/fountains` returns the rows plus an `admin` flag telling the page whether *this*
@@ -308,15 +310,17 @@ A public map of Zürich's public fountains — the first of what the URL implies
   linked from nowhere, absent from `sitemap.xml`, and carries `X-Robots-Tag: noindex` on the
   route plus a `<meta name="robots">`. That is a deliberate not-finished-yet state, *not* the
   client boards' privacy posture — remove both lines and add a sitemap entry when it ships.
-- **Leaflet 1.9.4 from cdnjs**, matching the host the public site already uses for GSAP. Tiles
-  come from OpenStreetMap directly. CARTO's Positron basemap was tried first and it now stamps
-  an "API key required" watermark over unkeyed requests — every good-looking pre-styled basemap
-  (CARTO, Stadia, Mapbox) wants a key, so the muted look is done locally instead: a
-  `grayscale(1) brightness(1.06) contrast(.92)` filter on `.leaflet-tile-pane`, which leaves the
-  markers as the only saturated thing on the page. Keep that filter scoped to the tile pane —
-  `filter` makes an element a containing block for `position:fixed` descendants, the same class
-  of trap as the `mix-blend-mode` one above. OSM's tile policy covers this kind of low-volume
-  use but wants the attribution control left in place — don't remove it.
+- **The basemap is Esri's Light Gray Canvas, and two other choices were tried and rejected.**
+  CARTO Positron looked right but now stamps an "API key required" watermark over unkeyed
+  requests, and every other pre-styled basemap (Stadia, Mapbox, CARTO with an account) wants a
+  key too. Plain OSM tiles desaturated with a CSS filter came next and were worse in a way a
+  filter cannot fix: OSM renders railways and ferry routes as first-class features, so the map
+  read as an S-Bahn and Seeschiff diagram with the fountains lost on top of it. A *canvas*
+  basemap is the right category — built as a backdrop for data, so it draws land, water, roads
+  and a few faint labels and no transit at all. Note `{y}` precedes `{x}` in the Esri URL, and
+  it only renders to zoom 16: `maxNativeZoom: 16` with `maxZoom: 19` lets Leaflet upscale the
+  last few steps rather than refusing to zoom. Esri asks for the attribution control — leave it.
+- **Leaflet 1.9.4 from cdnjs**, matching the host the public site already uses for GSAP.
 - **A fountain is a `divIcon` disc, not a pin.** A pin's point sits below its own graphic, so a
   few hundred of them read as a pincushion; a disc marks its exact coordinate at its centre.
 - **Coordinates are parsed, never trusted** — on the page by `parseLatLng()`, which accepts what
@@ -327,6 +331,28 @@ A public map of Zürich's public fountains — the first of what the URL implies
   markers in place, so there is one source of truth. `fitBounds` runs only on load: refitting
   after each add would yank the map out from under the admin, and a new fountain pans the view
   only when it lands off-screen.
+- **A fountain holds one photograph, on the row itself** (`image_url`, `image_public_id`,
+  `image_width`, `image_height`) rather than in a `fountain_photos` table. One pin, one picture,
+  one popup. If several per fountain are ever wanted that is a new table and a gallery in the
+  popup — not more columns.
+  - Uploads go to Cloudinary `baji-fountains/` via `fountainStorage`, eagerly building the two
+    widths the page actually asks for (`FOUNTAIN_WIDTHS` = popup 640, full-size 1600). Keep the
+    ladder to those two: each extra width is another derivative a visitor waits for on first
+    view of a pin.
+  - Replacing and removing both **destroy the previous asset**, non-fatally, and `DELETE
+    /api/admin/fountains/:id` reads `image_public_id` in its `RETURNING` before the row is gone.
+    This route does not leak the way the two known ones do — keep it that way.
+  - The photograph is attached **after** the fountain row exists, in a second request, so a
+    failed upload costs the photo and not the coordinate. Retry from the pin's own Add photo
+    button.
+  - The file picker is opened **straight from the click**, never from behind a modal's OK — the
+    same mobile trap the client board's uploads document.
+- **`PUT /api/admin/fountains/:id` writes only the body keys actually present**, so editing the
+  name can't blank the note; column names come from a fixed list, never the request. Coordinates
+  are the exception — they are validated as a pair, since a lone `lat` is never meaningful.
+- **`render()` rebuilds every marker, which silently closes an open popup**, so it indexes them
+  by id (`markerById`) and every admin action ends `render(); reopen(id)`. Without the reopen,
+  saving an edit drops you back to the bare map and reads as the pin having vanished.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 
