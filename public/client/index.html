@@ -32,6 +32,24 @@ button:disabled{opacity:.45;cursor:default}
 input,textarea,select{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--ink)}
 textarea{resize:vertical;min-height:76px;line-height:1.6}
+
+/* CURSOR — the main site's pointer, so the board reads as part of the site
+   rather than as something bolted to the side of it. A 10px white disc blended
+   in difference mode, swelling to 48px over anything you can act on. The
+   original is in public/index.html; keep the two in step.
+
+   Gated on a fine pointer rather than the main site's max-width:480px, and the
+   element is only built when that query matches. A width breakpoint leaves a
+   touch tablet carrying a mix-blend-mode element it can never use, and blend
+   modes detach position:fixed on Android Chrome. */
+@media (hover:hover) and (pointer:fine){
+  body,button,input,textarea,select,a,label,[contenteditable]{cursor:none !important}
+  .card,.chip,.fname{cursor:none !important}
+  #cur{position:fixed;left:-60px;top:-60px;width:10px;height:10px;background:#fff;
+    border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);
+    transition:width .2s,height .2s;mix-blend-mode:difference}
+  #cur.big{width:48px;height:48px}
+}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
 .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 
@@ -434,6 +452,47 @@ function toast(msg) {
 // ── BOOT ─────────────────────────────────────────────────────────────────────
 // The server withholds the client's name until authenticated, so the gate stays
 // anonymous — a guessed URL reveals nothing about whose board this is.
+// ── CURSOR ───────────────────────────────────────────────────────────────────
+// The main site's cursor (public/index.html): the same 10px dot and the same
+// 48px hover swell, so this page reads as part of the site.
+//
+// Built only where there is a real pointer to replace. On a touch device
+// nothing is created and no listener is bound — which is also what keeps a
+// mix-blend-mode element off a layout Android Chrome would detach.
+var CUR_TARGETS = 'a,button,select,.card,.fname,#lb';
+
+function initCursor() {
+  if (!window.matchMedia || !window.matchMedia('(hover:hover) and (pointer:fine)').matches) return;
+  var cur = document.createElement('div');
+  cur.id = 'cur';
+  document.body.appendChild(cur);
+  document.addEventListener('mousemove', function (e) {
+    cur.style.left = e.clientX + 'px';
+    cur.style.top = e.clientY + 'px';
+  });
+
+  // Delegation on document, never a querySelectorAll snapshot: render() rebuilds the whole board,
+  // so a snapshot taken at load would cover none of what is on the page a
+  // second later. mouseover/mouseout bubble where mouseenter/mouseleave do not,
+  // and tracking the matched element stops the swell flickering as the pointer
+  // crosses children inside the same target.
+  var hover = null;
+  document.addEventListener('mouseover', function (e) {
+    var m = e.target.closest && e.target.closest(CUR_TARGETS);
+    if (!m || m === hover) return;
+    hover = m;
+    cur.classList.add('big');
+  });
+  document.addEventListener('mouseout', function (e) {
+    if (!hover) return;
+    if (e.relatedTarget && hover.contains(e.relatedTarget)) return;
+    hover = null;
+    cur.classList.remove('big');
+  });
+}
+
+initCursor();
+
 api('/api/client/' + SLUG + '/session').then(function (s) {
   if (s.client || s.admin) { loadBoard(); }
   else { document.getElementById('gate').classList.add('on'); }

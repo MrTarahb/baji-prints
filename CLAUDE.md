@@ -93,6 +93,26 @@ image *replacement*, workshop photos, all three client-board deletes) cleans up 
 When adding an image-bearing table, follow the client-board pattern: collect `public_id`s
 *before* a cascading delete, destroy after, and treat the destroy as non-fatal.
 
+**The custom cursor is site-wide, and it is a fifth copy to keep in step.** The main site
+replaces the OS pointer with a 10px white disc (`#cur`, `mix-blend-mode:difference`) that swells
+to 48px over anything actionable; `public/client/index.html` and
+`public/project/fountaincity/index.html` carry the same dot, driven by the same delegated
+`mouseover`/`mouseout` pair. Only `CUR_TARGETS` differs per page. `/admin` deliberately does
+**not** get it — it is a tool, and its drag-to-reorder needs real `grab`/`grabbing` cursors.
+- **Delegation on `document`, never a `querySelectorAll` snapshot.** Every one of these pages
+  repaints wholesale (`render()` on the board, the marker layer on the map), so a snapshot taken
+  at load covers nothing a second later. `mouseover`/`mouseout` because `mouseenter`/`mouseleave`
+  don't bubble, plus a tracked "currently matched" element so crossing a child doesn't flicker.
+- **The two newer pages gate on `(hover:hover) and (pointer:fine)`, not the main site's
+  `max-width:480px`,** and build the element only when that query matches. A width breakpoint
+  leaves a touch tablet carrying a `mix-blend-mode` element it can never use — and blend modes
+  detach `position:fixed` on Android Chrome, which on the fountain page is the whole layout.
+- **Anything clickable that isn't an `<a>` or `<button>` has to be named twice** — once in the
+  `cursor:none !important` list so the OS pointer doesn't show *under* the dot, once in
+  `CUR_TARGETS` so the dot swells on it. `.card`, `.chip` and `.fname` on the board; `.fmark` on
+  the map. Leaflet needs `.leaflet-container *` in the first list: its `grab`/`grabbing` rules
+  outrank a bare `body` selector, so without it the map shows an OS cursor and the dot at once.
+
 **Never hardcode a category slug in the frontend** — derive it from the live category list, or
 an admin rename breaks the site.
 
