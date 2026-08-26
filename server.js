@@ -811,7 +811,7 @@ async function initDB() {
     -- here is linked from the public site, indexed, or in the sitemap.
     CREATE TABLE IF NOT EXISTS clients (
       id SERIAL PRIMARY KEY,
-      slug TEXT UNIQUE NOT NULL,        -- URL segment, e.g. 'drschuetz'
+      slug TEXT UNIQUE NOT NULL,        -- URL segment, e.g. 'schuetzdental'
       name TEXT NOT NULL,               -- big heading at the top of the board
       eyebrow TEXT,                     -- small line above it; NULL = default studio line
       intro TEXT,                       -- optional note to the client, editable inline
@@ -1156,9 +1156,24 @@ async function initDB() {
   if (clientCount[0].n === 0) {
     await pool.query(
       `INSERT INTO clients (slug, name, intro) VALUES ($1,$2,$3) ON CONFLICT (slug) DO NOTHING`,
-      ['drschuetz', 'Dr. Schütz', 'Eine Auswahl möglicher Bilder für Ihre Praxis. Bitte markieren Sie zu jedem Platz, was Ihnen gefällt — ein Kommentar genügt, wenn etwas anders sein soll.']
+      ['schuetzdental', 'Dr. Schütz', 'Eine Auswahl möglicher Bilder für Ihre Praxis. Bitte markieren Sie zu jedem Platz, was Ihnen gefällt — ein Kommentar genügt, wenn etwas anders sein soll.']
     );
   }
+
+  // One-off rename of the first board's URL segment, drschuetz -> schuetzdental.
+  // Guarded both ways so it is a no-op on every later deploy and on a fresh
+  // database seeded with the new slug — a throw here would exit initDB() and
+  // take the site down. Only clients.slug moves; rooms, spots and photos hang
+  // off clients.id, so nothing else has to follow it.
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM clients WHERE slug='drschuetz')
+         AND NOT EXISTS (SELECT 1 FROM clients WHERE slug='schuetzdental')
+      THEN
+        UPDATE clients SET slug='schuetzdental' WHERE slug='drschuetz';
+      END IF;
+    END $$;`);
 
   console.log('DB initialised');
 }
