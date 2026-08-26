@@ -170,6 +170,15 @@ that is belt-and-braces, not the guard.
 - **The client session is a separate role from admin.** `req.session.client_slug` is scoped to
   one board; `requireBoardAccess` allows that client or any admin. Client login never sets
   `req.session.admin`, and client logout never clears it.
+- **Deleting a whole board is `DELETE /api/admin/clients/:slug`, and it demands the slug back**
+  in `confirm_slug`. There is no undo and nothing archives it, so a request aimed at the wrong
+  board by a mistyped URL deletes nothing rather than the wrong client. The dialog on the board
+  asks for the slug too, but the server's check is the guard — the dialog is a courtesy. The
+  route follows the same cascade rule as the room and spot deletes: collect the Cloudinary ids
+  *before* the delete, destroy them non-fatally after. A client still holding a session for that
+  slug needs no cleanup; the board route looks the slug up per request and now finds nothing.
+  Deleting the *last* board lets `initDB()`'s seed recreate `schuetzdental` on the next deploy —
+  the seed gates on `COUNT(*) = 0`, so that only bites when none are left.
 - **Management is inline on the board**, not in `/admin` — opening `/client/<slug>` while
   logged in as admin reveals the add/edit controls. `/admin` only links to boards and shows an
   unseen-feedback count.

@@ -3092,6 +3092,41 @@ app.put('/api/admin/clients/:slug', requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
+// Removing a whole board. There is no undo and nothing archives it, so the slug
+// has to be repeated in the body: a request aimed at the wrong board by a
+// mistyped URL then deletes nothing at all rather than the wrong client.
+//
+// Cascade order is the same rule the room and spot deletes follow — collect the
+// Cloudinary ids BEFORE the delete, because rooms, spots and photos go with the
+// client row and an id read afterwards is gone for good. The destroys are
+// non-fatal: a Cloudinary outage must not leave the row half-deleted.
+app.delete('/api/admin/clients/:slug', requireAuth, async (req, res) => {
+  const slug = req.params.slug;
+  if (String(req.body && req.body.confirm_slug || '') !== slug) {
+    return res.status(400).json({ error: 'Confirmation does not match the board slug' });
+  }
+  try {
+    const { rows: doomed } = await pool.query(
+      `SELECT p.public_id FROM client_photos p
+         JOIN client_spots s ON s.id=p.spot_id
+         JOIN client_rooms r ON r.id=s.room_id
+         JOIN clients c ON c.id=r.client_id
+        WHERE c.slug=$1 AND p.public_id IS NOT NULL`, [slug]
+    );
+    const { rows } = await pool.query(
+      'DELETE FROM clients WHERE slug=$1 RETURNING name', [slug]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    doomed.forEach(d => cloudinary.uploader.destroy(d.public_id)
+      .catch(e => console.error('Client photo cleanup failed (non-fatal):', e.message)));
+    // A client still holding a session for this slug needs no cleanup: the board
+    // route looks the slug up on every request and now finds nothing.
+    res.json({ ok: true, name: rows[0].name, removed_images: doomed.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/admin/clients/:slug/password', requireAuth, async (req, res) => {
   const pw = String(req.body.password || '');
   if (pw.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });

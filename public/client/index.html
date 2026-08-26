@@ -116,6 +116,11 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 #adminbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 #adminbar button{background:transparent;color:var(--bg);border-color:#3A3733;padding:5px 10px;font-size:11.5px}
 #adminbar button:hover{border-color:var(--bg)}
+/* The one control on the bar that cannot be undone, so it does not look like
+   the rest of them. Muted rather than loud — it sits next to eight buttons a
+   thumb passes over all day. */
+#adminbar button.danger{color:#E0A092;border-color:#5A3A34}
+#adminbar button.danger:hover{border-color:#E0A092}
 .badge{background:var(--pink);color:var(--ink);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:500}
 
 /* ── ROOMS & SPOTS ─────────────────────────────────────────────────── */
@@ -326,6 +331,7 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
       <button id="ab-recover" onclick="recoverNames()">Recover filenames</button>
       <button id="ab-warm" onclick="warmImages()">Warm images</button>
       <button id="ab-series" onclick="editSeriesVisibility()">Series</button>
+      <button class="danger" onclick="deleteBoard()">Delete board</button>
     </div>
   </div>
 
@@ -1557,6 +1563,32 @@ function syncRecoverBtn() {
 function markSeen() {
   api('/api/admin/clients/' + SLUG + '/mark-seen', { method: 'POST' })
     .then(loadBoard).then(function () { toast('Marked as read'); }).catch(function (e) { toast(e.message); });
+}
+
+// Deleting a board takes its rooms, spots and photos with it, and the
+// photographs themselves leave Cloudinary. Typing the slug rather than a
+// confirm(): the board you are looking at is the one you have to name, so this
+// cannot be aimed at the wrong client by accident. The server checks the same
+// thing again — the dialog is a courtesy, not the guard.
+function deleteBoard() {
+  var name = (board && board.client && board.client.name) || SLUG;
+  ask('Delete this board',
+    'Removes ' + name + ' — every room, spot and photo on it, and the photographs ' +
+    'themselves from Cloudinary. This cannot be undone. Type ' + SLUG + ' to confirm.',
+    [{ key: 'slug', label: 'Board slug' }],
+    function (v) {
+      if (v.slug !== SLUG) return toast('That slug does not match — nothing was deleted');
+      api('/api/admin/clients/' + SLUG, {
+        method: 'DELETE', body: { confirm_slug: SLUG }
+      })
+        .then(function (r) {
+          // The page it was rendering no longer exists, so it cannot stay here.
+          toast('Deleted ' + r.name + ' and ' + r.removed_images + ' photo' +
+                (r.removed_images === 1 ? '' : 's'));
+          setTimeout(function () { location.href = '/admin'; }, 900);
+        })
+        .catch(function (e) { toast(e.message); });
+    });
 }
 
 function copyLink() {
