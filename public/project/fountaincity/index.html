@@ -180,6 +180,12 @@ var map, layer;
 // — render() rebuilds every marker, which would otherwise close it silently.
 var markerById = {};
 
+// The Stadtkreis 1 outline, as published by Stadt Zürich (see kreis1.geojson
+// for the source and retrieval date). Absolute path, not relative: the page is
+// served at /project/fountaincity with no trailing slash, so a relative fetch
+// would resolve against /project/ and 404.
+var KREIS1_URL = '/project/fountaincity/kreis1.geojson';
+
 // Bürkliplatz-ish — the default view before there is anything to fit to.
 var ZURICH = [47.3717, 8.5423];
 
@@ -243,6 +249,7 @@ function cld(url, w) {
 function initMap() {
   map = L.map('map', { zoomControl: true, scrollWheelZoom: true, maxZoom: 20 }).setView(ZURICH, 13);
   addBasemap();
+  addKreis();
   layer = L.layerGroup().addTo(map);
 
   // Placing by click is admin-only, and the handler is attached only for the
@@ -288,6 +295,34 @@ function hasWebGL() {
   } catch (e) {
     return false;                     // some privacy modes throw rather than return null
   }
+}
+
+// The district outline is context, not content: ink rather than the fountains'
+// terracotta, dashed and half-transparent, so it reads as a reference line and
+// never competes with a pin.
+//
+// interactive:false is load-bearing. A Leaflet path swallows the clicks that
+// land on it, and the admin places fountains BY clicking the map — an
+// interactive polygon would make the whole of Kreis 1 the one place a pin
+// could not be dropped.
+function addKreis() {
+  fetch(KREIS1_URL, { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (geo) {
+      L.geoJSON(geo, {
+        interactive: false,
+        style: {
+          color: '#111110', weight: 1.5, opacity: .5, dashArray: '5 4',
+          fillColor: '#111110', fillOpacity: .035
+        }
+      }).addTo(map);
+    })
+    .catch(function (e) {
+      // The boundary is a nicety; a map without it still works, so this stays
+      // quiet for visitors and only tells the admin something is wrong.
+      console.warn('Kreis 1 outline failed to load:', e.message);
+      if (isAdmin) toast('Kreis 1 outline failed to load');
+    });
 }
 
 function popupHtml(f) {

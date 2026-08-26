@@ -365,6 +365,21 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
 - **`render()` rebuilds every marker, which silently closes an open popup**, so it indexes them
   by id (`markerById`) and every admin action ends `render(); reopen(id)`. Without the reopen,
   saving an edit drops you back to the bare map and reads as the pin having vanished.
+- **The Kreis 1 outline is real published geometry, not a hand-drawn shape.**
+  `kreis1.geojson` holds the Stadtkreis 1 polygon exactly as Stadt Zürich publishes it (WFS
+  `geoportal/Stadtkreise`, layer `adm_stadtkreise_a`, `srsName=EPSG:4326` — the file records its
+  source and retrieval date). 807 points, unsimplified: it is an administrative boundary, so it
+  is copied rather than approximated. Refetch the same way to add the other eleven Kreise.
+  - It lives in its own file rather than inline: 17KB of coordinates would swamp the page source
+    and the extract-the-`<script>` verification step.
+  - **Fetched by absolute path.** The page is served at `/project/fountaincity` with no trailing
+    slash, so a relative `kreis1.geojson` resolves against `/project/` and 404s.
+  - **`interactive: false` is load-bearing.** A Leaflet path swallows clicks that land on it, and
+    the admin places fountains *by* clicking the map — an interactive polygon would make the
+    whole of Kreis 1 the one place a pin could not be dropped.
+  - Styled in ink, dashed and half-transparent, never the fountains' terracotta: the outline is
+    context and must not read as content. A failed load is silent for visitors and a toast for
+    the admin — the map is still a map without it.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 
