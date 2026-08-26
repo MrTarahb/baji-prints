@@ -310,17 +310,29 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   linked from nowhere, absent from `sitemap.xml`, and carries `X-Robots-Tag: noindex` on the
   route plus a `<meta name="robots">`. That is a deliberate not-finished-yet state, *not* the
   client boards' privacy posture — remove both lines and add a sitemap entry when it ships.
-- **The basemap is Esri's Light Gray Canvas, and two other choices were tried and rejected.**
-  CARTO Positron looked right but now stamps an "API key required" watermark over unkeyed
-  requests, and every other pre-styled basemap (Stadia, Mapbox, CARTO with an account) wants a
-  key too. Plain OSM tiles desaturated with a CSS filter came next and were worse in a way a
-  filter cannot fix: OSM renders railways and ferry routes as first-class features, so the map
-  read as an S-Bahn and Seeschiff diagram with the fountains lost on top of it. A *canvas*
-  basemap is the right category — built as a backdrop for data, so it draws land, water, roads
-  and a few faint labels and no transit at all. Note `{y}` precedes `{x}` in the Esri URL, and
-  it only renders to zoom 16: `maxNativeZoom: 16` with `maxZoom: 19` lets Leaflet upscale the
-  last few steps rather than refusing to zoom. Esri asks for the attribution control — leave it.
-- **Leaflet 1.9.4 from cdnjs**, matching the host the public site already uses for GSAP.
+- **The basemap is vector (MapLibre + OpenFreeMap Positron), and three earlier choices were
+  tried and rejected.** In order: CARTO Positron looked right but now stamps an "API key
+  required" watermark over unkeyed requests, and every other *pre-styled raster* basemap
+  (Stadia, Mapbox, CARTO with an account) wants a key too. Plain OSM tiles desaturated with a
+  CSS filter came next and were worse in a way no filter can fix — OSM renders railways and
+  ferry routes as first-class features, so the map read as an S-Bahn and Seeschiff diagram with
+  the fountains lost on top. Esri's Light Gray Canvas fixed that (a *canvas* basemap is the
+  right category: a backdrop for data, no transit at all) but stops rendering at zoom 16, so
+  the deepest steps upscale and look soft. Vector tiles end the whole line of argument: the
+  browser draws the map from geometry, so it is sharp at every zoom and every pixel density and
+  nothing is ever a stretched picture. OpenFreeMap serves Positron with no key and no signup.
+  - **`addBasemap()` keeps the Esri raster as a live fallback, and that is not decoration.**
+    MapLibre is two more scripts off a CDN and it needs WebGL; if either is unavailable the
+    page must still get a map rather than a blank grey rectangle. `hasWebGL()` wraps
+    `getContext` in try/catch because some privacy modes throw instead of returning null. The
+    fallback keeps `detectRetina` (1x tiles stretched across a 2x screen are the *other* source
+    of softness) and `maxNativeZoom: 16` (note `{y}` precedes `{x}` in the Esri URL). Both
+    branches are covered by the `node:vm` suite — don't let the fallback rot.
+  - Attribution is set on the Leaflet layer by hand: inside the bridge, MapLibre's own
+    attribution control never renders, and OpenFreeMap/OpenMapTiles/OSM all require it.
+- **Leaflet 1.9.4 from cdnjs**, with MapLibre GL and `@maplibre/maplibre-gl-leaflet` from unpkg.
+  The bridge mounts the vector basemap as a Leaflet layer, so every marker, popup and handler
+  on the page stays plain Leaflet and none of it had to change when the basemap did.
 - **A fountain is a `divIcon` disc, not a pin.** A pin's point sits below its own graphic, so a
   few hundred of them read as a pincushion; a disc marks its exact coordinate at its centre.
 - **Coordinates are parsed, never trusted** — on the page by `parseLatLng()`, which accepts what
