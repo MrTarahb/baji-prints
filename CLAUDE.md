@@ -380,6 +380,30 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   - Styled in ink, dashed and half-transparent, never the fountains' terracotta: the outline is
     context and must not read as content. A failed load is silent for visitors and a toast for
     the admin — the map is still a map without it.
+- **Geolocation is the feature the project is actually for**: you are standing at the fountain,
+  so the phone knows its coordinate better than you can read it off a map. A `Locate me` control
+  (bottom-left, where a thumb already is) starts a `watchPosition`, and the admin bar's
+  `+ Fountain here` opens the Add dialog prefilled with the current fix.
+  - **`enableHighAccuracy: true` everywhere.** It is slower and costs battery, which is the
+    right trade when the fix is about to become a fountain's permanent coordinate.
+  - **The accuracy is shown, never hidden** — as a ring on the map at its true radius, and in
+    the dialog as "accurate to about N m", with a warning past `ACCURACY_WARN` (25m, most of a
+    city block). A loose fix is still worth saving when you are standing there; you just need to
+    know to nudge the pin afterwards.
+  - **`interactive: false` on the position dot and the accuracy ring**, and
+    `L.DomEvent.disableClickPropagation` on the Locate button. All three exist for one reason:
+    the admin places fountains BY clicking the map, so anything drawn on top that swallows a
+    click becomes a dead zone, and a button that doesn't stop propagation opens the Add dialog
+    every time it is pressed.
+  - **Panning by hand stops the map chasing you** (`geo.follow = false` on `dragstart`) without
+    stopping the watch — the dot keeps updating. Tapping the button again re-follows.
+  - `addHere()` reuses a live fix under 30s old rather than requesting a new one, so adding
+    several fountains on one walk doesn't wait for the GPS each time.
+  - The nearest-fountain readout under the count is what makes this useful to a visitor rather
+    than only to the admin: metres under a kilometre, then km.
+- **The map is full bleed**, and the header keeps the 1120px measure the rest of the site reads
+  at. A border and a gutter round the map made it look like a screenshot of a map rather than
+  the map; a single hairline under the header is all that separates them.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 

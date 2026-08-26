@@ -61,17 +61,31 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 #count b{font-weight:500;color:var(--ink)}
 
 /* ── MAP ──────────────────────────────────────────────────────────────
-   The map takes the whole remaining viewport rather than a fixed height,
-   so it stays the subject of the page on a laptop and on a phone. */
-.map-wrap{flex:1;min-height:380px;display:flex;padding:0 24px 24px;max-width:1120px;
-  margin:0 auto;width:100%}
-#map{flex:1;border:1px solid var(--line);border-radius:3px;background:var(--bg2)}
+   Full bleed, and the whole remaining viewport tall: the header keeps the
+   1120px measure that the rest of the site reads at, and the map runs edge
+   to edge under it. A single hairline is all that separates them — a border
+   and a gutter made it look like a screenshot of a map rather than the map. */
+.map-wrap{flex:1;min-height:380px;display:flex;width:100%}
+#map{flex:1;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--bg2)}
 .leaflet-container{font-family:var(--fm);font-weight:300;background:var(--bg2)}
 /* No filter on the tile pane: the basemap already arrives grey. A canvas
    basemap is built to sit under data — it draws land, water, roads and a few
    faint labels, and no railways or ferry routes, which is what made the plain
    OSM tiles read as a transit map. */
 .leaflet-control-attribution{font-size:10px;background:rgba(250,250,248,.86)}
+
+/* Bottom-left, not the conventional top-left: this is the one control meant to
+   be pressed while walking, so it sits where a thumb already is. */
+.loc-btn{background:var(--bg);border:1px solid var(--line);border-radius:2px;
+  padding:9px 13px;font-size:12px;font-family:var(--fm);color:var(--ink);cursor:pointer;
+  box-shadow:0 1px 6px rgba(17,17,16,.22);white-space:nowrap}
+.loc-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.loc-btn.busy{opacity:.7}
+/* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
+.me-dot{width:14px;height:14px;border-radius:50%;background:#3F6EA8;border:2px solid #fff;
+  box-shadow:0 0 0 1px rgba(17,17,16,.28)}
+#near{display:block;color:var(--mute)}
+#near b{font-weight:500;color:var(--ink)}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
    as a pincushion, and a disc keeps its exact point at its own centre. */
@@ -115,9 +129,10 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 @media(max-width:640px){
   header{padding:24px 0 16px}
   h1{font-size:27px}
-  .wrap,.map-wrap{padding-left:16px;padding-right:16px}
-  .map-wrap{padding-bottom:16px}
+  .wrap{padding-left:16px;padding-right:16px}
   .head-row{align-items:flex-start}
+  /* A 44px touch target: this button gets pressed one-handed, outdoors. */
+  .loc-btn{padding:12px 15px;font-size:13px}
 }
 </style>
 </head>
@@ -127,6 +142,7 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
   <div class="wrap">
     <span class="eyebrow" style="color:#9C968C">Admin view</span>
     <button onclick="addFountain()">+ Fountain</button>
+    <button id="ab-here" onclick="addHere()">+ Fountain here</button>
     <span id="ab-hint">or click anywhere on the map to place one</span>
   </div>
 </div>
@@ -138,7 +154,7 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
         <div class="eyebrow">Zürich · Ongoing</div>
         <h1>Fountain City</h1>
       </div>
-      <div id="count"></div>
+      <div><div id="count"></div><div id="near"></div></div>
     </div>
     <div class="intro">Zürich runs on drinking water. This is a map of the public fountains,
       added one at a time as I find and photograph them.</div>
@@ -185,6 +201,15 @@ var markerById = {};
 // served at /project/fountaincity with no trailing slash, so a relative fetch
 // would resolve against /project/ and 404.
 var KREIS1_URL = '/project/fountaincity/kreis1.geojson';
+
+// Live position. watchId non-null means the watch is running; pos is the last
+// fix, kept so "add here" doesn't have to wait for a fresh one.
+var geo = { watchId: null, pos: null, at: 0, marker: null, ring: null, follow: false };
+
+// A fix looser than this is worth warning about before it becomes a fountain's
+// permanent coordinate: 25m is most of a city block, and phone GPS routinely
+// reports 5-10m outdoors under open sky and 40+ between tall buildings.
+var ACCURACY_WARN = 25;
 
 // Bürkliplatz-ish — the default view before there is anything to fit to.
 var ZURICH = [47.3717, 8.5423];
@@ -251,6 +276,7 @@ function initMap() {
   addBasemap();
   addKreis();
   layer = L.layerGroup().addTo(map);
+  initLocate();
 
   // Placing by click is admin-only, and the handler is attached only for the
   // admin, so a visitor's stray tap on the map does nothing at all.
@@ -325,6 +351,143 @@ function addKreis() {
     });
 }
 
+// GEOLOCATION
+// The point of the whole feature: you are standing at the fountain, so the
+// phone already knows the coordinate better than you could read it off a map.
+function initLocate() {
+  if (!navigator.geolocation) return;     // no API, no button - nothing to offer
+  var Ctl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd: function () {
+      var b = L.DomUtil.create('button', 'loc-btn');
+      b.id = 'loc-btn';
+      b.type = 'button';
+      b.innerHTML = 'Locate me';
+      // Without this the press also lands on the map underneath, which for the
+      // admin opens the Add dialog every time the button is touched.
+      L.DomEvent.disableClickPropagation(b);
+      L.DomEvent.on(b, 'click', toggleLocate);
+      return b;
+    }
+  });
+  map.addControl(new Ctl());
+  // Panning by hand means "stop chasing me": the dot keeps updating, the map
+  // just stops recentring. Tapping the button again re-follows.
+  map.on('dragstart', function () { geo.follow = false; });
+}
+
+function toggleLocate() {
+  if (geo.watchId !== null) { stopLocate(); return; }
+  var b = document.getElementById('loc-btn');
+  if (b) { b.classList.add('busy'); b.innerHTML = 'Locating...'; }
+  geo.follow = true;
+  // enableHighAccuracy asks for GPS rather than wifi/cell triangulation. It is
+  // slower and costs battery, which is exactly the trade you want when the fix
+  // is about to become a fountain's permanent coordinate.
+  geo.watchId = navigator.geolocation.watchPosition(onPos, onPosError, {
+    enableHighAccuracy: true, maximumAge: 5000, timeout: 20000
+  });
+}
+
+function stopLocate() {
+  if (geo.watchId !== null) navigator.geolocation.clearWatch(geo.watchId);
+  geo.watchId = null;
+  geo.follow = false;
+  if (geo.marker) { map.removeLayer(geo.marker); geo.marker = null; }
+  if (geo.ring) { map.removeLayer(geo.ring); geo.ring = null; }
+  var b = document.getElementById('loc-btn');
+  if (b) { b.classList.remove('on', 'busy'); b.innerHTML = 'Locate me'; }
+  updateNear();
+}
+
+function onPos(p) {
+  geo.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy || 0 };
+  geo.at = Date.now();
+  var ll = [geo.pos.lat, geo.pos.lng];
+  var b = document.getElementById('loc-btn');
+  if (b) { b.classList.remove('busy'); b.classList.add('on'); b.innerHTML = 'Following'; }
+
+  if (!geo.marker) {
+    geo.marker = L.marker(ll, {
+      interactive: false,            // never swallow a click meant for the map
+      zIndexOffset: 1000,            // above the fountains: it is where YOU are
+      icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>',
+        iconSize: [14, 14], iconAnchor: [7, 7] })
+    }).addTo(map);
+    // The accuracy ring is the honest part: a 40m fix should look like 40m.
+    geo.ring = L.circle(ll, { interactive: false, radius: geo.pos.acc,
+      color: '#3F6EA8', weight: 1, opacity: .45,
+      fillColor: '#3F6EA8', fillOpacity: .07 }).addTo(map);
+  } else {
+    geo.marker.setLatLng(ll);
+    geo.ring.setLatLng(ll).setRadius(geo.pos.acc);
+  }
+  if (geo.follow) map.setView(ll, Math.max(map.getZoom(), 17));
+  updateNear();
+}
+
+function onPosError(e) {
+  stopLocate();
+  var msg = (e && e.code === 1) ? 'Location permission denied - allow it in your browser settings'
+    : (e && e.code === 3) ? 'Timed out looking for a GPS fix - try again outdoors'
+    : 'Could not get your position';
+  toast(msg);
+}
+
+// Metres between two coordinates. Haversine on a sphere: across a city the
+// error against a proper ellipsoid is centimetres, and this is a walking hint.
+function distM(a, b) {
+  var R = 6371000, rad = Math.PI / 180;
+  var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function nearestFountain() {
+  if (!geo.pos) return null;
+  var best = null;
+  fountains.forEach(function (f) {
+    var d = distM(geo.pos, { lat: f.lat, lng: f.lng });
+    if (!best || d < best.d) best = { f: f, d: d };
+  });
+  return best;
+}
+
+function updateNear() {
+  var el = document.getElementById('near');
+  if (!el) return;
+  var n = nearestFountain();
+  if (!n) { el.innerHTML = ''; return; }
+  var d = n.d < 1000 ? Math.round(n.d) + ' m' : (n.d / 1000).toFixed(1) + ' km';
+  el.innerHTML = 'nearest <b>' + d + '</b>' + (n.f.name ? ' - ' + esc(n.f.name) : '');
+}
+
+// Admin: drop a fountain where you are standing. Uses the live fix if the watch
+// is already running and it is fresh, otherwise asks for one shot - no point
+// making someone start tracking just to add a single pin.
+function addHere() {
+  if (!navigator.geolocation) return toast('This device has no location support');
+  if (geo.pos && Date.now() - geo.at < 30000) return openHere(geo.pos);
+  toast('Getting your position...');
+  navigator.geolocation.getCurrentPosition(function (p) {
+    geo.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy || 0 };
+    geo.at = Date.now();
+    updateNear();
+    openHere(geo.pos);
+  }, onPosError, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+}
+
+function openHere(pos) {
+  var acc = Math.round(pos.acc);
+  // The accuracy is stated rather than hidden: a loose fix is still worth
+  // saving when you are standing at the fountain, but you should know to nudge
+  // the pin afterwards from its Edit dialog.
+  addFountain({ lat: pos.lat, lng: pos.lng },
+    acc ? ('Your position, accurate to about ' + acc + ' m.' +
+           (acc > ACCURACY_WARN ? ' That is loose - check the pin afterwards.' : '')) : null);
+}
+
 function popupHtml(f) {
   var id = f.id | 0;
   // width/height on the <img> reserve the right shape before the file lands, so
@@ -379,6 +542,7 @@ function render() {
   });
   var n = fountains.length;
   document.getElementById('count').innerHTML = '<b>' + n + '</b> ' + (n === 1 ? 'fountain' : 'fountains');
+  updateNear();
 }
 
 // ── BOOT ─────────────────────────────────────────────────────────────────────
@@ -405,8 +569,9 @@ api('/api/fountains').then(function (d) {
 
 // ── ADMIN ────────────────────────────────────────────────────────────────────
 // `at` is a LatLng when this came from a map click, undefined from the button.
-function addFountain(at) {
-  ask('Add fountain', at ? 'Coordinates taken from where you clicked.' : '', [
+function addFountain(at, desc) {
+  ask('Add fountain',
+    desc || (at ? 'Coordinates taken from where you clicked.' : ''), [
     { key: 'co', label: 'Coordinates', value: at ? fmt(at.lat) + ', ' + fmt(at.lng) : '',
       hint: 'Decimal degrees, latitude first — e.g. 47.37690, 8.54170' },
     { key: 'name', label: 'Name (optional)' },
