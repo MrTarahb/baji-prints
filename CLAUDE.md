@@ -413,11 +413,14 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
     eyebrow, title, tally and intro. `text-shadow`, never `mix-blend-mode` — blend modes detach
     `position:fixed` on Android Chrome, which is precisely what this whole layout rests on. The
     same reason `body` is `overflow:hidden` and `#topstack` is capped at `max-width:100vw`.
-  - **On a phone the header steps aside once the map is used** (`leanOnUse()` adds `.lean`,
+  - **On a phone the header steps aside once the map is used** (`leanOnUse()` sets `.lean`,
     collapsing the intro sentence; the title and tally stay). It binds a one-shot `pointerdown`
     on the map container rather than Leaflet's `movestart`/`zoomstart`, because those also fire
     for the programmatic `fitBounds` on load — which would collapse the sentence before anyone
     had a chance to read it.
+  - **That collapse must stay a toggle, never a one-way door.** It shipped one-way once and the
+    text was simply gone with no way back. `#lean-toggle` (a chevron, mobile-only) is the way
+    back, and it is the only part of the floating header besides the admin bar that takes a tap.
   - **The zoom control moved to `bottomleft`**, with Locate: the top-left corner is under the
     title now.
 - **The attribution stays; the `Leaflet` prefix does not.** OpenFreeMap, OpenMapTiles and
@@ -425,6 +428,21 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   Leaflet's own prefix is a courtesy, and dropping it (`setPrefix('')`, in `initMap` so it runs
   even where geolocation is absent) is what keeps the strip to one line on a phone. The
   bottom-left corner is also lifted 24px on small screens so the Locate button clears it.
+- **The page's own copy is editable, and lives in the site-wide `content` table** under
+  `fountain_eyebrow` / `fountain_title` / `fountain_intro` — the same key/value table and the
+  same `PUT /api/admin/content` route the rest of the site's text uses. No new table, no new
+  route; `editText()` in the admin bar writes one key per request.
+  - The copy **rides along in `GET /api/fountains`** rather than costing a second call to
+    `/api/content`, which returns the whole site's text and would paint the built-in defaults
+    first and then visibly replace them.
+  - `TEXT_DEFAULTS` in the page mirrors the seeded strings, so the page still reads correctly
+    if the fetch fails or a key was never written.
+  - **An empty string means deliberately empty; only a key that was never written falls back.**
+    Otherwise clearing the intro would have it reappear on the next load. The title is the
+    exception — blank falls back, because a page with no title is never what was meant, and
+    `editText()` trims before checking rather than trusting the dialog to have done it.
+  - A save is three writes with no transaction, so a **partial failure re-reads from the server**
+    instead of leaving what was typed on screen.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 

@@ -82,7 +82,15 @@ header .eyebrow,header h1,.intro,#count,#near{
   transition:opacity .32s ease,max-height .32s ease,margin-top .32s ease}
 #topstack.lean .intro{opacity:0;max-height:0;margin-top:0}
 #topstack.lean header{padding-bottom:26px}
+.head-right{display:flex;align-items:flex-start;gap:10px}
 #count{font-size:11.5px;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
+/* The one thing in the floating header that takes pointer events besides the
+   admin bar. Desktop has room for the sentence permanently, so it only appears
+   where the sentence actually collapses. */
+#lean-toggle{display:none;pointer-events:auto;width:30px;height:30px;padding:0;
+  line-height:1;font-size:15px;border-radius:50%;border:1px solid var(--line);
+  background:rgba(250,250,248,.92);color:var(--mute);flex:none}
+#lean-toggle:hover{border-color:var(--ink);color:var(--ink)}
 #count b{font-weight:500;color:var(--ink)}
 
 /* ── MAP ──────────────────────────────────────────────────────────────
@@ -161,6 +169,7 @@ header .eyebrow,header h1,.intro,#count,#near{
   /* Two lines of eyebrow + title is all that stays over the map once the
      sentence has collapsed. */
   #topstack.lean header{padding-bottom:20px}
+  #lean-toggle{display:block}
   .intro{font-size:12px}
   .wrap{padding-left:16px;padding-right:16px}
   .head-row{align-items:flex-start}
@@ -177,6 +186,7 @@ header .eyebrow,header h1,.intro,#count,#near{
     <span class="eyebrow" style="color:#9C968C">Admin view</span>
     <button onclick="addFountain()">+ Fountain</button>
     <button id="ab-here" onclick="addHere()">+ Fountain here</button>
+    <button onclick="editText()">Edit text</button>
     <span id="ab-hint">or click anywhere on the map to place one</span>
   </div>
 </div>
@@ -185,13 +195,15 @@ header .eyebrow,header h1,.intro,#count,#near{
   <div class="wrap">
     <div class="head-row">
       <div>
-        <div class="eyebrow">Zürich · Ongoing</div>
-        <h1>Fountain City</h1>
+        <div class="eyebrow" id="p-eyebrow"></div>
+        <h1 id="p-title"></h1>
       </div>
-      <div><div id="count"></div><div id="near"></div></div>
+      <div class="head-right">
+        <div><div id="count"></div><div id="near"></div></div>
+        <button id="lean-toggle" type="button" onclick="toggleLean()">&#8964;</button>
+      </div>
     </div>
-    <div class="intro">Zürich runs on drinking water. This is a map of the public fountains,
-      added one at a time as I find and photograph them.</div>
+    <div class="intro" id="p-intro"></div>
   </div>
 </header>
 </div>
@@ -245,6 +257,33 @@ var geo = { watchId: null, pos: null, at: 0, marker: null, ring: null, follow: f
 // permanent coordinate: 25m is most of a city block, and phone GPS routinely
 // reports 5-10m outdoors under open sky and 40+ between tall buildings.
 var ACCURACY_WARN = 25;
+
+// The page's own copy, editable from the admin bar and stored in the site-wide
+// `content` table under fountain_*. These defaults are the same strings the
+// server seeds, and exist so the page still reads correctly if the fetch fails
+// or a key has never been written.
+var text = {};
+var TEXT_DEFAULTS = {
+  eyebrow: 'Zürich · Ongoing',
+  title: 'Fountain City',
+  intro: 'Zürich runs on drinking water. This is a map of the public fountains, ' +
+    'added one at a time as I find and photograph them.'
+};
+
+// A stored empty string means deliberately empty — that line simply doesn't
+// render. Only a key that was never written at all falls back to the default,
+// so clearing the intro doesn't have it reappear on the next load.
+function txt(key) {
+  return (typeof text[key] === 'string') ? text[key] : TEXT_DEFAULTS[key];
+}
+
+function renderText() {
+  var t = txt('title') || TEXT_DEFAULTS.title;      // the title never blanks
+  document.getElementById('p-eyebrow').textContent = txt('eyebrow');
+  document.getElementById('p-title').textContent = t;
+  document.getElementById('p-intro').textContent = txt('intro');
+  document.title = t + ' · Bharat Bhatia';
+}
 
 // Bürkliplatz-ish — the default view before there is anything to fit to.
 var ZURICH = [47.3717, 8.5423];
@@ -431,9 +470,30 @@ function leanOnUse() {
   var stack = document.getElementById('topstack');
   var el = map.getContainer && map.getContainer();
   if (!stack || !el || !el.addEventListener) return;
-  var lean = function () { stack.classList.add('lean'); };
+  var lean = function () { setLean(true); };
   el.addEventListener('pointerdown', lean, { once: true });
   el.addEventListener('touchstart', lean, { once: true, passive: true });
+}
+
+// Collapsing is a toggle, never a one-way door: the sentence going away the
+// first time you touch the map is only reasonable if there is an obvious way to
+// bring it back. The chevron is that way, and it is the only part of the
+// floating header besides the admin bar that takes a tap — everywhere else the
+// map still pans straight through the text.
+function setLean(on) {
+  var stack = document.getElementById('topstack');
+  var btn = document.getElementById('lean-toggle');
+  if (!stack) return;
+  stack.classList[on ? 'add' : 'remove']('lean');
+  if (btn) {
+    btn.innerHTML = on ? '&#8964;' : '&#8963;';       // chevron down / up
+    btn.title = on ? 'Show the description' : 'Hide the description';
+  }
+}
+
+function toggleLean() {
+  var stack = document.getElementById('topstack');
+  setLean(!(stack && stack.classList.contains('lean')));
 }
 
 function toggleLocate() {
@@ -606,9 +666,12 @@ function render() {
 }
 
 // ── BOOT ─────────────────────────────────────────────────────────────────────
+renderText();                          // defaults first, so the page is never blank
 api('/api/fountains').then(function (d) {
   fountains = d.fountains || [];
   isAdmin = !!d.admin;
+  text = d.text || {};
+  renderText();
   if (isAdmin) document.getElementById('adminbar').classList.add('on');
   initMap();
   render();
@@ -656,6 +719,39 @@ function addFountain(at, desc) {
         toast(f.name ? 'Added ' + f.name : 'Fountain added');
       })
       .catch(function (e) { toast(e.message); });
+  });
+}
+
+// Mirrors the client board's editHeader(): one dialog for every string the page
+// shows. Each key is a separate PUT because /api/admin/content writes one
+// key/value pair — the existing route, rather than a new one just for this page.
+function editText() {
+  ask('Edit page text', 'The eyebrow and the sentence may be left empty; the title may not.', [
+    { key: 'eyebrow', label: 'Eyebrow', value: txt('eyebrow') },
+    { key: 'title', label: 'Title', value: txt('title') },
+    { key: 'intro', label: 'Intro', value: txt('intro'), multiline: true, rows: 4,
+      hint: 'Shown under the title, over the map.' }
+  ], function (v) {
+    // Trimmed here rather than trusting the dialog to have done it: the guard
+    // has to hold on its own, or a title of three spaces blanks the page.
+    var next = { eyebrow: (v.eyebrow || '').trim(),
+                 title: (v.title || '').trim(),
+                 intro: (v.intro || '').trim() };
+    if (!next.title) return toast('The title cannot be empty');
+    Promise.all(Object.keys(next).map(function (k) {
+      return api('/api/admin/content', {
+        method: 'PUT', body: { key: 'fountain_' + k, value: next[k] }
+      });
+    })).then(function () {
+      text = next;
+      renderText();
+      toast('Text saved');
+    }).catch(function (e) {
+      // A partial save is possible here — three writes, no transaction — so the
+      // page is reloaded from the server rather than left showing what was typed.
+      toast('Could not save: ' + e.message);
+      api('/api/fountains').then(function (d) { text = d.text || {}; renderText(); });
+    });
   });
 }
 
@@ -743,7 +839,7 @@ function ask(title, desc, fields, cb) {
   var box = document.getElementById('m-fields');
   box.innerHTML = fields.map(function (f, i) {
     var input = f.file ? '<input type="file" accept="image/*" id="mf-' + i + '">'
-      : f.multiline ? '<textarea id="mf-' + i + '"></textarea>'
+      : f.multiline ? '<textarea id="mf-' + i + '"' + (f.rows ? ' rows="' + (f.rows | 0) + '"' : '') + '></textarea>'
       : '<input type="text" id="mf-' + i + '">';
     return '<label class="m-label" for="mf-' + i + '">' + esc(f.label) + '</label>' + input +
       (f.hint ? '<div class="m-hint">' + esc(f.hint) + '</div>' : '');

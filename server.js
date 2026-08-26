@@ -953,6 +953,12 @@ async function initDB() {
 
   // Step 2: seed default content with parameterised queries
   const defaults = [
+    // Fountain City's page copy. Same key/value table as the rest of the site's
+    // editable text, so it gets the existing PUT /api/admin/content for free.
+    ['fountain_eyebrow', 'Zürich · Ongoing'],
+    ['fountain_title', 'Fountain City'],
+    ['fountain_intro', 'Zürich runs on drinking water. This is a map of the public fountains, ' +
+      'added one at a time as I find and photograph them.'],
     ['hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'],
     ['hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'],
     ['hero_meta', 'Photography · Fine art print · Zürich'],
@@ -3441,10 +3447,20 @@ app.get('/api/fountains', async (req, res) => {
     const { rows } = await pool.query(
       'SELECT id, name, lat, lng, note, image_url, image_width, image_height FROM fountains ORDER BY id'
     );
+    // The page's own copy rides along rather than costing a second request to
+    // /api/content — that route returns the whole site's text, almost none of
+    // which this page has any use for, and a second round trip would paint the
+    // built-in defaults first and then visibly replace them.
+    const { rows: copy } = await pool.query(
+      `SELECT key, value FROM content
+        WHERE key IN ('fountain_eyebrow','fountain_title','fountain_intro')`
+    );
+    const text = {};
+    copy.forEach((r) => { text[r.key.slice('fountain_'.length)] = r.value; });
     // The admin flag only reveals whether THIS visitor is the admin, so the
     // page can show its controls. The fountain rows themselves are public —
     // there is nothing on them to withhold.
-    res.json({ fountains: rows, admin: !!req.session.admin });
+    res.json({ fountains: rows, admin: !!req.session.admin, text: text });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
