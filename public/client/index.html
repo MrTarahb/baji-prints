@@ -619,11 +619,13 @@ function soloSpot(r) {
 
 // The German line shown where the filtered series has nothing to offer. The
 // room stays on the page — a series that skips a wall is information, and
-// hiding the room would quietly hide the hole in the proposal.
+// hiding the room would quietly hide the hole in the proposal. It is worded as
+// "nothing uploaded here yet" rather than "nothing is planned for this room",
+// which read to the client as a decision already taken against the wall.
 function gapHtml(scope) {
   return '<div class="gap">' + (scope === 'room'
-    ? 'In dieser Serie ist für diesen Raum kein Bild vorgesehen.'
-    : 'In dieser Serie kein Vorschlag für diesen Platz.') + '</div>';
+    ? 'Für diesen Raum sind noch keine Fotos hochgeladen.'
+    : 'Für diesen Platz sind noch keine Fotos hochgeladen.') + '</div>';
 }
 
 function roomHtml(r, i) {
@@ -694,7 +696,8 @@ function spotHtml(s) {
       '</div>'
     : '';
   // Under a series filter an otherwise-stocked spot that this series skips gets
-  // the gap line rather than "Fotos folgen", which would read as a promise.
+  // the gap line, which names the place; a spot with nothing at all keeps the
+  // shorter "Fotos folgen.".
   var shown = visible(s.photos);
   var empty = (seriesFilter !== null && s.photos.length)
     ? gapHtml('spot')
