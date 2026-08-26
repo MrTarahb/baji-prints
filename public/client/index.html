@@ -500,8 +500,12 @@ function initCursor() {
 initCursor();
 
 api('/api/client/' + SLUG + '/session').then(function (s) {
-  if (s.client || s.admin) { loadBoard(); }
-  else { document.getElementById('gate').classList.add('on'); }
+  if (s.client || s.admin) { loadBoard(); return; }
+  document.getElementById('gate').classList.add('on');
+  // English, because only an authenticated admin is ever told this — for the
+  // client an unknown slug and a locked board look the same, which is the point.
+  if (s.unknown) document.getElementById('gate-err').textContent =
+    'No board with this slug. Check the spelling in /admin.';
 }).catch(function () {
   document.getElementById('gate').classList.add('on');
 });
@@ -510,7 +514,11 @@ document.getElementById('gate-form').addEventListener('submit', function (e) {
   e.preventDefault();
   var err = document.getElementById('gate-err');
   err.textContent = '';
-  api('/api/client/' + SLUG + '/login', { method: 'POST', body: { password: document.getElementById('gate-pw').value } })
+  // Trimmed on both sides of the wire or not at all: ask() trims what the admin
+  // types, so the stored hash is of the trimmed string, and a gate that sent the
+  // raw value would reject a password with a stray space forever.
+  var pw = document.getElementById('gate-pw').value.trim();
+  api('/api/client/' + SLUG + '/login', { method: 'POST', body: { password: pw } })
     .then(function () { document.getElementById('gate').classList.remove('on'); loadBoard(); })
     .catch(function (e) { err.textContent = e.message; });
 });

@@ -185,6 +185,16 @@ that is belt-and-braces, not the guard.
 - Nothing about a board is public: excluded in `robots.txt`, `X-Robots-Tag: noindex` on the
   route, absent from `sitemap.xml`, and the session probe returns an identical response for an
   unknown slug, a locked board, and a logged-out visitor so a guessed URL confirms nothing.
+  - **The one exception is an `unknown: true` flag added only for a requester who already holds
+    an admin session.** To everyone else the response stays byte-identical, so the property
+    above is intact. It exists because the login route answers `Falsches Passwort` to a wrong
+    password *and* to a slug that does not exist — deliberately indistinguishable — which left
+    the admin testing his own board unable to tell a typo in the URL from a broken password.
+    That cost a real debugging session. Keep the flag admin-gated; never widen it.
+  - **A password is trimmed on both sides of the wire, or on neither.** `ask()` trims what the
+    admin types, so the stored hash is of the trimmed string; the gate trims too. A gate sending
+    the raw value rejects a password with a stray space forever, and the error it shows —
+    "wrong password" — points nowhere near the cause.
 - Approvals are **independent per photo** — approving one candidate never changes the others in
   the same spot. Clicking the active choice again clears it back to `pending`.
 - **A "Serie" is a tag on the photo plus a filter, deliberately *not* a level above rooms.**

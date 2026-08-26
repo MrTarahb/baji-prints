@@ -2929,7 +2929,14 @@ app.get('/api/client/:slug/session', async (req, res) => {
   // the client's name is withheld until authenticated — otherwise anyone who
   // guessed a URL could confirm the board exists and learn whose it is.
   if (!client || !authed) {
-    return res.json({ admin: false, client: false, name: null });
+    // `unknown` is added only for a requester who already holds an admin
+    // session, so to everybody else this stays byte-identical to a locked board
+    // and a guessed URL still confirms nothing. Without it an admin testing his
+    // own board has no way to tell a mistyped slug from a wrong password — the
+    // login route answers 'Falsches Passwort' to both, by design.
+    const out = { admin: false, client: false, name: null };
+    if (!client && req.session.admin) out.unknown = true;
+    return res.json(out);
   }
   res.json({
     admin: !!req.session.admin,
