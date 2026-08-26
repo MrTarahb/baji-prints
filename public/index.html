@@ -2564,13 +2564,22 @@ async function loadCategories() {
   } catch (e) {
     CATEGORY_ORDER = []; // degrade gracefully — dropdown just shows "All"
   }
+  // A category can be deep-linked as /?cat=<slug>. That is how the Portfolio
+  // dropdown on a standalone page (shared/chrome.js, which has no showPage() to
+  // call) gets back here with a filter already chosen. Validated against the
+  // live category list and never trusted: an unknown slug would filter the feed
+  // down to nothing and read as an empty site.
+  let wantedCat = null;
+  try { wantedCat = new URLSearchParams(window.location.search).get('cat'); } catch (e) {}
+  const catIsReal = wantedCat === 'all' || CATEGORY_ORDER.some(c => c.filter === wantedCat);
+  if (wantedCat && catIsReal) { currentFilter = wantedCat; categorySelected = wantedCat !== 'all'; }
   // Default landing filter is "whatever's first," not a hardcoded slug — a
   // hardcoded string here is exactly what broke last time: renaming a
   // category's slug in admin silently orphaned the default, since prints get
   // cascaded to the new slug but a fixed string here never would. Only set
   // this once, on first load — later reloads (e.g. navigating back to the
   // main page) shouldn't override whatever filter the person already chose.
-  if (currentFilter === null) currentFilter = CATEGORY_ORDER[0]?.filter || 'all';
+  else if (currentFilter === null) currentFilter = CATEGORY_ORDER[0]?.filter || 'all';
 }
 
 function buildDropdown() {

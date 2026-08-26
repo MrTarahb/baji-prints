@@ -133,7 +133,8 @@ var Chrome = (function () {
       '<a class="ch-name" href="/">' + esc(t.nav_name) + '</a>' +
       '<div class="ch-right">' +
         '<ul class="ch-links">' +
-          '<li><a href="/">' + esc(t.nav_work) + '</a></li>' +
+          '<li class="ch-dd"><a href="/">' + esc(t.nav_work) + '</a>' +
+            '<div class="ch-dd-menu"><div class="ch-dd-inner"></div></div></li>' +
           '<li><a href="/about">' + esc(t.nav_about) + '</a></li>' +
           '<li><a href="/shop">' + esc(t.nav_shop) + '</a></li>' +
           '<li><a href="/cart">Cart' + (n ? ' (' + n + ')' : '') + '</a></li>' +
@@ -156,7 +157,8 @@ var Chrome = (function () {
     var n = cartCount();
     return '<div class="ch-mobile">' +
       '<button class="ch-mobile-close" type="button">Close ✕</button>' +
-      '<a href="/">' + esc(t.nav_work) + '</a>' +
+      '<a href="/" class="ch-mobile-work">' + esc(t.nav_work) + '</a>' +
+      '<div class="ch-mobile-sub"></div>' +
       '<a href="/about">' + esc(t.nav_about) + '</a>' +
       '<a href="/shop">' + esc(t.nav_shop) + '</a>' +
       '<a href="/cart">Cart' + (n ? ' (' + n + ')' : '') + '</a>' +
@@ -222,7 +224,37 @@ var Chrome = (function () {
       })
       .catch(function () { /* the built-in labels stand */ });
 
+    loadCategories();
     initCursor(opts.cursor);
+  }
+
+  // The Portfolio menu, from the live category list — never a hardcoded slug.
+  // Renaming a category in admin cascades to the prints but would silently
+  // orphan a fixed string here, which is a bug the main site already had once.
+  //
+  // These are real links, not filter calls: this page has no feed to filter, so
+  // each one goes to the main site with the category named in the query string
+  // (/?cat=<slug>), which index.html validates against the same list on arrival.
+  function loadCategories() {
+    fetch('/api/categories', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (cats) {
+        if (!Array.isArray(cats) || !cats.length) return;   // menu stays empty
+        var desk = '<a href="/?cat=all">All work</a><div class="ch-dd-divider"></div>';
+        var mob = '';
+        cats.forEach(function (c) {
+          if (!c.slug) return;
+          var href = '/?cat=' + encodeURIComponent(c.slug);
+          var label = esc(c.label || c.slug);
+          desk += '<a href="' + href + '">' + label + '</a>';
+          mob += '<a href="' + href + '">' + label + '</a>';
+        });
+        var inner = document.querySelector('.ch-dd-inner');
+        if (inner) inner.innerHTML = desk;
+        var sub = document.querySelector('.ch-mobile-sub');
+        if (sub) sub.innerHTML = '<a href="/?cat=all">All work</a>' + mob;
+      })
+      .catch(function () { /* no menu rather than a broken one */ });
   }
 
   function render(t, opts) {
@@ -250,6 +282,31 @@ var Chrome = (function () {
     if (close && menu) close.onclick = function () { menu.classList.remove('open'); };
     var themes = document.querySelectorAll('.ch-theme, .ch-mobile-theme');
     for (var i = 0; i < themes.length; i++) themes[i].onclick = toggleTheme;
+
+    // Opened on hover from JS, not :hover, and closed on a delay so crossing
+    // the gap between the trigger and the menu doesn't snap it shut.
+    var dd = document.querySelector('.ch-dd');
+    if (dd) {
+      var closeTimer;
+      dd.addEventListener('mouseenter', function () {
+        clearTimeout(closeTimer);
+        dd.classList.add('open');
+      });
+      dd.addEventListener('mouseleave', function () {
+        closeTimer = setTimeout(function () { dd.classList.remove('open'); }, 120);
+      });
+    }
+    // On a phone Portfolio expands its categories in place instead of leaving
+    // the page — the same thing the main site's mobile menu does.
+    var mw = document.querySelector('.ch-mobile-work');
+    var sub = document.querySelector('.ch-mobile-sub');
+    if (mw && sub) {
+      mw.onclick = function (e) {
+        if (!sub.innerHTML) return;        // categories never arrived — just go
+        e.preventDefault();
+        sub.classList.toggle('open');
+      };
+    }
   }
 
   // A page that wants the site's cursor but not its nav — the client boards are

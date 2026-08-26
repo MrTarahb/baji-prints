@@ -53,8 +53,11 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
    here to match, so a nav that followed the visitor's global dark preference
    would be a black bar sitting on a white map. This block comes after
    chrome.css and at equal specificity, so it wins over its [data-theme] rules.
-   The theme toggle is dropped for the same reason (see Chrome.mount below):
-   a control that visibly does nothing is worse than no control. */
+
+   The toggle itself is still offered, because it sets the SITE-WIDE preference
+   that every other page reads. It just has nothing to change here yet: giving
+   this page a real dark mode means swapping the MapLibre style for a dark one
+   and darkening this scrim, which is a change of its own. */
 :root{
   --ch-bg:#FAFAF8;
   --ch-fg:#111110;
@@ -81,23 +84,28 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
    The admin bar and the title sit over the map. The stack itself takes no
    pointer events, so the map can be panned straight through the title —
    only the admin bar, which has real buttons, takes them back. */
-#topstack{position:fixed;top:0;left:0;right:0;z-index:500;pointer-events:none;max-width:100vw}
-#adminbar{pointer-events:auto}
-
-/* ── HEADER ───────────────────────────────────────────────────────────── */
-/* The scrim, not a solid bar: the map keeps running underneath and simply
-   fades out from under the text, so nothing looks bolted on top of it. */
-header{padding:30px 0 44px;pointer-events:none;
+/* The scrim belongs to the whole stack, not to the header alone: the nav is a
+   row of this stack now, and a gradient that started below it would leave the
+   nav sitting on an opaque edge. One gradient over nav + admin bar + title, and
+   the map keeps running underneath and simply fades out from under all of it. */
+#topstack{position:fixed;top:0;left:0;right:0;z-index:500;pointer-events:none;max-width:100vw;
   background:linear-gradient(to bottom,
     rgba(250,250,248,.97) 0%, rgba(250,250,248,.92) 42%,
     rgba(250,250,248,.72) 68%, rgba(250,250,248,0) 100%)}
+#adminbar{pointer-events:auto}
+
+/* ── HEADER ───────────────────────────────────────────────────────────── */
+/* The scrim itself now lives on #topstack, above — the header is just the row
+   that holds the title. */
+header{padding:12px 0 44px;pointer-events:none}
 .head-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
 h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-height:1.15;margin:8px 0 0}
 /* The scrim fades to nothing at its lower edge, so the text near that edge
    can't rely on it. A soft light halo carries the rest. text-shadow rather
    than mix-blend-mode, deliberately: blend modes detach position:fixed on
    Android Chrome, which is exactly what the whole layout rests on here. */
-header .eyebrow,header h1,.intro,#count,#near{
+header .eyebrow,header h1,.intro,#count,#near,
+#topstack .ch-name,#topstack .ch-links > li > a{
   text-shadow:0 1px 3px rgba(250,250,248,.95), 0 0 14px rgba(250,250,248,.85)}
 
 /* The sentence collapses once the map is touched — see leanOnUse().
@@ -1019,12 +1027,11 @@ function render() {
 // that stack is already fixed and already takes no pointer events, so the nav
 // becomes its first row and the map stays draggable straight through it. No
 // footer — the map runs to the bottom edge and the tiles' required attribution
-// already sits down there. No theme toggle — this page has one palette.
+// already sits down there.
 Chrome.mount({
   navInto: document.getElementById('topstack'),
   floating: true,
   footer: false,
-  theme: false,
   cursor: '.fmark'                     // the fountain discs swell it like a link
 });
 

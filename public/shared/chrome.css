@@ -31,6 +31,7 @@
   --ch-pink:    #C8907A;
   --ch-border:  rgba(17,17,16,.1);
   --ch-bg:      #FAFAF8;
+  --ch-menu-bg: #FFFFFF;
   --ch-fm: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --ch-fi: 'Playfair Display', Georgia, serif;
 }
@@ -40,6 +41,7 @@
   --ch-gray:    rgba(240,239,236,.42);
   --ch-border:  rgba(240,239,236,.1);
   --ch-bg:      #0E0E0C;
+  --ch-menu-bg: rgba(10,10,9,.94);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -48,6 +50,7 @@
     --ch-gray:    rgba(240,239,236,.42);
     --ch-border:  rgba(240,239,236,.1);
     --ch-bg:      #0E0E0C;
+    --ch-menu-bg: rgba(10,10,9,.94);
   }
 }
 
@@ -92,6 +95,46 @@
 }
 .ch-links a:hover { color: var(--ch-fg); }
 
+/* ── PORTFOLIO DROPDOWN ──────────────────────────────────────────────────────
+   Opened on hover by JS rather than by :hover on the <li>, so the gap between
+   the trigger and the menu doesn't snap it shut mid-move. The gap is bridged
+   with padding-top on the menu, never margin, for the same reason: padding is
+   part of the hover target and margin is not. */
+.ch-dd { position: relative; }
+.ch-dd-menu {
+  display: none;
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
+  padding-top: .75rem;
+  z-index: 600;
+}
+.ch-dd.open .ch-dd-menu { display: block; }
+.ch-dd-inner {
+  background: var(--ch-menu-bg);
+  border: 1px solid var(--ch-border);
+  border-radius: 3px;
+  padding: .5rem 0;
+  min-width: 140px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+}
+.ch-dd-menu a {
+  display: block;
+  padding: .4rem 1rem;
+  font-size: 8px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ch-fg-m);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .15s;
+  text-shadow: none;
+}
+.ch-dd-menu a:hover { color: var(--ch-fg); }
+.ch-dd-divider { height: 1px; background: var(--ch-border); margin: .35rem 0; }
+
 .ch-theme, .ch-burger {
   background: none; border: none; padding: .2rem;
   display: flex; align-items: center;
@@ -119,15 +162,21 @@
   padding-bottom: 2.2rem;
   pointer-events: none;
 }
-.ch-nav.floating a, .ch-nav.floating button { pointer-events: auto; }
+.ch-nav.floating a, .ch-nav.floating button,
+.ch-nav.floating .ch-dd, .ch-nav.floating .ch-dd-menu { pointer-events: auto; }
 
 /* Mounted into a host page's own fixed stack (opts.navInto): that element is
    already pinned, so a second position:fixed here would pull the nav out of the
    stack and lay it over the rows below. Static, and the host stack positions it. */
 .ch-nav.ch-instack { position: static; max-width: none; }
+/* No background of its own: the host stack paints ONE scrim behind all of its
+   rows, so the nav, whatever sits under it and the page title fade out together
+   as a single gradient. A background here would read as an opaque bar with a
+   fade starting below it — two edges where the design wants none. */
 .ch-nav.floating.ch-instack {
-  background: var(--ch-bg);
-  padding-bottom: 1.1rem;
+  background: none;
+  border-bottom: 0;
+  padding-bottom: .5rem;
 }
 
 /* ── MOBILE MENU ─────────────────────────────────────────────────────────── */
@@ -160,6 +209,23 @@
   letter-spacing: .14em; text-transform: uppercase;
   color: var(--ch-fg-m); padding: .75rem;
   z-index: 2;
+}
+.ch-mobile-sub {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: .85rem;
+  margin-top: -.5rem;
+}
+.ch-mobile-sub.open { display: flex; }
+.ch-mobile-sub a {
+  font-size: 1rem;
+  color: var(--ch-fg-m);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-family: var(--ch-fm);
+  font-style: normal;
+  text-decoration: none;
 }
 .ch-mobile-theme {
   background: none; border: none;
