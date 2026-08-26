@@ -418,6 +418,10 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
     on the map container rather than Leaflet's `movestart`/`zoomstart`, because those also fire
     for the programmatic `fitBounds` on load — which would collapse the sentence before anyone
     had a chance to read it.
+  - **The collapse animates a grid track (1fr to 0fr), never a max-height.** A max-height has to
+    be guessed, and the intro is editable text — whatever number you pick, a longer sentence is
+    silently cut off mid-word on a phone. That shipped once. `1fr` resolves to whatever the text
+    actually needs; `min-height:0` on the child is what lets the track reach zero.
   - **That collapse must stay a toggle, never a one-way door.** It shipped one-way once and the
     text was simply gone with no way back. `#lean-toggle` (a chevron, mobile-only) is the way
     back, and it is the only part of the floating header besides the admin bar that takes a tap.

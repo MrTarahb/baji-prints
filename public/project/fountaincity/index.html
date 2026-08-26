@@ -75,12 +75,17 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 header .eyebrow,header h1,.intro,#count,#near{
   text-shadow:0 1px 3px rgba(250,250,248,.95), 0 0 14px rgba(250,250,248,.85)}
 
-/* The sentence collapses once the map is touched — see leanOnUse(). max-height
-   rather than display:none so it can animate out instead of blinking away. */
-.intro{color:var(--mute);font-size:12.5px;max-width:62ch;margin-top:10px;
-  max-height:90px;overflow:hidden;
-  transition:opacity .32s ease,max-height .32s ease,margin-top .32s ease}
-#topstack.lean .intro{opacity:0;max-height:0;margin-top:0}
+/* The sentence collapses once the map is touched — see leanOnUse().
+
+   The collapse animates a grid track from 1fr to 0fr rather than a max-height,
+   because a max-height has to be guessed: whatever number you pick, an intro
+   longer than it is silently cut off mid-sentence, and the text is editable so
+   there is no safe number. 1fr resolves to whatever the text actually needs.
+   min-height:0 on the child is what lets the track reach zero. */
+.intro-wrap{display:grid;grid-template-rows:1fr;margin-top:10px;
+  transition:grid-template-rows .32s ease,opacity .32s ease,margin-top .32s ease}
+.intro{color:var(--mute);font-size:12.5px;max-width:62ch;min-height:0;overflow:hidden}
+#topstack.lean .intro-wrap{grid-template-rows:0fr;opacity:0;margin-top:0}
 #topstack.lean header{padding-bottom:26px}
 .head-right{display:flex;align-items:flex-start;gap:10px}
 #count{font-size:11.5px;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
@@ -121,7 +126,10 @@ header .eyebrow,header h1,.intro,#count,#near{
 /* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
 .me-dot{width:14px;height:14px;border-radius:50%;background:#3F6EA8;border:2px solid #fff;
   box-shadow:0 0 0 1px rgba(17,17,16,.28)}
-#near{display:block;color:var(--mute)}
+/* A fountain's name is free text and lands in here — ellipsis rather than
+   letting a long one push the title off its own line. */
+#near{display:block;color:var(--mute);max-width:22ch;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 #near b{font-weight:500;color:var(--ink)}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
@@ -203,7 +211,7 @@ header .eyebrow,header h1,.intro,#count,#near{
         <button id="lean-toggle" type="button" onclick="toggleLean()">&#8964;</button>
       </div>
     </div>
-    <div class="intro" id="p-intro"></div>
+    <div class="intro-wrap"><div class="intro" id="p-intro"></div></div>
   </div>
 </header>
 </div>
