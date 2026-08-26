@@ -338,13 +338,28 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   `dblclick` itself, but the container carries `touch-action:none` — which is what makes
   dragging and pinching work — and under it a phone browser never synthesises one, so on
   mobile a double tap did nothing at all. The handlers read `touchstart`/`touchmove`/`touchend`
-  directly and `setZoomAround` the tapped point, and three guards are load-bearing: a finger
-  that travels past `TAP_SLOP` is a pan and not a tap; a two-finger gesture is checked on its
-  **spread** as well as its midpoint, because a pinch's midpoint barely moves; and the step is
-  clamped to min/max *before* `setZoomAround`, which otherwise offsets the centre by an
-  unclamped scale and slides the map sideways at either limit. Leaflet's own `doubleClickZoom`
-  stays for the mouse — it is disabled on `touchstart` and re-enabled on `mousedown`, so
-  exactly one of the two ever fires.
+  directly and `setZoomAround` the tapped point. Leaflet's own `doubleClickZoom` stays for the
+  mouse — it is disabled on `touchstart` and re-enabled on `mousedown`, so exactly one of the
+  two ever fires.
+  - **`DBL_MS` is measured from one tap LIFTING to the next one LANDING**, the way a phone
+    measures it. Measuring instead to the second tap's own *lift* charges the window for however
+    long the finger rests on the glass; that shipped first, and an unhurried double tap — 220ms
+    between taps, ~110ms of contact each — silently missed a 300ms budget, so the gesture did
+    nothing at all. Keep the tap's own duration as a separate cap (`TAP_MAX`, a long press).
+  - **There are two independent detection paths and one guard between them.** Whether a phone
+    browser synthesises `dblclick` from a double tap is precisely what cannot be verified from
+    the working tree, so the page also takes a `dblclick` if one arrives, ignoring it when
+    Leaflet's handler is enabled (a mouse) or when the touch path zoomed in the last 800ms. The
+    guard is on the `dblclick` path only — a global cooldown in `zoomAt()` would block the
+    second of two double taps in a row, which is how anyone zooms in twice.
+  - Three more guards are load-bearing: a finger that travels past `TAP_SLOP` is a pan and not a
+    tap; a two-finger gesture is checked on its **spread** as well as its midpoint, because a
+    pinch's midpoint barely moves; and the step is clamped to min/max *before* `setZoomAround`,
+    which otherwise offsets the centre by an unclamped scale and slides the map sideways at
+    either zoom limit.
+  - **`?taplog=1` prints what the browser actually fired** into a corner overlay (`tapLog()`,
+    inert without the param). The gesture can only be tested on a real phone, and this is how
+    the phone reports back.
   - **The admin's tap-to-place had to become deferred** (`queueAdd()`), because placing a
     fountain and zooming start with the same tap: the Add dialog waits `DBL_MS` to see whether
     a second tap is coming, and a recognised gesture calls `blockAdd()`. The block *window*

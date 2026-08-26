@@ -267,12 +267,18 @@ var geo = { watchId: null, pos: null, at: 0, marker: null, ring: null, follow: f
 var ACCURACY_WARN = 25;
 
 // Double tap zooms in, two-finger tap zooms out. A tap only counts as a tap if
-// the finger barely moved — otherwise it was a pan or a pinch — and the two of
-// them have to land inside DBL_MS, the same window a browser gives its own
-// double-tap.
-var DBL_MS = 300;
-var TAP_SLOP = 30;      // px a finger may wander and still have tapped
-var DBL_SLOP = 45;      // px between the two taps of one double tap
+// the finger barely moved — otherwise it was a pan or a pinch.
+//
+// DBL_MS is measured from one tap LIFTING to the next one LANDING, which is how
+// a phone measures it. Measuring to the second tap's own lift instead charges
+// the gesture for however long the finger rests on the glass, and an unhurried
+// double tap then misses the window every time — that is what shipped first and
+// why the gesture did nothing.
+var DBL_MS = 400;       // ms between one tap lifting and the next landing
+var TAP_MAX = 500;      // longer than this and the finger rested, not tapped
+var TAP_SLOP = 30;      // px a finger may wander within one tap
+var DBL_SLOP = 60;      // px between the two taps of one double tap
+var TAPLOG = typeof location !== 'undefined' && /[?&]taplog=1/.test(location.search);
 
 // The page's own copy, editable from the admin bar and stored in the site-wide
 // `content` table under fountain_*. These defaults are the same strings the
@@ -480,6 +486,7 @@ function initTapZoom() {
 
   el.addEventListener('touchstart', function (e) {
     if (map.doubleClickZoom) map.doubleClickZoom.disable();
+    tapLog('start x' + e.touches.length);
     if (e.touches.length === 1) {
       tap = tapPt(e.touches[0]);
       pair = null;
@@ -512,20 +519,57 @@ function initTapZoom() {
     if (pair) {
       var p = pair;
       pair = null; prev = null; tap = null;
-      if (now - p.t < DBL_MS + 100) zoomAt(p, -1);
+      if (now - p.t < DBL_MS) zoomAt(p, -1, true);
       return;
     }
     if (!tap) { prev = null; return; }          // the finger dragged
     var t = tap;
     tap = null;
-    if (now - t.t > DBL_MS + 200) { prev = null; return; }   // a long press
-    if (prev && now - prev.t < DBL_MS && !tapFar(prev, t, DBL_SLOP)) {
+    if (now - t.t > TAP_MAX) { prev = null; return; }        // a long press
+    tapLog('tap gap ' + (prev ? t.t - prev.t : '-'));
+    // t.t is when this tap LANDED and prev.t when the last one LIFTED: the
+    // window covers the gap between the two taps and nothing else.
+    if (prev && t.t - prev.t < DBL_MS && !tapFar(prev, t, DBL_SLOP)) {
       prev = null;
-      zoomAt(t, 1);
+      zoomAt(t, 1, true);
       return;
     }
     prev = { t: now, x: t.x, y: t.y };
   }, { passive: true });
+
+  el.addEventListener('touchcancel', function () {
+    tap = null; pair = null; prev = null;
+  }, { passive: true });
+
+  // A second, independent route to the same zoom. Whether a phone browser
+  // synthesises dblclick from a double tap is exactly the thing that cannot be
+  // checked from here, so the page takes it if it comes rather than betting on
+  // the touch path alone. Leaflet owns this event whenever its own handler is
+  // enabled — which is the case for a mouse and never during a touch — and the
+  // guard drops it if the touch path has just zoomed, so the two can't stack.
+  el.addEventListener('dblclick', function (e) {
+    if (map.doubleClickZoom && map.doubleClickZoom.enabled()) return;
+    if (Date.now() - touchZoomAt < 800) return;
+    tapLog('dblclick');
+    zoomAt({ x: e.clientX, y: e.clientY }, e.shiftKey ? -1 : 1);
+  });
+}
+
+// The gesture can only be tested on a real phone, so ?taplog=1 puts what the
+// browser actually fired on the screen. Silent and unbuilt otherwise.
+var tapLogBox = null;
+function tapLog(msg) {
+  if (!TAPLOG) return;
+  if (!tapLogBox) {
+    tapLogBox = document.createElement('div');
+    tapLogBox.style.cssText = 'position:fixed;left:8px;bottom:120px;z-index:9999;max-width:60vw;' +
+      'font:11px/1.4 monospace;background:rgba(17,17,16,.82);color:#fff;padding:6px 8px;' +
+      'border-radius:6px;pointer-events:none;white-space:pre-wrap';
+    document.body.appendChild(tapLogBox);
+  }
+  var lines = tapLogBox.textContent ? tapLogBox.textContent.split(String.fromCharCode(10)) : [];
+  lines.push(msg);
+  tapLogBox.textContent = lines.slice(-8).join(String.fromCharCode(10));
 }
 
 function tapPt(t) { return { t: Date.now(), x: t.clientX, y: t.clientY }; }
@@ -547,9 +591,13 @@ function tapFar(a, b, slop) {
 // whatever you aimed at is still under your thumb afterwards. The step is
 // clamped here rather than left to setZoomAround, which offsets the centre by
 // an unclamped scale and so slides the map sideways at either zoom limit.
-function zoomAt(p, delta) {
+var touchZoomAt = 0;
+
+function zoomAt(p, delta, byTouch) {
+  if (byTouch) touchZoomAt = Date.now();   // the dblclick path defers to this
   blockAdd();                          // a zoom gesture is not a request to place a pin
   var z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + delta));
+  tapLog('zoom ' + map.getZoom() + ' -> ' + z);
   if (z === map.getZoom()) return;
   var r = map.getContainer().getBoundingClientRect();
   map.setZoomAround(L.point(p.x - r.left, p.y - r.top), z);
@@ -566,7 +614,7 @@ var addBlockUntil = 0;
 function queueAdd(latlng) {
   if (Date.now() < addBlockUntil) return;
   cancelQueuedAdd();
-  addTimer = setTimeout(function () { addTimer = null; addFountain(latlng); }, DBL_MS + 60);
+  addTimer = setTimeout(function () { addTimer = null; addFountain(latlng); }, DBL_MS + 80);
 }
 
 function cancelQueuedAdd() {
