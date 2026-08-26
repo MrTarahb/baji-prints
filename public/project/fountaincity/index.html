@@ -297,6 +297,8 @@ var DBL_MS = 400;       // ms between one tap lifting and the next landing
 var TAP_MAX = 500;      // longer than this and the finger rested, not tapped
 var TAP_SLOP = 30;      // px a finger may wander within one tap
 var DBL_SLOP = 60;      // px between the two taps of one double tap
+var PAIR_MIN = 60;      // px apart before two contacts are two fingers, not one
+                        // thumb tapping twice faster than the browser reports it
 var TAPLOG = typeof location !== 'undefined' && /[?&]taplog=1/.test(location.search);
 
 // The page's own copy, editable from the admin bar and stored in the site-wide
@@ -495,9 +497,18 @@ function initTapZoom() {
   var el = map.getContainer && map.getContainer();
   if (!el || !el.addEventListener) return;
 
-  var tap = null;     // the single finger currently down
-  var prev = null;    // the previous completed tap, waiting for its partner
-  var pair = null;    // a two-finger gesture in progress
+  // Every contact is tracked by its own identifier rather than the page holding
+  // "the finger currently down". A fast double tap does NOT arrive as two clean,
+  // fully separated single-touch sequences: the first contact's touchend can be
+  // delivered after the second contact's touchstart, so the page briefly sees
+  // two touch points and a touchend that still reports a finger on the glass.
+  // Keying off touches.length — which is what shipped — threw the second tap
+  // away in both cases, and a fast double tap could never complete.
+  var live = {};      // identifier -> { t, x, y, ok }
+  var alive = 0;
+  var prevUp = 0;     // when the last qualifying tap lifted; 0 = none pending
+  var prevX = 0, prevY = 0;
+  var pair = null;    // a genuine two-finger gesture
 
   el.addEventListener('mousedown', function () {
     if (map.doubleClickZoom) map.doubleClickZoom.enable();
@@ -506,66 +517,82 @@ function initTapZoom() {
   el.addEventListener('touchstart', function (e) {
     if (map.doubleClickZoom) map.doubleClickZoom.disable();
     tapLog('start x' + e.touches.length);
-    if (e.touches.length === 1) {
-      tap = tapPt(e.touches[0]);
-      pair = null;
-    } else if (e.touches.length === 2) {
-      pair = tapMid(e.touches[0], e.touches[1]);
-      tap = null;                     // a second finger is not a second tap
-      prev = null;
-    } else {
-      tap = null; pair = null; prev = null;
+    var i, t;
+    for (i = 0; i < e.changedTouches.length; i++) {
+      t = e.changedTouches[i];
+      if (!live[t.identifier]) alive++;
+      live[t.identifier] = { t: Date.now(), x: t.clientX, y: t.clientY, ok: true };
+    }
+    // Two points on the glass are two FINGERS only if they are apart. The
+    // phantom pair a fast double tap produces is the same thumb in the same
+    // place, and reading that as a pinch is what killed the gesture.
+    if (e.touches.length === 2) {
+      var m = tapMid(e.touches[0], e.touches[1]);
+      if (m.d > PAIR_MIN) { pair = m; prevUp = 0; tapLog('pair d' + Math.round(m.d)); }
+    } else if (e.touches.length > 2) {
+      pair = null; prevUp = 0;
     }
   }, { passive: true });
 
-  // A finger that travels is a pan, and two that spread are a pinch. Cancelling
-  // both here is what keeps a slow drag from reading as half of a double tap,
-  // and a pinch — whose midpoint barely moves — from reading as a two-finger
-  // tap, hence the spread check alongside the position one.
+  // A contact that travels is a pan, and two that spread are a pinch — each is
+  // disqualified where it happens, so neither can later read as a tap.
   el.addEventListener('touchmove', function (e) {
-    if (tap && e.touches.length === 1 && tapFar(tap, tapPt(e.touches[0]), TAP_SLOP)) tap = null;
+    var i, t, rec;
+    for (i = 0; i < e.changedTouches.length; i++) {
+      t = e.changedTouches[i];
+      rec = live[t.identifier];
+      if (rec && (Math.abs(t.clientX - rec.x) > TAP_SLOP ||
+                  Math.abs(t.clientY - rec.y) > TAP_SLOP)) rec.ok = false;
+    }
     if (pair && e.touches.length === 2) {
       var m = tapMid(e.touches[0], e.touches[1]);
-      if (tapFar(pair, m, TAP_SLOP) || Math.abs(m.d - pair.d) > TAP_SLOP) pair = null;
+      if (Math.abs(m.d - pair.d) > TAP_SLOP) pair = null;
     }
   }, { passive: true });
 
   el.addEventListener('touchend', function (e) {
-    if (e.touches.length > 0) return;           // a finger is still down
     var now = Date.now();
+    var i, t, rec;
+    for (i = 0; i < e.changedTouches.length; i++) {
+      t = e.changedTouches[i];
+      rec = live[t.identifier];
+      if (!rec) continue;
+      delete live[t.identifier];
+      alive--;
 
-    // Two fingers, briefly, without spreading: zoom out one step.
-    if (pair) {
-      var p = pair;
-      pair = null; prev = null; tap = null;
-      if (now - p.t < DBL_MS) zoomAt(p, -1, true);
-      return;
+      // A two-finger tap resolves when the last of its contacts leaves, so that
+      // it fires once however the two fingers happen to be lifted.
+      if (pair) {
+        if (alive > 0) continue;
+        var pr = pair;
+        pair = null; prevUp = 0;
+        if (now - pr.t < DBL_MS) zoomAt(pr, -1, true);
+        continue;
+      }
+      if (!rec.ok) { prevUp = 0; continue; }                   // it was a pan
+      if (now - rec.t > TAP_MAX) { prevUp = 0; continue; }     // a long press
+
+      // rec.t is when this tap LANDED and prevUp when the last one LIFTED, so
+      // the window covers the gap between two taps and nothing else. It goes
+      // negative when the browser delivers the lift late — the contacts really
+      // did overlap — which is a double tap by any reading, hence the clamp.
+      var gap = rec.t - prevUp;
+      if (gap < 0) gap = 0;
+      tapLog('tap gap ' + (prevUp ? gap : '-'));
+      if (prevUp && gap < DBL_MS &&
+          Math.abs(rec.x - prevX) <= DBL_SLOP && Math.abs(rec.y - prevY) <= DBL_SLOP) {
+        prevUp = 0;
+        zoomAt(rec, 1, true);
+        continue;
+      }
+      prevUp = now; prevX = rec.x; prevY = rec.y;
     }
-    if (!tap) { prev = null; return; }          // the finger dragged
-    var t = tap;
-    tap = null;
-    if (now - t.t > TAP_MAX) { prev = null; return; }        // a long press
-    tapLog('tap gap ' + (prev ? t.t - prev.t : '-'));
-    // t.t is when this tap LANDED and prev.t when the last one LIFTED: the
-    // window covers the gap between the two taps and nothing else.
-    if (prev && t.t - prev.t < DBL_MS && !tapFar(prev, t, DBL_SLOP)) {
-      prev = null;
-      zoomAt(t, 1, true);
-      return;
-    }
-    prev = { t: now, x: t.x, y: t.y };
   }, { passive: true });
 
   el.addEventListener('touchcancel', function () {
-    tap = null; pair = null; prev = null;
+    live = {}; alive = 0; pair = null; prevUp = 0;
   }, { passive: true });
 
-  // A second, independent route to the same zoom. Whether a phone browser
-  // synthesises dblclick from a double tap is exactly the thing that cannot be
-  // checked from here, so the page takes it if it comes rather than betting on
-  // the touch path alone. Leaflet owns this event whenever its own handler is
-  // enabled — which is the case for a mouse and never during a touch — and the
-  // guard drops it if the touch path has just zoomed, so the two can't stack.
   el.addEventListener('dblclick', function (e) {
     if (map.doubleClickZoom && map.doubleClickZoom.enabled()) return;
     if (Date.now() - touchZoomAt < 800) return;
@@ -590,8 +617,6 @@ function tapLog(msg) {
   lines.push(msg);
   tapLogBox.textContent = lines.slice(-8).join(String.fromCharCode(10));
 }
-
-function tapPt(t) { return { t: Date.now(), x: t.clientX, y: t.clientY }; }
 
 function tapMid(a, b) {
   return {

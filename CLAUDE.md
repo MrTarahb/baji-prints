@@ -361,6 +361,17 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   directly and `setZoomAround` the tapped point. Leaflet's own `doubleClickZoom` stays for the
   mouse — it is disabled on `touchstart` and re-enabled on `mousedown`, so exactly one of the
   two ever fires.
+  - **Every contact is tracked by its own `identifier`; never by `touches.length`.** A fast
+    double tap does *not* arrive as two clean, separated single-touch sequences — the first
+    contact's `touchend` can be delivered *after* the second contact's `touchstart`, so the page
+    briefly sees two touch points and then a `touchend` still reporting a finger down. Two
+    versions keyed off `touches.length` and both threw the second tap away; on a real phone the
+    log read `start x1 / tap gap - / start x1` and then nothing, with an occasional `start x2`.
+    The gap between taps goes **negative** when the lift lands late, and that is a double tap by
+    any reading, so it is clamped to 0 rather than rejected.
+  - **Two touch points are two FINGERS only if they are `PAIR_MIN` apart.** The phantom pair a
+    fast double tap produces is one thumb in one place; treating any second point as a pinch is
+    what stopped the gesture from ever completing.
   - **`DBL_MS` is measured from one tap LIFTING to the next one LANDING**, the way a phone
     measures it. Measuring instead to the second tap's own *lift* charges the window for however
     long the finger rests on the glass; that shipped first, and an unhurried double tap — 220ms
