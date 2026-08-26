@@ -27,7 +27,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--fm);font-weight:300;font-size:14px;
-  line-height:1.65;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100dvh}
+  line-height:1.65;-webkit-font-smoothing:antialiased;height:100dvh;overflow:hidden}
 button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;
   color:var(--ink);padding:8px 14px;border-radius:2px;transition:border-color .18s,background .18s,color .18s}
 button:hover{border-color:var(--ink)}
@@ -52,21 +52,50 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
 #adminbar button:hover{border-color:var(--bg)}
 #ab-hint{color:#9C968C;font-size:11.5px}
 
+/* ── FLOATING TOP STACK ───────────────────────────────────────────────
+   The admin bar and the title sit over the map. The stack itself takes no
+   pointer events, so the map can be panned straight through the title —
+   only the admin bar, which has real buttons, takes them back. */
+#topstack{position:fixed;top:0;left:0;right:0;z-index:500;pointer-events:none;max-width:100vw}
+#adminbar{pointer-events:auto}
+
 /* ── HEADER ───────────────────────────────────────────────────────────── */
-header{flex:none;padding:34px 0 20px}
+/* The scrim, not a solid bar: the map keeps running underneath and simply
+   fades out from under the text, so nothing looks bolted on top of it. */
+header{padding:30px 0 44px;pointer-events:none;
+  background:linear-gradient(to bottom,
+    rgba(250,250,248,.97) 0%, rgba(250,250,248,.92) 42%,
+    rgba(250,250,248,.72) 68%, rgba(250,250,248,0) 100%)}
 .head-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
 h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-height:1.15;margin:8px 0 0}
-.intro{color:var(--mute);font-size:12.5px;max-width:62ch;margin-top:10px}
+/* The scrim fades to nothing at its lower edge, so the text near that edge
+   can't rely on it. A soft light halo carries the rest. text-shadow rather
+   than mix-blend-mode, deliberately: blend modes detach position:fixed on
+   Android Chrome, which is exactly what the whole layout rests on here. */
+header .eyebrow,header h1,.intro,#count,#near{
+  text-shadow:0 1px 3px rgba(250,250,248,.95), 0 0 14px rgba(250,250,248,.85)}
+
+/* The sentence collapses once the map is touched — see leanOnUse(). max-height
+   rather than display:none so it can animate out instead of blinking away. */
+.intro{color:var(--mute);font-size:12.5px;max-width:62ch;margin-top:10px;
+  max-height:90px;overflow:hidden;
+  transition:opacity .32s ease,max-height .32s ease,margin-top .32s ease}
+#topstack.lean .intro{opacity:0;max-height:0;margin-top:0}
+#topstack.lean header{padding-bottom:26px}
 #count{font-size:11.5px;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
 #count b{font-weight:500;color:var(--ink)}
 
 /* ── MAP ──────────────────────────────────────────────────────────────
-   Full bleed, and the whole remaining viewport tall: the header keeps the
-   1120px measure that the rest of the site reads at, and the map runs edge
-   to edge under it. A single hairline is all that separates them — a border
-   and a gutter made it look like a screenshot of a map rather than the map. */
-.map-wrap{flex:1;min-height:380px;display:flex;width:100%}
-#map{flex:1;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--bg2)}
+   The map IS the page: pinned to the viewport, edge to edge, with the title
+   and the admin bar floating over it. Anything less than this reads as a
+   screenshot of a map rather than the map itself.
+
+   position:fixed here is the same load-bearing arrangement the public site
+   documents — it detaches on Android Chrome the moment anything overflows
+   horizontally, hence overflow:hidden on body and max-width:100vw on the
+   floating stack. */
+.map-wrap{position:fixed;inset:0;z-index:0;display:flex}
+#map{flex:1;border:0;border-radius:0;background:var(--bg2)}
 .leaflet-container{font-family:var(--fm);font-weight:300;background:var(--bg2)}
 /* No filter on the tile pane: the basemap already arrives grey. A canvas
    basemap is built to sit under data — it draws land, water, roads and a few
@@ -127,17 +156,22 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
 @media(max-width:640px){
-  header{padding:24px 0 16px}
-  h1{font-size:27px}
+  header{padding:20px 0 38px}
+  h1{font-size:26px}
+  /* Two lines of eyebrow + title is all that stays over the map once the
+     sentence has collapsed. */
+  #topstack.lean header{padding-bottom:20px}
+  .intro{font-size:12px}
   .wrap{padding-left:16px;padding-right:16px}
   .head-row{align-items:flex-start}
-  /* A 44px touch target: this button gets pressed one-handed, outdoors. */
+  .loc-btn{padding:12px 15px;font-size:13px}
   .loc-btn{padding:12px 15px;font-size:13px}
 }
 </style>
 </head>
 <body>
 
+<div id="topstack">
 <div id="adminbar">
   <div class="wrap">
     <span class="eyebrow" style="color:#9C968C">Admin view</span>
@@ -160,6 +194,7 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
       added one at a time as I find and photograph them.</div>
   </div>
 </header>
+</div>
 
 <div class="map-wrap"><div id="map"></div></div>
 
@@ -272,11 +307,20 @@ function cld(url, w) {
 
 // ── MAP ──────────────────────────────────────────────────────────────────────
 function initMap() {
-  map = L.map('map', { zoomControl: true, scrollWheelZoom: true, maxZoom: 20 }).setView(ZURICH, 13);
+  // Zoom moves to the bottom with the Locate button: the top-left corner now
+  // sits under the title, where the buttons would be both ugly and unreadable.
+  map = L.map('map', { zoomControl: false, scrollWheelZoom: true, maxZoom: 20 }).setView(ZURICH, 13);
+  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  // Leaflet's own 'Leaflet' prefix is a courtesy, not a licence condition, and
+  // it is what tips the attribution onto a second line on a phone. The tile
+  // credits themselves (OpenFreeMap / OpenMapTiles / OpenStreetMap) are
+  // required by ODbL and stay exactly as they are.
+  if (map.attributionControl) map.attributionControl.setPrefix('');
   addBasemap();
   addKreis();
   layer = L.layerGroup().addTo(map);
   initLocate();
+  leanOnUse();
 
   // Placing by click is admin-only, and the handler is attached only for the
   // admin, so a visitor's stray tap on the map does nothing at all.
@@ -374,6 +418,22 @@ function initLocate() {
   // Panning by hand means "stop chasing me": the dot keeps updating, the map
   // just stops recentring. Tapping the button again re-follows.
   map.on('dragstart', function () { geo.follow = false; });
+}
+
+// On a phone the header covers a real fraction of the map, so it gets out of
+// the way the moment the map is actually used: the title and the tally stay,
+// the sentence collapses. Bound to a real pointer on the map container rather
+// than to Leaflet's movestart/zoomstart, because those also fire for the
+// programmatic fitBounds on load — which would collapse the intro before
+// anyone had the chance to read it.
+function leanOnUse() {
+  if (!window.matchMedia || !window.matchMedia('(max-width: 640px)').matches) return;
+  var stack = document.getElementById('topstack');
+  var el = map.getContainer && map.getContainer();
+  if (!stack || !el || !el.addEventListener) return;
+  var lean = function () { stack.classList.add('lean'); };
+  el.addEventListener('pointerdown', lean, { once: true });
+  el.addEventListener('touchstart', lean, { once: true, passive: true });
 }
 
 function toggleLocate() {

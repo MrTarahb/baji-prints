@@ -401,9 +401,30 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
     several fountains on one walk doesn't wait for the GPS each time.
   - The nearest-fountain readout under the count is what makes this useful to a visitor rather
     than only to the admin: metres under a kilometre, then km.
-- **The map is full bleed**, and the header keeps the 1120px measure the rest of the site reads
-  at. A border and a gutter round the map made it look like a screenshot of a map rather than
-  the map; a single hairline under the header is all that separates them.
+- **The map IS the page.** `.map-wrap` is `position:fixed; inset:0`, and the admin bar and title
+  float over it in `#topstack`. Anything less — a bordered map in a gutter, or a map that starts
+  below the header — reads as a screenshot of a map rather than the map itself.
+  - `#topstack` takes **no pointer events**; only `#adminbar` takes them back. That way the map
+    can be panned straight through the title instead of the header being a dead strip across the
+    top of it.
+  - The header is a **scrim, not a bar**: a gradient from the page background to transparent, so
+    the map keeps running underneath and fades out from under the text.
+  - **Readability where the scrim has faded** comes from a light `text-shadow` halo on the
+    eyebrow, title, tally and intro. `text-shadow`, never `mix-blend-mode` — blend modes detach
+    `position:fixed` on Android Chrome, which is precisely what this whole layout rests on. The
+    same reason `body` is `overflow:hidden` and `#topstack` is capped at `max-width:100vw`.
+  - **On a phone the header steps aside once the map is used** (`leanOnUse()` adds `.lean`,
+    collapsing the intro sentence; the title and tally stay). It binds a one-shot `pointerdown`
+    on the map container rather than Leaflet's `movestart`/`zoomstart`, because those also fire
+    for the programmatic `fitBounds` on load — which would collapse the sentence before anyone
+    had a chance to read it.
+  - **The zoom control moved to `bottomleft`**, with Locate: the top-left corner is under the
+    title now.
+- **The attribution stays; the `Leaflet` prefix does not.** OpenFreeMap, OpenMapTiles and
+  OpenStreetMap credits are required by the tiles' licence and must not be removed or truncated.
+  Leaflet's own prefix is a courtesy, and dropping it (`setPrefix('')`, in `initMap` so it runs
+  even where geolocation is absent) is what keeps the strip to one line on a phone. The
+  bottom-left corner is also lifted 24px on small screens so the Locate button clears it.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 
