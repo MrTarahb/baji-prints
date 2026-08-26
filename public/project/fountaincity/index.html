@@ -266,6 +266,14 @@ var geo = { watchId: null, pos: null, at: 0, marker: null, ring: null, follow: f
 // reports 5-10m outdoors under open sky and 40+ between tall buildings.
 var ACCURACY_WARN = 25;
 
+// Double tap zooms in, two-finger tap zooms out. A tap only counts as a tap if
+// the finger barely moved — otherwise it was a pan or a pinch — and the two of
+// them have to land inside DBL_MS, the same window a browser gives its own
+// double-tap.
+var DBL_MS = 300;
+var TAP_SLOP = 30;      // px a finger may wander and still have tapped
+var DBL_SLOP = 45;      // px between the two taps of one double tap
+
 // The page's own copy, editable from the admin bar and stored in the site-wide
 // `content` table under fountain_*. These defaults are the same strings the
 // server seeds, and exist so the page still reads correctly if the fetch fails
@@ -368,10 +376,14 @@ function initMap() {
   layer = L.layerGroup().addTo(map);
   initLocate();
   leanOnUse();
+  initTapZoom();
 
   // Placing by click is admin-only, and the handler is attached only for the
   // admin, so a visitor's stray tap on the map does nothing at all.
-  if (isAdmin) map.on('click', function (e) { addFountain(e.latlng); });
+  if (isAdmin) {
+    map.on('click', function (e) { queueAdd(e.latlng); });
+    map.on('dblclick', blockAdd);     // the mouse route to the same zoom
+  }
 }
 
 // The basemap is vector, not tiles-as-pictures: MapLibre draws it from
@@ -440,6 +452,130 @@ function addKreis() {
       console.warn('Kreis 1 outline failed to load:', e.message);
       if (isAdmin) toast('Kreis 1 outline failed to load');
     });
+}
+
+// TAP GESTURES
+// Double tap to zoom in, two-finger tap to zoom out — the two gestures every
+// map app on a phone has, and neither arrives for free. Leaflet dropped its own
+// double-tap emulation in 1.8 on the assumption that the browser fires dblclick
+// itself, but the map container carries touch-action:none (which is what makes
+// dragging and pinching work at all), and under it a phone browser never
+// synthesises one. So the page reads the gesture off the raw touch events.
+//
+// Only one handler may ever act on a double gesture: Leaflet's own dblclick
+// zoom is right for a mouse and would double up with this one for a finger, so
+// it steps aside for the duration of a touch and comes back on the next mouse
+// press.
+function initTapZoom() {
+  var el = map.getContainer && map.getContainer();
+  if (!el || !el.addEventListener) return;
+
+  var tap = null;     // the single finger currently down
+  var prev = null;    // the previous completed tap, waiting for its partner
+  var pair = null;    // a two-finger gesture in progress
+
+  el.addEventListener('mousedown', function () {
+    if (map.doubleClickZoom) map.doubleClickZoom.enable();
+  }, true);
+
+  el.addEventListener('touchstart', function (e) {
+    if (map.doubleClickZoom) map.doubleClickZoom.disable();
+    if (e.touches.length === 1) {
+      tap = tapPt(e.touches[0]);
+      pair = null;
+    } else if (e.touches.length === 2) {
+      pair = tapMid(e.touches[0], e.touches[1]);
+      tap = null;                     // a second finger is not a second tap
+      prev = null;
+    } else {
+      tap = null; pair = null; prev = null;
+    }
+  }, { passive: true });
+
+  // A finger that travels is a pan, and two that spread are a pinch. Cancelling
+  // both here is what keeps a slow drag from reading as half of a double tap,
+  // and a pinch — whose midpoint barely moves — from reading as a two-finger
+  // tap, hence the spread check alongside the position one.
+  el.addEventListener('touchmove', function (e) {
+    if (tap && e.touches.length === 1 && tapFar(tap, tapPt(e.touches[0]), TAP_SLOP)) tap = null;
+    if (pair && e.touches.length === 2) {
+      var m = tapMid(e.touches[0], e.touches[1]);
+      if (tapFar(pair, m, TAP_SLOP) || Math.abs(m.d - pair.d) > TAP_SLOP) pair = null;
+    }
+  }, { passive: true });
+
+  el.addEventListener('touchend', function (e) {
+    if (e.touches.length > 0) return;           // a finger is still down
+    var now = Date.now();
+
+    // Two fingers, briefly, without spreading: zoom out one step.
+    if (pair) {
+      var p = pair;
+      pair = null; prev = null; tap = null;
+      if (now - p.t < DBL_MS + 100) zoomAt(p, -1);
+      return;
+    }
+    if (!tap) { prev = null; return; }          // the finger dragged
+    var t = tap;
+    tap = null;
+    if (now - t.t > DBL_MS + 200) { prev = null; return; }   // a long press
+    if (prev && now - prev.t < DBL_MS && !tapFar(prev, t, DBL_SLOP)) {
+      prev = null;
+      zoomAt(t, 1);
+      return;
+    }
+    prev = { t: now, x: t.x, y: t.y };
+  }, { passive: true });
+}
+
+function tapPt(t) { return { t: Date.now(), x: t.clientX, y: t.clientY }; }
+
+function tapMid(a, b) {
+  return {
+    t: Date.now(),
+    x: (a.clientX + b.clientX) / 2,
+    y: (a.clientY + b.clientY) / 2,
+    d: Math.sqrt(Math.pow(a.clientX - b.clientX, 2) + Math.pow(a.clientY - b.clientY, 2))
+  };
+}
+
+function tapFar(a, b, slop) {
+  return Math.abs(a.x - b.x) > slop || Math.abs(a.y - b.y) > slop;
+}
+
+// Zoom around the point that was tapped rather than the centre of the map, so
+// whatever you aimed at is still under your thumb afterwards. The step is
+// clamped here rather than left to setZoomAround, which offsets the centre by
+// an unclamped scale and so slides the map sideways at either zoom limit.
+function zoomAt(p, delta) {
+  blockAdd();                          // a zoom gesture is not a request to place a pin
+  var z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + delta));
+  if (z === map.getZoom()) return;
+  var r = map.getContainer().getBoundingClientRect();
+  map.setZoomAround(L.point(p.x - r.left, p.y - r.top), z);
+}
+
+// Placing a fountain and zooming both start with the same tap, so for the admin
+// the Add dialog has to wait long enough to see whether a second one is coming.
+// A third of a second before a modal opens goes unnoticed; an Add dialog on top
+// of every zoom would not. The block window covers the *second* tap's click,
+// which the browser delivers after the gesture has already been recognised.
+var addTimer = null;
+var addBlockUntil = 0;
+
+function queueAdd(latlng) {
+  if (Date.now() < addBlockUntil) return;
+  cancelQueuedAdd();
+  addTimer = setTimeout(function () { addTimer = null; addFountain(latlng); }, DBL_MS + 60);
+}
+
+function cancelQueuedAdd() {
+  if (addTimer) { clearTimeout(addTimer); addTimer = null; }
+}
+
+function blockAdd() {
+  addBlockUntil = Date.now() + 600;
+  cancelQueuedAdd();
 }
 
 // GEOLOCATION

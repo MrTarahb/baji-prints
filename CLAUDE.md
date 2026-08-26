@@ -333,6 +333,24 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
 - **Leaflet 1.9.4 from cdnjs**, with MapLibre GL and `@maplibre/maplibre-gl-leaflet` from unpkg.
   The bridge mounts the vector basemap as a Leaflet layer, so every marker, popup and handler
   on the page stays plain Leaflet and none of it had to change when the basemap did.
+- **Double tap zooms in, two-finger tap zooms out, and both are hand-rolled** (`initTapZoom()`).
+  Leaflet dropped its double-tap emulation in 1.8 on the assumption that the browser fires
+  `dblclick` itself, but the container carries `touch-action:none` — which is what makes
+  dragging and pinching work — and under it a phone browser never synthesises one, so on
+  mobile a double tap did nothing at all. The handlers read `touchstart`/`touchmove`/`touchend`
+  directly and `setZoomAround` the tapped point, and three guards are load-bearing: a finger
+  that travels past `TAP_SLOP` is a pan and not a tap; a two-finger gesture is checked on its
+  **spread** as well as its midpoint, because a pinch's midpoint barely moves; and the step is
+  clamped to min/max *before* `setZoomAround`, which otherwise offsets the centre by an
+  unclamped scale and slides the map sideways at either limit. Leaflet's own `doubleClickZoom`
+  stays for the mouse — it is disabled on `touchstart` and re-enabled on `mousedown`, so
+  exactly one of the two ever fires.
+  - **The admin's tap-to-place had to become deferred** (`queueAdd()`), because placing a
+    fountain and zooming start with the same tap: the Add dialog waits `DBL_MS` to see whether
+    a second tap is coming, and a recognised gesture calls `blockAdd()`. The block *window*
+    (not just cancelling the timer) is the part to keep — the browser delivers the second tap's
+    synthetic `click` **after** the gesture has already been recognised, so cancelling alone
+    lets the dialog open on every zoom.
 - **A fountain is a `divIcon` disc, not a pin.** A pin's point sits below its own graphic, so a
   few hundred of them read as a pincushion; a disc marks its exact coordinate at its centre.
 - **Coordinates are parsed, never trusted** — on the page by `parseLatLng()`, which accepts what
