@@ -309,9 +309,14 @@ A public map of Zürich's public fountains — the first of what the URL implies
   route plus a `<meta name="robots">`. That is a deliberate not-finished-yet state, *not* the
   client boards' privacy posture — remove both lines and add a sitemap entry when it ships.
 - **Leaflet 1.9.4 from cdnjs**, matching the host the public site already uses for GSAP. Tiles
-  are CARTO Positron: the standard OSM tiles' colour fights the site's palette, and a greyscale
-  basemap leaves the markers as the only saturated thing on the page. Both OSM and CARTO
-  require the attribution control — don't remove it.
+  come from OpenStreetMap directly. CARTO's Positron basemap was tried first and it now stamps
+  an "API key required" watermark over unkeyed requests — every good-looking pre-styled basemap
+  (CARTO, Stadia, Mapbox) wants a key, so the muted look is done locally instead: a
+  `grayscale(1) brightness(1.06) contrast(.92)` filter on `.leaflet-tile-pane`, which leaves the
+  markers as the only saturated thing on the page. Keep that filter scoped to the tile pane —
+  `filter` makes an element a containing block for `position:fixed` descendants, the same class
+  of trap as the `mix-blend-mode` one above. OSM's tile policy covers this kind of low-volume
+  use but wants the attribution control left in place — don't remove it.
 - **A fountain is a `divIcon` disc, not a pin.** A pin's point sits below its own graphic, so a
   few hundred of them read as a pincushion; a disc marks its exact coordinate at its centre.
 - **Coordinates are parsed, never trusted** — on the page by `parseLatLng()`, which accepts what
