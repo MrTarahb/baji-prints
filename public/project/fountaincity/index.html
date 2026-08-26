@@ -11,6 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="/shared/chrome.css">
+<script src="/shared/chrome.js"></script>
 <style>
 :root{
   --fi:'Playfair Display',Georgia,serif;
@@ -39,22 +41,26 @@ input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--
 input:focus,textarea:focus{outline:none;border-color:var(--ink)}
 textarea{resize:vertical;min-height:76px;line-height:1.6}
 
-/* CURSOR — the main site's pointer, so the map reads as part of the site
-   rather than as something bolted to the side of it. A 10px white disc blended
-   in difference mode, swelling to 48px over anything you can act on. The
-   original is in public/index.html; keep the two in step.
-
-   Gated on a fine pointer rather than the main site's max-width:480px, and the
-   element is only built when that query matches. A width breakpoint leaves a
-   touch tablet carrying a mix-blend-mode element it can never use, and blend
-   modes detach position:fixed on Android Chrome. */
+/* The cursor itself now comes from shared/chrome.css. Leaflet still needs
+   naming here: its own grab/grabbing rules outrank a bare body selector, so
+   without this the map shows an OS cursor AND the dot at once. */
 @media (hover:hover) and (pointer:fine){
-  body,button,input,textarea,select,a,label,[contenteditable]{cursor:none !important}
   .leaflet-container,.leaflet-container *{cursor:none !important}
-  #cur{position:fixed;left:-60px;top:-60px;width:10px;height:10px;background:#fff;
-    border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);
-    transition:width .2s,height .2s;mix-blend-mode:difference}
-  #cur.big{width:48px;height:48px}
+}
+
+/* The chrome's tokens, pinned to light for this page. The basemap is Positron
+   and the header scrim is a fixed near-white gradient — there is no dark mode
+   here to match, so a nav that followed the visitor's global dark preference
+   would be a black bar sitting on a white map. This block comes after
+   chrome.css and at equal specificity, so it wins over its [data-theme] rules.
+   The theme toggle is dropped for the same reason (see Chrome.mount below):
+   a control that visibly does nothing is worse than no control. */
+:root{
+  --ch-bg:#FAFAF8;
+  --ch-fg:#111110;
+  --ch-fg-m:rgba(17,17,16,.6);
+  --ch-border:rgba(17,17,16,.1);
+  --ch-gray:#8A857C;
 }
 
 input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
@@ -1009,46 +1015,18 @@ function render() {
 }
 
 // ── BOOT ─────────────────────────────────────────────────────────────────────
-// ── CURSOR ───────────────────────────────────────────────────────────────────
-// The main site's cursor (public/index.html): the same 10px dot and the same
-// 48px hover swell, so this page reads as part of the site.
-//
-// Built only where there is a real pointer to replace. On a touch device
-// nothing is created and no listener is bound — which is also what keeps a
-// mix-blend-mode element off a layout Android Chrome would detach.
-var CUR_TARGETS = 'a,button,.fmark';
-
-function initCursor() {
-  if (!window.matchMedia || !window.matchMedia('(hover:hover) and (pointer:fine)').matches) return;
-  var cur = document.createElement('div');
-  cur.id = 'cur';
-  document.body.appendChild(cur);
-  document.addEventListener('mousemove', function (e) {
-    cur.style.left = e.clientX + 'px';
-    cur.style.top = e.clientY + 'px';
-  });
-
-  // Delegation on document, never a querySelectorAll snapshot: the marker layer is repainted from scratch on every change,
-  // so a snapshot taken at load would cover none of what is on the page a
-  // second later. mouseover/mouseout bubble where mouseenter/mouseleave do not,
-  // and tracking the matched element stops the swell flickering as the pointer
-  // crosses children inside the same target.
-  var hover = null;
-  document.addEventListener('mouseover', function (e) {
-    var m = e.target.closest && e.target.closest(CUR_TARGETS);
-    if (!m || m === hover) return;
-    hover = m;
-    cur.classList.add('big');
-  });
-  document.addEventListener('mouseout', function (e) {
-    if (!hover) return;
-    if (e.relatedTarget && hover.contains(e.relatedTarget)) return;
-    hover = null;
-    cur.classList.remove('big');
-  });
-}
-
-initCursor();
+// The nav joins #topstack rather than pinning itself to the top of the screen:
+// that stack is already fixed and already takes no pointer events, so the nav
+// becomes its first row and the map stays draggable straight through it. No
+// footer — the map runs to the bottom edge and the tiles' required attribution
+// already sits down there. No theme toggle — this page has one palette.
+Chrome.mount({
+  navInto: document.getElementById('topstack'),
+  floating: true,
+  footer: false,
+  theme: false,
+  cursor: '.fmark'                     // the fountain discs swell it like a link
+});
 
 renderText();                          // defaults first, so the page is never blank
 api('/api/fountains').then(function (d) {

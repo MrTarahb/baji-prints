@@ -1,0 +1,236 @@
+/* ── SHARED SITE CHROME ──────────────────────────────────────────────────────
+   The main site's nav, footer and cursor, for the standalone pages that live
+   outside public/index.html: /workshop/<slug> and /project/<slug>.
+
+   This is a SECOND COPY of chrome that also exists inline in public/index.html,
+   and the two must be changed together — the same accepted duplication cld()
+   carries. It is a copy rather than a shared source because the main site's nav
+   is wired to its own in-page router (showPage()), while these pages navigate
+   with real hrefs; unifying them would mean rewriting the main site's nav
+   markup, which carries documented Android Chrome fixed-position traps.
+
+   What is deliberately NOT copied across:
+   - `.nav-blend` and the hero scroll-reveal. These pages have no hero, so the
+     nav is simply always `visible on-light`.
+   - The Portfolio dropdown, which is built from the main site's loaded
+     categories. Here Portfolio is a plain link to `/`.
+
+   Tokens are namespaced --ch-* on purpose. Every page that loads this file
+   already has its own palette (the fountain map defines --ink/--line/--mute,
+   the client board another set again), and an unprefixed --fg or --border would
+   either collide with theirs or silently inherit it.
+
+   Fonts are NOT imported here — every host page already loads DM Mono and
+   Playfair Display, and a second @import would be another render-blocking
+   request for a face already on its way. */
+
+:root {
+  --ch-fg:      #111110;
+  --ch-fg-m:    rgba(17,17,16,.6);
+  --ch-gray:    #999896;
+  --ch-pink:    #C8907A;
+  --ch-border:  rgba(17,17,16,.1);
+  --ch-bg:      #FAFAF8;
+  --ch-fm: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ch-fi: 'Playfair Display', Georgia, serif;
+}
+[data-theme="dark"] {
+  --ch-fg:      #F0EFEC;
+  --ch-fg-m:    rgba(240,239,236,.72);
+  --ch-gray:    rgba(240,239,236,.42);
+  --ch-border:  rgba(240,239,236,.1);
+  --ch-bg:      #0E0E0C;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ch-fg:      #F0EFEC;
+    --ch-fg-m:    rgba(240,239,236,.72);
+    --ch-gray:    rgba(240,239,236,.42);
+    --ch-border:  rgba(240,239,236,.1);
+    --ch-bg:      #0E0E0C;
+  }
+}
+
+/* ── NAV ─────────────────────────────────────────────────────────────────── */
+/* max-width:100vw is load-bearing: Android Chrome resolves right:0 against the
+   document width, not the viewport, so a page that briefly overflows wider lets
+   the nav stretch past the screen and slide. Do not remove it, and never give
+   this element a transform — a transform makes a position:fixed element
+   establish its own containing block, and it stops being fixed to the viewport. */
+.ch-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  max-width: 100vw;
+  box-sizing: border-box;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.4rem 2rem;
+  padding-top: calc(1.4rem + env(safe-area-inset-top, 0px));
+  background: var(--ch-bg);
+  border-bottom: 1px solid var(--ch-border);
+  font-family: var(--ch-fm);
+}
+.ch-name {
+  font-family: var(--ch-fi);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ch-fg);
+  letter-spacing: .01em;
+  text-decoration: none;
+}
+.ch-right { display: flex; align-items: center; gap: 1.75rem; }
+.ch-links { display: flex; gap: 1.75rem; list-style: none; margin: 0; padding: 0; }
+.ch-links a {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ch-fg-m);
+  text-decoration: none;
+  transition: color .2s;
+}
+.ch-links a:hover { color: var(--ch-fg); }
+
+.ch-theme, .ch-burger {
+  background: none; border: none; padding: .2rem;
+  display: flex; align-items: center;
+  color: var(--ch-fg-m);
+  transition: color .3s;
+}
+.ch-theme:hover { color: var(--ch-fg); }
+/* The sun drops below the horizon line in dark mode — the same 700ms slide the
+   main site uses, driven by a class rather than by re-rendering the SVG. */
+.ch-sun { transition: transform 700ms cubic-bezier(.25,.46,.45,.94); transform-origin: 50% 50%; transform-box: fill-box; }
+.ch-svg.is-dark .ch-sun { transform: translateY(52%); }
+
+.ch-burger { display: none; flex-direction: column; gap: 4px; padding: .4rem; }
+.ch-burger span { display: block; width: 20px; height: 1.5px; background: var(--ch-fg-m); }
+
+/* ── FLOATING MODE ───────────────────────────────────────────────────────────
+   For a page where the content IS the page — the fountain map is
+   position:fixed;inset:0 and is panned by dragging it. The nav becomes a scrim
+   over that content instead of a bar above it, and takes NO pointer events, so
+   the map can be dragged straight through it. Only the controls take them back.
+   That is the same rule #topstack already follows on the map page. */
+.ch-nav.floating {
+  background: linear-gradient(to bottom, var(--ch-bg) 0%, var(--ch-bg) 45%, transparent 100%);
+  border-bottom: 0;
+  padding-bottom: 2.2rem;
+  pointer-events: none;
+}
+.ch-nav.floating a, .ch-nav.floating button { pointer-events: auto; }
+
+/* Mounted into a host page's own fixed stack (opts.navInto): that element is
+   already pinned, so a second position:fixed here would pull the nav out of the
+   stack and lay it over the rows below. Static, and the host stack positions it. */
+.ch-nav.ch-instack { position: static; max-width: none; }
+.ch-nav.floating.ch-instack {
+  background: var(--ch-bg);
+  padding-bottom: 1.1rem;
+}
+
+/* ── MOBILE MENU ─────────────────────────────────────────────────────────── */
+.ch-mobile {
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 510;
+  background: var(--ch-bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  font-family: var(--ch-fm);
+}
+.ch-mobile.open { display: flex; }
+.ch-mobile { pointer-events: auto; }
+.ch-mobile > a {
+  font-family: var(--ch-fi);
+  font-style: italic;
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  color: var(--ch-fg);
+  text-decoration: none;
+  letter-spacing: -.01em;
+}
+.ch-mobile-close {
+  position: absolute;
+  top: 1.25rem; right: 1.25rem;
+  background: none; border: none;
+  font-family: var(--ch-fm); font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ch-fg-m); padding: .75rem;
+  z-index: 2;
+}
+.ch-mobile-theme {
+  background: none; border: none;
+  color: var(--ch-fg-m); padding: .5rem;
+  display: flex; align-items: center;
+  margin-top: .5rem;
+}
+
+@media (max-width: 640px) {
+  .ch-nav { padding: 1.1rem 1.25rem; padding-top: calc(1.1rem + env(safe-area-inset-top, 0px)); }
+  .ch-burger { display: flex; }
+  .ch-links { display: none; }
+  .ch-right > .ch-theme { display: none; }
+  .ch-right { gap: .75rem; }
+}
+
+/* ── FOOTER ──────────────────────────────────────────────────────────────── */
+.ch-footer {
+  padding: 4rem 2rem 3rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-top: 1px solid var(--ch-border);
+  margin-top: 8vw;
+  font-family: var(--ch-fm);
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+.ch-footer-name {
+  font-family: var(--ch-fi);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ch-fg);
+  display: block;
+  margin-bottom: .4rem;
+}
+.ch-footer-loc {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ch-gray);
+}
+.ch-footer-links { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+.ch-footer-links a {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ch-pink);
+  text-decoration: none;
+}
+.ch-footer-links a.muted { opacity: .55; }
+
+/* ── CURSOR ──────────────────────────────────────────────────────────────────
+   The main site's pointer: a 10px white disc blended in difference mode,
+   swelling to 48px over anything actionable.
+
+   Gated on a fine pointer rather than the main site's max-width:480px, and
+   chrome.js builds the element only when this same query matches. A width
+   breakpoint leaves a touch tablet carrying a mix-blend-mode element it can
+   never use — and blend modes detach position:fixed on Android Chrome, which on
+   the fountain map is the entire layout. */
+@media (hover: hover) and (pointer: fine) {
+  body, button, input, textarea, select, a, label, [contenteditable] { cursor: none !important; }
+  #cur {
+    position: fixed; left: -60px; top: -60px;
+    width: 10px; height: 10px;
+    background: #fff; border-radius: 50%;
+    pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width .2s, height .2s;
+    mix-blend-mode: difference;
+  }
+  #cur.big { width: 48px; height: 48px; }
+}
