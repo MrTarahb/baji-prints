@@ -372,7 +372,24 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
 - **Leaflet 1.9.4 from cdnjs**, with MapLibre GL and `@maplibre/maplibre-gl-leaflet` from unpkg.
   The bridge mounts the vector basemap as a Leaflet layer, so every marker, popup and handler
   on the page stays plain Leaflet and none of it had to change when the basemap did.
-- **Double tap zooms in, two-finger tap zooms out, and both are hand-rolled** (`initTapZoom()`).
+- **The gesture is double-tap-and-DRAG: tap, lift, tap again and hold, then slide the finger
+  DOWN to zoom in and UP to zoom out, continuously** (`initTapZoom()`). Lifting the second tap
+  without moving is the plain double tap and steps in one level; a two-finger tap steps out.
+  All of it is hand-rolled.
+  - **The second tap is armed at its `touchstart`, not judged at its `touchend`,** because
+    holding it is a gesture in its own right. `arm()` anchors on the tapped container point,
+    switches `map.options.zoomSnap` to 0 for the duration (fractional zoom is what makes the
+    drag smooth; everything else on the page stays on whole levels) and calls
+    `map.dragging.disable()` — Leaflet's drag handler already holds that contact and would pan
+    the map out from under the zoom. `disarm()` restores both, and `touchcancel` must call it
+    too or the map is left unpannable at a fractional zoom.
+  - **The drag engages only past `DRAG_MIN`, and re-baselines when it does**, or the zoom jumps
+    by that much the instant it takes over. Under that threshold the lift is still a double tap.
+  - Applies at most once per frame via `requestAnimationFrame`: every `setZoomAround` resyncs the
+    MapLibre basemap, and `touchmove` fires far more often than the screen repaints.
+  - Lands on a whole zoom level when the finger lifts — the raster fallback upscales anything
+    else, and the rest of the page assumes integer zooms.
+- **Double tap and two-finger tap were the first shape of this, and the detection is shared.**
   Leaflet dropped its double-tap emulation in 1.8 on the assumption that the browser fires
   `dblclick` itself, but the container carries `touch-action:none` — which is what makes
   dragging and pinching work — and under it a phone browser never synthesises one, so on

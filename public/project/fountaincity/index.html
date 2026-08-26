@@ -299,6 +299,8 @@ var TAP_SLOP = 30;      // px a finger may wander within one tap
 var DBL_SLOP = 60;      // px between the two taps of one double tap
 var PAIR_MIN = 60;      // px apart before two contacts are two fingers, not one
                         // thumb tapping twice faster than the browser reports it
+var PX_PER_ZOOM = 110;  // finger travel, in px, for one whole zoom level
+var DRAG_MIN = 12;      // px before a held second tap becomes a zoom drag
 var TAPLOG = typeof location !== 'undefined' && /[?&]taplog=1/.test(location.search);
 
 // The page's own copy, editable from the admin bar and stored in the site-wide
@@ -502,44 +504,138 @@ function initTapZoom() {
   // fully separated single-touch sequences: the first contact's touchend can be
   // delivered after the second contact's touchstart, so the page briefly sees
   // two touch points and a touchend that still reports a finger on the glass.
-  // Keying off touches.length — which is what shipped — threw the second tap
-  // away in both cases, and a fast double tap could never complete.
+  // Keying off touches.length threw the second tap away in both cases.
   var live = {};      // identifier -> { t, x, y, ok }
   var alive = 0;
   var prevUp = 0;     // when the last qualifying tap lifted; 0 = none pending
   var prevX = 0, prevY = 0;
   var pair = null;    // a genuine two-finger gesture
 
+  // The second tap of a double tap, while it is still down. Holding it and
+  // dragging is what this gesture is really for: the finger moving DOWN zooms
+  // in, UP zooms out, continuously, with the point tapped held under the finger.
+  // Lifting it without dragging is the plain double tap and steps in by one.
+  var dz = { on: false, id: null, y0: 0, y1: 0, z0: 0, pt: null,
+             snap: 1, applied: false, raf: 0 };
+
+  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+    ? function (f) { return window.requestAnimationFrame(f); }
+    : function (f) { return setTimeout(f, 16); };
+  var unraf = (typeof window !== 'undefined' && window.cancelAnimationFrame)
+    ? function (h) { window.cancelAnimationFrame(h); }
+    : function (h) { clearTimeout(h); };
+
+  function arm(rec, id) {
+    prevUp = 0;
+    blockAdd();                    // neither a double tap nor a drag places a pin
+    dz.on = true;
+    dz.id = id;
+    dz.y0 = dz.y1 = rec.y;
+    dz.z0 = map.getZoom();
+    dz.applied = false;
+    var r = el.getBoundingClientRect();
+    dz.pt = L.point(rec.x - r.left, rec.y - r.top);
+    // Fractional zoom, but only for the duration of the drag. Everything else on
+    // the page — the zoom buttons, pinch, the tile ladder — stays on whole
+    // levels, and the gesture puts it back on one when the finger lifts.
+    if (map.options) { dz.snap = map.options.zoomSnap; map.options.zoomSnap = 0; }
+    // Leaflet's drag handler already holds this contact and would pan the map
+    // out from under the zoom. Re-enabled the instant the gesture ends.
+    if (map.dragging) map.dragging.disable();
+    tapLog('arm');
+  }
+
+  function dragTo(y) {
+    dz.y1 = y;
+    // The drag only takes over once the finger has travelled DRAG_MIN, and the
+    // baseline then moves to that point rather than counting from the tap —
+    // otherwise the zoom jumps by DRAG_MIN's worth the moment it engages.
+    if (!dz.applied) {
+      if (Math.abs(dz.y1 - dz.y0) < DRAG_MIN) return;
+      dz.applied = true;
+      dz.y0 = dz.y1;
+      dz.z0 = map.getZoom();
+      return;
+    }
+    if (!dz.raf) dz.raf = raf(applyDrag);
+  }
+
+  // Coalesced to one apply per frame: every setZoomAround resyncs the MapLibre
+  // basemap underneath, and touchmove fires far more often than the screen
+  // repaints.
+  function applyDrag() {
+    dz.raf = 0;
+    if (!dz.on || !dz.applied) return;
+    // Finger DOWN zooms in, finger UP zooms out.
+    var want = dz.z0 + (dz.y1 - dz.y0) / PX_PER_ZOOM;
+    var z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), want));
+    map.setZoomAround(dz.pt, z, { animate: false });
+  }
+
+  function disarm(stepIn) {
+    if (!dz.on) return;
+    dz.on = false;
+    if (dz.raf) { unraf(dz.raf); dz.raf = 0; }
+    if (map.options) map.options.zoomSnap = dz.snap;
+    if (map.dragging) map.dragging.enable();
+    touchZoomAt = Date.now();      // the dblclick fallback must not add a step
+    if (dz.applied) {
+      applyDrag();                 // whatever the last frame did not get to
+      // Land on a whole zoom level: the raster fallback upscales anything else,
+      // and the rest of the page assumes integer zooms.
+      map.setZoomAround(dz.pt, Math.round(map.getZoom()));
+      tapLog('drag end z' + map.getZoom());
+    } else if (stepIn) {
+      zoomAt(dz.pt, 1, true, true);
+    }
+  }
+
   el.addEventListener('mousedown', function () {
     if (map.doubleClickZoom) map.doubleClickZoom.enable();
   }, true);
 
+  // A contact landing close behind the last one to lift is the second tap of a
+  // double tap. It is armed here rather than judged on its own touchend,
+  // because holding it is a gesture in its own right.
+  function maybeArm(rec, id) {
+    if (dz.on || pair || !prevUp) return false;
+    if (rec.t - prevUp >= DBL_MS) return false;
+    if (Math.abs(rec.x - prevX) > DBL_SLOP || Math.abs(rec.y - prevY) > DBL_SLOP) return false;
+    arm(rec, id);
+    return true;
+  }
+
   el.addEventListener('touchstart', function (e) {
     if (map.doubleClickZoom) map.doubleClickZoom.disable();
     tapLog('start x' + e.touches.length);
-    var i, t;
+    var i, t, rec;
     for (i = 0; i < e.changedTouches.length; i++) {
       t = e.changedTouches[i];
       if (!live[t.identifier]) alive++;
-      live[t.identifier] = { t: Date.now(), x: t.clientX, y: t.clientY, ok: true };
+      rec = { t: Date.now(), x: t.clientX, y: t.clientY, ok: true, id: t.identifier };
+      live[t.identifier] = rec;
+      if (e.touches.length === 1) {
+        tapLog('gap ' + (prevUp ? Math.max(0, rec.t - prevUp) : '-'));
+        maybeArm(rec, t.identifier);
+      }
     }
-    // Two points on the glass are two FINGERS only if they are apart. The
-    // phantom pair a fast double tap produces is the same thumb in the same
-    // place, and reading that as a pinch is what killed the gesture.
+    // A second finger ends a drag-zoom — from there it is a pinch, which Leaflet
+    // owns. Two points are two FINGERS only if they are apart: the phantom pair
+    // a fast double tap produces is one thumb in one place.
     if (e.touches.length === 2) {
+      disarm(false);
       var m = tapMid(e.touches[0], e.touches[1]);
-      if (m.d > PAIR_MIN) { pair = m; prevUp = 0; tapLog('pair d' + Math.round(m.d)); }
+      if (m.d > PAIR_MIN) { pair = m; prevUp = 0; }
     } else if (e.touches.length > 2) {
-      pair = null; prevUp = 0;
+      disarm(false); pair = null; prevUp = 0;
     }
   }, { passive: true });
 
-  // A contact that travels is a pan, and two that spread are a pinch — each is
-  // disqualified where it happens, so neither can later read as a tap.
   el.addEventListener('touchmove', function (e) {
     var i, t, rec;
     for (i = 0; i < e.changedTouches.length; i++) {
       t = e.changedTouches[i];
+      if (dz.on && t.identifier === dz.id) { dragTo(t.clientY); continue; }
       rec = live[t.identifier];
       if (rec && (Math.abs(t.clientX - rec.x) > TAP_SLOP ||
                   Math.abs(t.clientY - rec.y) > TAP_SLOP)) rec.ok = false;
@@ -552,7 +648,7 @@ function initTapZoom() {
 
   el.addEventListener('touchend', function (e) {
     var now = Date.now();
-    var i, t, rec;
+    var i, t, rec, id;
     for (i = 0; i < e.changedTouches.length; i++) {
       t = e.changedTouches[i];
       rec = live[t.identifier];
@@ -560,8 +656,14 @@ function initTapZoom() {
       delete live[t.identifier];
       alive--;
 
-      // A two-finger tap resolves when the last of its contacts leaves, so that
-      // it fires once however the two fingers happen to be lifted.
+      // The armed contact: a drag has already done its zooming, a still finger
+      // is the plain double tap. Held past TAP_MAX it is neither.
+      if (dz.on && t.identifier === dz.id) {
+        disarm(now - rec.t <= TAP_MAX);
+        continue;
+      }
+      // A two-finger tap resolves when the last of its contacts leaves, so it
+      // fires once however the two fingers happen to be lifted.
       if (pair) {
         if (alive > 0) continue;
         var pr = pair;
@@ -572,27 +674,29 @@ function initTapZoom() {
       if (!rec.ok) { prevUp = 0; continue; }                   // it was a pan
       if (now - rec.t > TAP_MAX) { prevUp = 0; continue; }     // a long press
 
-      // rec.t is when this tap LANDED and prevUp when the last one LIFTED, so
-      // the window covers the gap between two taps and nothing else. It goes
-      // negative when the browser delivers the lift late — the contacts really
-      // did overlap — which is a double tap by any reading, hence the clamp.
-      var gap = rec.t - prevUp;
-      if (gap < 0) gap = 0;
-      tapLog('tap gap ' + (prevUp ? gap : '-'));
-      if (prevUp && gap < DBL_MS &&
-          Math.abs(rec.x - prevX) <= DBL_SLOP && Math.abs(rec.y - prevY) <= DBL_SLOP) {
-        prevUp = 0;
-        zoomAt(rec, 1, true);
-        continue;
-      }
+      // A plain first tap. Remember where and when it lifted; the next contact
+      // landing near it inside DBL_MS arms the gesture at its own touchstart.
       prevUp = now; prevX = rec.x; prevY = rec.y;
+
+      // That lift can arrive AFTER the second tap has already landed, in which
+      // case the contact to arm is sitting in live right now.
+      for (id in live) {
+        if (maybeArm(live[id], live[id].id)) break;
+      }
     }
   }, { passive: true });
 
   el.addEventListener('touchcancel', function () {
+    disarm(false);
     live = {}; alive = 0; pair = null; prevUp = 0;
   }, { passive: true });
 
+  // A second, independent route to the same zoom. Whether a phone browser
+  // synthesises dblclick from a double tap is exactly the thing that cannot be
+  // checked from here, so the page takes it if it comes rather than betting on
+  // the touch path alone. Leaflet owns this event whenever its own handler is
+  // enabled — the case for a mouse and never during a touch — and the guard
+  // drops it if the touch path has just zoomed, so the two can't stack.
   el.addEventListener('dblclick', function (e) {
     if (map.doubleClickZoom && map.doubleClickZoom.enabled()) return;
     if (Date.now() - touchZoomAt < 800) return;
@@ -637,12 +741,15 @@ function tapFar(a, b, slop) {
 // an unclamped scale and so slides the map sideways at either zoom limit.
 var touchZoomAt = 0;
 
-function zoomAt(p, delta, byTouch) {
+function zoomAt(p, delta, byTouch, isContainerPt) {
   if (byTouch) touchZoomAt = Date.now();   // the dblclick path defers to this
   blockAdd();                          // a zoom gesture is not a request to place a pin
   var z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + delta));
   tapLog('zoom ' + map.getZoom() + ' -> ' + z);
   if (z === map.getZoom()) return;
+  // Touch and mouse events carry viewport coordinates; the armed gesture has
+  // already converted its anchor to a container point, so it says so.
+  if (isContainerPt) return map.setZoomAround(p, z);
   var r = map.getContainer().getBoundingClientRect();
   map.setZoomAround(L.point(p.x - r.left, p.y - r.top), z);
 }
