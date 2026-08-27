@@ -70,13 +70,23 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   against its own `rgb(12,12,12)` ground, a minor street is 1.10:1 and water 1.14:1 — invisible
   — while railways come out at 1.24:1, *brighter* than the roads: the same S-Bahn-diagram
   failure that got plain OSM tiles rejected, from the other side. Rather than fork 47 layers,
-  `tuneBasemap()` repaints ~25 of them over the loaded style into a deliberate ladder: land
-  `#1A1A18` (lifted off the page's `#0E0E0C` so there is room above it), water and the quiet
-  context just over it, then paths → minor → major → motorway, labels on top, railways pushed
-  *below* the smallest street. The comments carry the measured ratio for each rung — keep them
-  if you retune, they are the spec. Water is the one exception, kept low-contrast but
-  unmistakably cool: it is a shape, not a line, and in Zürich the lake and the Limmat are the
-  orientation. Positron is left alone.
+  `tuneBasemap()` repaints ~25 of them over the loaded style into a deliberate ladder: land,
+  water and the quiet context just over it, then paths → minor → major → motorway, labels on
+  top, railways pushed *below* the smallest street. The comments carry the measured ratio for
+  each rung — keep them if you retune, they are the spec. Water is the one exception, kept
+  low-contrast but unmistakably cool: it is a shape, not a line, and in Zürich the lake and the
+  Limmat are the orientation. Positron is left alone.
+- **A dark map is dark GREY paper, not black paper — and that took two passes to get right.**
+  The first ladder kept the land near the page's own `#0E0E0C` (`#1A1A18`) and lifted only the
+  lines: minor streets went 1.10 → 1.79:1, a big relative gain that was still unreadable on a
+  phone outdoors, which is the only place this map is ever used. The land is what gives every
+  line above it somewhere to go, so blackening it squeezes the whole ladder into a range no
+  screen resolves in daylight. Land is now `#22221F`, minor streets 2.95:1, major 4.28:1,
+  motorways 5.22:1 (trimmed to stay under the fountains' terracotta at 5.87 — a motorway must
+  not be as loud as the subject), street labels 11.45:1. **Retune from the land first and let
+  the rungs follow; brightening lines against a black ground is the move that already failed.**
+  `--map-land` carries the same value in CSS so the pre-tile frame is the colour the tiles
+  settle on.
 - **The tuning hangs off `styledata`, and `tunedStyle` is what stops it looping** — each
   `setPaintProperty` fires `styledata` again. The first pass claims the style url, re-entrant
   passes return at the top, and `applyTheme()` clears the claim before a swap. A layer upstream

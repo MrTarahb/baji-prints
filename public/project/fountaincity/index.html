@@ -32,6 +32,7 @@
   --pink-d:#A87060;
   --no:#A8564A;
   --field:#fff;             /* the ground under an input or a button */
+  --map-land:#F0EFEC;       /* the basemap's own ground — see DARK_TUNE */
   --geo:#3F6EA8;            /* your own position — deliberately not the fountains' terracotta */
   /* An rgb triple, not a colour: the floating stack's gradient and the text
      halos need their own alpha at each stop, so they compose it themselves. */
@@ -61,6 +62,7 @@
     --mute:rgba(240,239,236,.5);
     --no:#D07A6B;
     --field:#1A1A18;
+    --map-land:#22221F;
     --geo:#6C9BD8;
     --scrim:14,14,12;
     --ab-line:#D6D2CA;
@@ -76,6 +78,7 @@
   --mute:rgba(240,239,236,.5);
   --no:#D07A6B;
   --field:#1A1A18;
+  --map-land:#22221F;
   --geo:#6C9BD8;
   --scrim:14,14,12;
   --ab-line:#D6D2CA;
@@ -199,8 +202,11 @@ header .eyebrow,header h1,.intro,#count,#near,
    horizontally, hence overflow:hidden on body and max-width:100vw on the
    floating stack. */
 .map-wrap{position:fixed;inset:0;z-index:0;display:flex}
-#map{flex:1;border:0;border-radius:0;background:var(--bg2)}
-.leaflet-container{font-family:var(--fm);font-weight:300;background:var(--bg2)}
+/* --map-land is the basemap's own ground, so the frame before the tiles arrive
+   is the colour they will settle on rather than a darker grey that flashes. In
+   dark it is the same #22221F DARK_TUNE paints the land. */
+#map{flex:1;border:0;border-radius:0;background:var(--map-land)}
+.leaflet-container{font-family:var(--fm);font-weight:300;background:var(--map-land)}
 /* No filter on the tile pane: the basemap already arrives grey. A canvas
    basemap is built to sit under data — it draws land, water, roads and a few
    faint labels, and no railways or ferry routes, which is what made the plain
@@ -585,52 +591,61 @@ function ringStyle() {
 // map belongs.
 //
 // Light needs none of this — Positron is already a walking map.
-// The ratios in the comments are measured against the land (#1A1A18) and are
+// The ratios in the comments are measured against the land (#22221F) and are
 // the point of the table — a legibility ladder, deliberately spaced, not a set
-// of colours someone liked. Land is lifted off the page's own #0E0E0C so that
-// everything drawn on it has somewhere to go; the map fills the viewport, so
-// nothing but the pre-tile flash sits next to the page background anyway, and
-// #1A1A18 is already the dark --bg2 that flash uses.
+// of colours someone liked.
+//
+// The first version of this ladder was too timid, and the lesson is worth
+// keeping: land at #1A1A18 with minor streets at 1.79:1 measured far better
+// than upstream's 1.10:1 and still could not be read on a phone outdoors, which
+// is the only place this map is ever used. A dark map has to be dark GREY
+// paper, not black paper. The land is what gives every line above it somewhere
+// to go, so blackening it squeezes the whole ladder into a range no screen
+// resolves in daylight — and the fix is to raise the land, not to keep
+// brightening the lines against it. Minor streets now sit at 2.95:1, major at
+// 4.28:1, motorways at 5.22:1. Retune from the land first; the rungs follow.
 var DARK_TUNE = {
-  background:              { 'background-color': '#1A1A18' },   // land, 1.00
+  background:              { 'background-color': '#22221F' },   // land, 1.00
   // Water is the exception to the ladder: it is a SHAPE, not a line, so it
   // reads on hue at low contrast. In Zurich the lake and the Limmat are how you
-  // know where you are, so they are lifted just clear of the land and made
+  // know where you are, so they are lifted clear of the land and made
   // unmistakably cool against a page of warm neutrals.
-  water:                   { 'fill-color': '#23323C' },         // 1.32
-  waterway:                { 'line-color': '#2A3A45' },         // 1.49
-  landuse_park:            { 'fill-color': '#1F241D' },         // 1.10
-  landcover_wood:          { 'fill-color': '#1F241D' },         // 1.10
-  building:                { 'fill-color': '#212120', 'fill-outline-color': '#292927' },  // 1.08
+  water:                   { 'fill-color': '#2E4250' },         // 1.53
+  waterway:                { 'line-color': '#37505F' },         // 1.88
+  landuse_park:            { 'fill-color': '#26301F' },         // 1.16
+  landcover_wood:          { 'fill-color': '#26301F' },         // 1.16
+  building:                { 'fill-color': '#2C2C28', 'fill-outline-color': '#373732' },  // 1.14
   // Railways sit BELOW the smallest street on purpose. Upstream had them at
   // 1.24 against roads at 1.10, which is the S-Bahn-diagram failure this page
   // rejected plain OSM tiles for, arriving from the other direction.
-  railway:                 { 'line-color': '#262622' },         // 1.15
-  railway_minor:           { 'line-color': '#262622' },
-  railway_transit:         { 'line-color': '#262622' },
-  highway_path:            { 'line-color': '#34322D' },         // 1.36
-  highway_minor:           { 'line-color': '#47443D', 'line-opacity': 1 },  // 1.79
-  highway_major_casing:    { 'line-color': 'rgba(125,120,110,.55)' },
-  highway_major_inner:     { 'line-color': '#5A574E' },         // 2.41
-  highway_major_subtle:    { 'line-color': '#413E37' },
-  highway_motorway_casing: { 'line-color': 'rgba(140,135,124,.6)' },
-  highway_motorway_inner:  { 'line-color': '#6E6A5F' },         // 3.23
-  highway_motorway_subtle: { 'line-color': '#494539' },
-  boundary_state:          { 'line-color': '#403D37' },
+  railway:                 { 'line-color': '#333229' },         // 1.24
+  railway_minor:           { 'line-color': '#333229' },
+  railway_transit:         { 'line-color': '#333229' },
+  highway_path:            { 'line-color': '#4E4B42' },         // 1.83
+  highway_minor:           { 'line-color': '#6E6A5D', 'line-opacity': 1 },  // 2.95
+  highway_major_casing:    { 'line-color': 'rgba(140,135,124,.5)' },
+  highway_major_inner:     { 'line-color': '#8A8474' },         // 4.28
+  highway_major_subtle:    { 'line-color': '#5E5A50' },         // 2.32
+  highway_motorway_casing: { 'line-color': 'rgba(160,154,140,.55)' },
+  // Trimmed to sit just under the fountains' terracotta (5.87): a motorway must
+  // not be as loud as the thing the map is about.
+  highway_motorway_inner:  { 'line-color': '#9A9382' },         // 5.22
+  highway_motorway_subtle: { 'line-color': '#66614F' },         // 2.57
+  boundary_state:          { 'line-color': '#57534A' },         // 2.08
   // Labels last. The halo width is what lets a street name cross its own
   // street: the glyphs need the ground under them, not beside them.
-  highway_name_other:      { 'text-color': '#BAB4A8', 'text-halo-color': 'rgba(26,26,24,.9)',
-                             'text-halo-width': 1.2 },          // 8.45
-  highway_name_motorway:   { 'text-color': '#C6C0B3', 'text-halo-color': 'rgba(26,26,24,.9)',
-                             'text-halo-width': 1.2 },
+  highway_name_other:      { 'text-color': '#E0DACD', 'text-halo-color': 'rgba(34,34,31,.92)',
+                             'text-halo-width': 1.3 },          // 11.45
+  highway_name_motorway:   { 'text-color': '#EDE8DC', 'text-halo-color': 'rgba(34,34,31,.92)',
+                             'text-halo-width': 1.3 },
   // Upstream labelled the lake in black text on a black ground.
-  water_name:              { 'text-color': '#93AEBE', 'text-halo-color': 'rgba(26,26,24,.85)',
-                             'text-halo-width': 1.1 }           // 5.67 against the water itself
+  water_name:              { 'text-color': '#A9C4D4', 'text-halo-color': 'rgba(34,34,31,.85)',
+                             'text-halo-width': 1.2 }           // 8.76
 };
 ['place_other','place_suburb','place_village','place_town','place_city','place_city_large']
   .forEach(function (id) {
-    DARK_TUNE[id] = { 'text-color': '#E8E3D8', 'text-halo-color': 'rgba(26,26,24,.9)',
-                      'text-halo-width': 1.2 };                 // 13.62
+    DARK_TUNE[id] = { 'text-color': '#F4EFE4', 'text-halo-color': 'rgba(34,34,31,.92)',
+                      'text-halo-width': 1.3 };                 // 13.91
   });
 
 // Which style the overrides above are currently painted onto. Cleared whenever
@@ -712,7 +727,7 @@ function kreisStyle() {
   var ink = cssVar('--ink') || '#111110';
   // Dimmer in dark: the same alpha of a near-white ink resolves brighter than a
   // motorway on the tuned basemap, and the outline is context — it must never
-  // read as content. .26 puts it between a minor street and a major road.
+  // read as content. .26 lands it at 2.49:1, just under a minor street.
   var dark = themeIsDark();
   return { color: ink, weight: 1.5, opacity: dark ? .26 : .5, dashArray: '5 4',
            fillColor: ink, fillOpacity: dark ? .025 : .035 };
