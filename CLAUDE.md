@@ -302,12 +302,22 @@ that is belt-and-braces, not the guard.
   `setBig()` holds state/class/label/persistence and is safe to call on open; anything needing
   a user gesture (the fullscreen request, the image swap) lives in `toggleBig()`. The choice
   persists in `localStorage` under `bp-lb-big` — guard every access, it throws in private mode.
-  Big mode asks Cloudinary for 1900px instead of 1400 (`lbWidth()`), or fullscreen on a 1×
+  Big mode asks Cloudinary for 2600px instead of 1400 (`lbWidth()`), or fullscreen on a 1×
   display just upscales the smaller variant and reads as soft; keep it to fixed steps, since
   `cld()` already multiplies by DPR and each distinct width is another cached transform. The
   swap preloads off-screen and only then assigns `src`, so there is no blank frame. While
   fullscreen is active the keydown handler must let `Escape` through to the browser — closing
   the lightbox as well drops the client out of the photo he was looking at.
+  - **The cursor and big mode both have to follow the browser out of fullscreen** — `onFsChange()`,
+    bound to `fullscreenchange` and `webkitfullscreenchange`. A fullscreen element renders alone,
+    nothing outside its subtree painted, while `cursor:none` still applies *inside* it: the dot
+    living on `<body>` disappeared and the OS pointer stayed hidden, so „Grösser“ left the client
+    with no pointer at all until he pressed Esc. The dot is reparented into the fullscreen element
+    and back onto `<body>` afterwards (`cursorEl`, null on a touch device). And because the browser
+    claims Esc for itself, escaping used to land him on a windowed page still in big mode, panel
+    collapsed, the button his only way back — so leaving fullscreen now leaves big mode with it,
+    **only while the lightbox is still open**: `closeLb()` calls `fsExit()` too, and syncing there
+    would wipe the remembered `bp-lb-big` on the way out.
 - **The lightbox arrows overlay the photograph**, so they carry their own scrim
   (`rgba(17,17,16,.62)` + light glyph). They were transparent with a light glyph and became
   invisible over a bright frame. Not `mix-blend-mode` — it detaches `position:fixed` on

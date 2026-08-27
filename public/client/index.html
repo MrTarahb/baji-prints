@@ -467,11 +467,16 @@ function toast(msg) {
 // mix-blend-mode element off a layout Android Chrome would detach.
 var CUR_TARGETS = 'a,button,select,.card,.fname,#lb';
 
+// Held so the fullscreen handler can move the dot into the fullscreen element;
+// null on a touch device, where no dot is ever built.
+var cursorEl = null;
+
 function initCursor() {
   if (!window.matchMedia || !window.matchMedia('(hover:hover) and (pointer:fine)').matches) return;
   var cur = document.createElement('div');
   cur.id = 'cur';
   document.body.appendChild(cur);
+  cursorEl = cur;
   document.addEventListener('mousemove', function (e) {
     cur.style.left = e.clientX + 'px';
     cur.style.top = e.clientY + 'px';
@@ -1088,6 +1093,32 @@ function toggleBig() {
   if (lb.big) fsRequest(document.getElementById('lb')); else fsExit();
   lbSharpen(lb.list[lb.i]);
 }
+
+// Two things have to follow the browser in and out of fullscreen, and both were
+// missing:
+//
+// 1. The cursor. A fullscreen element renders on its own — nothing outside its
+//    subtree is painted — but `cursor:none` still applies inside it, so the dot
+//    sitting on <body> disappeared while the real pointer stayed hidden and the
+//    client was left with no pointer at all until he pressed Esc. So the dot
+//    moves into whatever element is fullscreen, and back onto <body> after.
+// 2. „Grösser“ itself. The browser claims Esc for leaving fullscreen, so
+//    escaping dropped the client back to a windowed page still in big mode,
+//    panel collapsed, with only the button left as a way out. Leaving fullscreen
+//    now leaves big mode with it — but only while the lightbox is open, or
+//    closeLb()'s own fsExit() would clear the remembered preference on the way
+//    out. Where fullscreen never engaged (iOS Safari) nothing fires here and big
+//    mode still stands on its own.
+function onFsChange() {
+  var host = fsEl() || document.body;
+  if (cursorEl && cursorEl.parentNode !== host) host.appendChild(cursorEl);
+  if (fsEl()) return;
+  if (!lb.big || !document.getElementById('lb').classList.contains('on')) return;
+  setBig(false);
+  lbSharpen(lb.list[lb.i]);
+}
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
 
 // Progressive load — the same trick the public site's lightbox uses. The grid's
 // 720px variant is already in the browser cache from the card the client just
