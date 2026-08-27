@@ -98,31 +98,62 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   as upstream's own `rgb(12,12,12)` ground under 1.10:1 streets and `rgba(80,78,78)` labels.
   That reads exactly like a tuning problem, and it was a guard that never opened — measure a
   suspect dark map against the values in `DARK_TUNE` before retuning it.
-- **`DARK_HIDE` turns off `road_oneway` / `road_oneway_opposite`.** Positron has no such layers,
-  so day and night showed different cities; the dark style stamps an arrow every 200px along
-  every one-way street, which over the old town is a field of chevrons the fountains compete
-  with. Off outright, not dimmed.
-- The node:vm suite runs `tuneBasemap()` against the **real** style JSON fetched from
-  OpenFreeMap, asserting every `DARK_TUNE` id still exists there and that each one was painted
-  with `isStyleLoaded()` answering false throughout. A stub that answered true is what let the
-  guard bug ship.
 - The Kreis 1 outline dims in dark — the same alpha of a near-white ink resolves brighter there
   — but `.26` (2.21:1 over the tuned land) undershot and sat *below* a minor street. It is `.42`
   / 3.61:1 now: above every minor street, below major roads (4.28) and well below the fountains
   (5.87), so it still reads as context and never as content.
-- **Positron gets a pass of its own now, and it is not colour.** `LIGHT_HIDE` drops the three
-  road-shield layers (`highway-shield-non-us` + the two US ones) — the white lozenges stamping
-  "3", "17", "A3W" along half the streets, which are a driver's furniture. `LIGHT_ZOOM` caps
-  `water_name_point_label` at z14 rather than hiding it: Zürich maps a few fountains as named
-  water areas, so that lake layer was captioning exactly three of several hundred
-  (Geisterbrunnen, Münsterhofbrunnen, Zentralhofbrunnen) and saying nothing about the rest,
-  which reads as those three mattering. The cap keeps the lake's name while the whole city is on
-  screen and drops it at walking zoom. Dark has neither problem: no shield layers, and its
-  `water_name` matches LineString only.
-- **`DARK_NO_FERRY` wraps `highway_name_other`'s filter with `class != ferry`.** That layer takes
-  everything in `transportation_name` that is not a motorway, so lifting street labels to
-  11.45:1 lifted the lake's ferry-route names with them. Wrap upstream's filter in an `['all',
-  …]`, never replace it — its geometry and class tests are still needed.
+- **The two styles must show the same city, and `DARK_PLAN` / `LIGHT_PLAN` are how that is
+  enforced.** Dark and light are two people's cartography, not one style in two palettes, and
+  left alone they disagree about what a map of Zürich *contains* — that is a different problem
+  from the contrast ladder above, and it produced a run of "why is this only in dark/light"
+  reports. One rule now: whatever a visitor can read in one theme they can read in the other,
+  and where the two disagreed the **quieter** answer won, because a label that is not a fountain
+  or the street one stands on competes with the subject. What each plan settles:
+  - *Dark hides* the one-way arrows (a chevron every 200px, and positron draws none), the
+    motorway `ref` labels (positron says the same thing in a shield, also hidden), and
+    `place_other` (hamlets and neighbourhoods, which positron does not label).
+  - *Light hides* the three road-shield layers — the white lozenges stamping "3", "17", "A3W" —
+    `water_name_point_label`, and the `airport` label (dark has no aerodrome layer at all).
+  - *Dark holds `highway_name_other` to z15* and gets a **cloned** major-road name layer for
+    z12.2–15, which is positron's arrangement: 548 street names against positron's 67 at the
+    zoom where the whole city is on screen was the largest single difference between the two.
+  - *Light caps its place labels* where dark caps them (suburbs z15, cities z14) and is filtered
+    to suburbs only — `label_other` is "not a city/town/village/state/country", which over
+    Zürich means twelve suburbs *and* fourteen quarters.
+  - *Both gain a clone* so parks match: positron reads the `park` source-layer, dark reads
+    `landuse` class=park, and each now draws both. Over Zürich both are empty today; the clone
+    exists so the day someone tags the Platzspitz either way, both themes draw it.
+- **`water_name_point_label` is hidden outright, and nothing is lost by it.** Zürich maps a good
+  many fountains as named water *areas*, so that lake layer was captioning three of several
+  hundred (Geisterbrunnen, Münsterhofbrunnen, Zentralhofbrunnen) and saying nothing about the
+  rest — which reads as those three mattering. „Zürichsee" is a **LineString** feature and is
+  drawn by the line-label layer in both themes, so the lake keeps its name either way.
+- **A plan is applied in a fixed order — paint, filter, zoom, add, hide — and two steps depend
+  on it.** `add` clones AFTER paint, so a clone inherits the tuned colours (the river labels come
+  out the lake's blue for free), and BEFORE hide, so cloning off a layer that is about to be
+  hidden still yields a visible one.
+- **`cloneLayer()` is how a style gets content the other one has.** It copies a layer already in
+  the style and overrides only the source-layer, filter and zoom range, so the source, fonts and
+  `text-field` expression come from upstream and there is nothing here to keep in step with
+  them. Filters are **wrapped** in an `['all', …]`, never replaced, for the same reason.
+- **Differences deliberately left**, all of them outside z12–20 over one city: country and state
+  labels, `boundary_disputed`, and positron's separate motorway tunnel/bridge layers (it draws
+  those roads in their own layers and excludes them from the main one; dark draws all three in
+  the main one — the same roads either way).
+- The node:vm suite runs `tuneBasemap()` against the **real** style JSON fetched from
+  OpenFreeMap, with `isStyleLoaded()` answering false throughout — a stub that answered true is
+  what let the guard bug ship. It asserts every layer either plan names still exists upstream,
+  and then reduces both styles to what they actually draw (source-layer per visible layer, minus
+  the exclusions above) and fails if **anything is drawn in only one theme**. That last check is
+  the one that keeps this from drifting back.
+- **The layer differences were established from the TILES, not by reading the styles**, and that
+  is the method to repeat. `tiles.openfreemap.org/planet` stops at z14, so z15–20 overzoom the
+  same data: the z14 tile over Zürich holds 27 place points (one city, twelve suburbs, fourteen
+  quarters), 548 street names of which only 67 are major roads, 14 water names of which
+  „Zürichsee" is the only line, two `park` features which are both *points* and so fall outside
+  positron's polygon-only filter, no `landuse` class=park at all, and 9,207 POIs plus 303 house
+  numbers neither style touches. Reading the style JSON alone would have got the park layers and
+  the water names wrong in both directions.
 - **`chrome.js` fires `ch:theme` on `document` from `paintTheme()`** (detail `{dark}`), which is
   how a host page learns about a toggle it does not own, and it now also follows the OS while
   nothing is stored — a system switch with the page open repaints it. `Chrome.isDark()` is

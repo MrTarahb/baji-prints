@@ -671,37 +671,147 @@ var DARK_TUNE = {
 // fountains to compete with. This is a map of fountains, not a driving map, so
 // they are turned off outright rather than dimmed — dark should show the same
 // city the day map shows.
-var DARK_HIDE = ['road_oneway', 'road_oneway_opposite'];
-
-// transportation_name carries ferry routes under class "ferry", and the dark
-// style's highway_name_other takes everything that is not a motorway — so
-// lifting street labels to 11.45:1 lifted „Fähre Zürichhorn – Wollishofen"
-// across the lake with them. Positron files ferries under none of its
-// highway-name-* classes and never had the problem. The filter is WRAPPED
-// rather than replaced, so upstream's own geometry and class tests survive.
-var DARK_NO_FERRY = ['highway_name_other'];
-
-// Positron needs its own pass — it is a walking map already, but it is a
-// walking map of a country with numbered roads.
+// ── THE TWO STYLES MUST SHOW THE SAME CITY ───────────────────────────────────
+// Dark and light are two people's cartography, not one style wearing two
+// palettes, and left alone they disagree about what a map of Zürich contains.
+// Everything below is one rule: whatever a visitor can read in one theme they
+// can read in the other. Where the two disagreed the quieter answer won — this
+// is a map of fountains, and a label that is not a fountain or the street one
+// stands on is competing with the subject.
 //
-// The shields are the white lozenges stamping "3", "17", "A3W" along half the
-// streets in town. They are a driver's furniture: the number of a road tells
-// you nothing at all about where a fountain is, and there are three shield
-// layers because upstream draws US networks separately.
-var LIGHT_HIDE = ['highway-shield-non-us', 'highway-shield-us-interstate', 'road_shield_us'];
-
-// Zurich maps a handful of its fountains as named WATER AREAS, so
-// water_name_point_label — blue, haloed, and meant for lakes — was captioning
-// exactly three of several hundred fountains (Geisterbrunnen, Münsterhofbrunnen,
-// Zentralhofbrunnen) and saying nothing about the rest. Three named out of
-// hundreds reads as those three mattering.
+// The differences were established from the TILES, not by reading the styles.
+// The z14 tile over Zürich (the source stops at z14, so z15-20 overzoom this
+// same data) holds: 27 place points — one city, twelve suburbs, fourteen
+// quarters; 548 street names of which only 67 are major roads; 14 water names
+// of which "Zürichsee" is the one LINE and every other is a pond or a fountain
+// basin; two `park` features, both points, which positron's polygon-only filter
+// draws nowhere; no `landuse` class=park at all, which is dark's park layer
+// drawing nowhere; and 9,207 POIs and 303 house numbers neither style touches.
+// Those counts are what the plans below are tuned against — measure a tile
+// again rather than re-reading the style JSON if this ever looks wrong.
 //
-// Not hidden outright: the same layer names the lake, and the lake is how you
-// know where you are. Capped at z14 instead — the name is there while the whole
-// city is on screen and gone by the time you are walking a street, which is the
-// only zoom at which a fountain basin is big enough to be labelled. Rivers keep
-// their own line labels at every zoom.
-var LIGHT_ZOOM = { 'water_name_point_label': [0, 14] };
+// A plan is applied in a fixed order — paint, filter, zoom, add, hide — and two
+// steps depend on it: `add` clones a layer AFTER paint, so a clone inherits the
+// tuned colours, and BEFORE hide, so cloning off a layer that is about to be
+// hidden still yields a visible one.
+var DARK_PLAN = {
+  paint: DARK_TUNE,
+
+  hide: [
+    // Positron draws no one-way arrows; the dark style stamps one every 200px
+    // along every one-way street, which over the old town is a field of
+    // chevrons for the fountains to compete with. A map of fountains, not a
+    // driving map.
+    'road_oneway', 'road_oneway_opposite',
+    // Motorway numbers. Dark writes the ref along the road as text, positron
+    // stamps it into a shield — the same driver's furniture in two costumes,
+    // so both go (the shields are in LIGHT_PLAN).
+    'highway_name_motorway',
+    // Hamlets, neighbourhoods and isolated dwellings. Positron's label_other is
+    // filtered down to suburbs below, so these would be dark's alone.
+    'place_other'
+  ],
+
+  zoom: {
+    // Positron holds minor street names back to z15 and path names to z15.5,
+    // showing only major roads before that. Dark's one layer took every
+    // non-motorway name the moment the tile loaded: 548 labels against
+    // positron's 67 at the zoom where the whole city is on screen. The majors
+    // come back as a clone below.
+    'highway_name_other': [15, 24]
+  },
+
+  // Wrapped onto upstream's own filter, never replacing it — its geometry and
+  // class tests are still needed.
+  filter: {
+    // transportation_name carries ferry routes under class "ferry", and this
+    // layer takes everything that is not a motorway, so lifting street labels
+    // to 11.45:1 lifted the lake's ferry routes across the water with them.
+    // Positron files ferries under none of its name layers.
+    'highway_name_other': ['!=', ['get', 'class'], 'ferry']
+  },
+
+  add: [
+    // Major roads keep their names from z12.2, the way positron does it, now
+    // that the layer above starts at z15. Capped AT 15 so the two never label
+    // the same road twice and fight each other for the space.
+    { id: 'bp_highway_name_major', from: 'highway_name_other',
+      before: 'highway_name_other', minzoom: 12.2, maxzoom: 15,
+      filter: ['all',
+        ['match', ['get', 'class'], ['primary', 'secondary', 'tertiary', 'trunk'], true, false],
+        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false]] },
+    // Positron names the rivers; dark has no waterway label layer at all, so
+    // the Limmat, the Sihl and the Schanzengraben ran through it unnamed — and
+    // in Zürich the water is how you know where you are. Cloned off water_name,
+    // which is already exactly the right shape: a line-placed label, and by
+    // this point in the plan already repainted the cool blue the lake gets.
+    { id: 'bp_waterway_name', from: 'water_name', before: 'water_name',
+      sourceLayer: 'waterway', minzoom: 10,
+      filter: ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false] },
+    // The two styles take their parks from two different source layers —
+    // positron from `park` (protected areas and nature reserves), dark from
+    // `landuse` class=park (a city's own parks). Over Zürich both happen to be
+    // empty today, so this changes nothing on screen; it exists so that the day
+    // someone tags the Platzspitz either way, both themes draw it. Each style
+    // keeps its own green: the clone inherits the layer it was cloned from.
+    { id: 'bp_park', from: 'landuse_park', before: 'landuse_park', sourceLayer: 'park',
+      filter: ['match', ['geometry-type'], ['MultiPolygon', 'Polygon'], true, false] }
+  ]
+};
+
+var LIGHT_PLAN = {
+  hide: [
+    // The white lozenges stamping "3", "17", "A3W" along half the streets in
+    // town. A road's number says nothing about where a fountain is, and dark
+    // has no shield layers at all. Three of them, because upstream draws the US
+    // networks separately.
+    'highway-shield-non-us', 'highway-shield-us-interstate', 'road_shield_us',
+    // Zürich maps a good many of its fountains as named water AREAS, so this
+    // lake layer was captioning Geisterbrunnen, Münsterhofbrunnen and
+    // Zentralhofbrunnen in blue and saying nothing about the other hundreds —
+    // three named out of hundreds reads as those three mattering. Dark's
+    // water_name matches LineString only and never had them. Nothing is lost
+    // by hiding it: „Zürichsee" is a LINE feature, drawn by the line-label
+    // layer in both themes.
+    'water_name_point_label',
+    // The ZRH label from z11. Dark carries no aerodrome layer whatsoever.
+    'airport'
+  ],
+
+  zoom: {
+    // Dark caps its place labels — suburbs at z15, cities at z14 — where
+    // positron lets them ride to z20, so a neighbourhood name sat over the map
+    // in light while you were walking a street, and not in dark.
+    'label_other': [8, 15],
+    'label_village': [9, 14],
+    'label_town': [6, 15],
+    'label_city': [3, 14],
+    'label_city_capital': [3, 14],
+    // Dark stops tinting residential landuse at z9; positron carried it to z16.
+    'landuse_residential': [0, 9]
+  },
+
+  filter: {
+    // label_other is "anything that is not a city, town, village, state or
+    // country", which over Zürich means twelve suburbs AND fourteen quarters —
+    // Lindenhof, Rathaus, Werd, City. Dark labels suburbs only, and at this
+    // map's zoom the quarter names are a second layer of noise over the old
+    // town. Wrapped, so upstream's own exclusions still apply on top.
+    'label_other': ['==', ['get', 'class'], 'suburb'],
+    // Positron draws admin levels 3 through 6, dark only 4 — so the district
+    // boundary was a light-only line, and this page already draws a boundary of
+    // its own. Cantons in both, Bezirke in neither.
+    'boundary_3': ['==', ['get', 'admin_level'], 4]
+  },
+
+  add: [
+    // The other half of the park story above: positron's park layer reads the
+    // `park` source-layer, so it needs the `landuse` one dark uses.
+    { id: 'bp_landuse_park', from: 'park', before: 'park', sourceLayer: 'landuse',
+      filter: ['all', ['match', ['geometry-type'], ['MultiPolygon', 'Polygon'], true, false],
+               ['==', ['get', 'class'], 'park']] }
+  ]
+};
 
 // Which style the overrides above are currently painted onto. Cleared whenever
 // a new style is requested, so the next styledata repaints them.
@@ -710,51 +820,76 @@ var tunedStyle = null;
 // styledata fires repeatedly — once when a style loads, and again for each
 // property this very function sets. tunedStyle is what stops that from being a
 // loop: the first pass claims the style, every re-entrant pass returns at the
-// top. A layer that upstream renames or drops is skipped rather than throwing,
-// which keeps a cartography change on their side from taking the map down.
+// top.
 function tuneBasemap(glMap, styleUrl) {
   if (!glMap || tunedStyle === styleUrl) return;
   // Ready means THE LAYERS EXIST — never isStyleLoaded(). That one is loaded in
   // a much wider sense: it also waits for every source cache and the sprite,
   // i.e. for tiles, and tiles arriving fire sourcedata, not styledata. So the
   // one styledata a page load delivers was always rejected, nothing ever fired
-  // again, and none of the ladder below was painted: the map shipped as
-  // upstream's own rgb(12,12,12) ground under 1.10:1 streets and rgba(80,78,78)
-  // labels — precisely the grey-on-grey this table exists to fix, and it looked
-  // like a tuning problem rather than a guard that never opened. background is
-  // in both styles; if it is missing the style has not parsed and a later
-  // styledata retries.
+  // again, and none of the ladder was painted: the map shipped as upstream's
+  // own rgb(12,12,12) ground under 1.10:1 streets and rgba(80,78,78) labels —
+  // precisely the grey-on-grey the tuning exists to fix, and it looked like a
+  // tuning problem rather than a guard that never opened. background is in both
+  // styles; if it is missing the style has not parsed and a later styledata
+  // retries.
   if (!glMap.getLayer || !glMap.getLayer('background')) return;
   tunedStyle = styleUrl;
-  var dark = styleUrl.indexOf('/dark') !== -1;
+  applyPlan(glMap, styleUrl.indexOf('/dark') !== -1 ? DARK_PLAN : LIGHT_PLAN);
+}
 
-  // Positron's colours are left alone — it is already a walking map, and the
-  // whole ladder above exists only because the dark style is not.
-  if (dark) {
-    Object.keys(DARK_TUNE).forEach(function (id) {
-      if (!glMap.getLayer(id)) return;
-      var props = DARK_TUNE[id];
-      Object.keys(props).forEach(function (prop) {
-        try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
-      });
-    });
-    DARK_NO_FERRY.forEach(function (id) {
-      if (!glMap.getLayer(id) || !glMap.setFilter || !glMap.getFilter) return;
-      var no = ['!=', ['get', 'class'], 'ferry'];
-      var had = glMap.getFilter(id);
-      try { glMap.setFilter(id, had ? ['all', had, no] : no); } catch (e) {}
-    });
-  } else {
-    Object.keys(LIGHT_ZOOM).forEach(function (id) {
-      if (!glMap.getLayer(id) || !glMap.setLayerZoomRange) return;
-      try { glMap.setLayerZoomRange(id, LIGHT_ZOOM[id][0], LIGHT_ZOOM[id][1]); } catch (e) {}
+// Every step skips a layer upstream has renamed or dropped rather than throwing
+// on it: a cartography change on their side must not take the map down.
+function applyPlan(glMap, plan) {
+  function each(table, fn) {
+    Object.keys(table || {}).forEach(function (id) {
+      if (glMap.getLayer(id)) fn(id, table[id]);
     });
   }
-
-  (dark ? DARK_HIDE : LIGHT_HIDE).forEach(function (id) {
+  each(plan.paint, function (id, props) {
+    Object.keys(props).forEach(function (prop) {
+      try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
+    });
+  });
+  each(plan.filter, function (id, extra) {
+    if (!glMap.setFilter || !glMap.getFilter) return;
+    var had = glMap.getFilter(id);
+    try { glMap.setFilter(id, had ? ['all', had, extra] : extra); } catch (e) {}
+  });
+  each(plan.zoom, function (id, range) {
+    if (!glMap.setLayerZoomRange) return;
+    try { glMap.setLayerZoomRange(id, range[0], range[1]); } catch (e) {}
+  });
+  (plan.add || []).forEach(function (spec) { cloneLayer(glMap, spec); });
+  (plan.hide || []).forEach(function (id) {
     if (!glMap.getLayer(id) || !glMap.setLayoutProperty) return;
     try { glMap.setLayoutProperty(id, 'visibility', 'none'); } catch (e) {}
   });
+}
+
+// Adding a layer, rather than repainting one, is how a style gets content the
+// other style has and it does not. It is cloned off a layer already in the
+// style, so the source, the fonts and the text-field expression all come from
+// upstream and there is nothing here to keep in step with them — only what the
+// clone is FOR is spelled out, as a source-layer, a filter and a zoom range.
+function cloneLayer(glMap, spec) {
+  if (!glMap.addLayer || !glMap.getStyle || glMap.getLayer(spec.id)) return;
+  var src = null, out;
+  try {
+    (glMap.getStyle().layers || []).forEach(function (l) { if (l.id === spec.from) src = l; });
+  } catch (e) { return; }
+  if (!src) return;
+  try { out = JSON.parse(JSON.stringify(src)); } catch (e) { return; }
+  out.id = spec.id;
+  if (spec.sourceLayer) out['source-layer'] = spec.sourceLayer;
+  if (spec.filter) out.filter = spec.filter;
+  if (spec.minzoom === undefined) delete out.minzoom; else out.minzoom = spec.minzoom;
+  if (spec.maxzoom === undefined) delete out.maxzoom; else out.maxzoom = spec.maxzoom;
+  if (out.layout) delete out.layout.visibility;
+  // A `before` upstream has renamed would throw the whole layer away, so the
+  // fallback appends it rather than losing it.
+  try { glMap.addLayer(out, spec.before); }
+  catch (e) { try { glMap.addLayer(out); } catch (e2) {} }
 }
 
 function styleUrl(dark) {
