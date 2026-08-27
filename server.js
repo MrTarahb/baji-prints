@@ -558,6 +558,17 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
+    // public/shared/* is the site chrome every standalone page loads, and the
+    // <link>/<script> tags carry no version query. Without a Cache-Control of
+    // our own Cloudflare applies its 4-hour browser TTL, so a returning visitor
+    // runs an OLD chrome.js against freshly served HTML: the fountain page's
+    // Chrome.mount({lockTheme:'light'}) was ignored by a copy that predated the
+    // option, and its nav painted near-white text on the near-white scrim.
+    // 'no-cache' is revalidate, not don't-store — the ETag makes the recheck a
+    // 304, so this costs one conditional request, not a re-download.
+    if (filePath.includes(`${path.sep}shared${path.sep}`)) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
   }
 }));
 app.set('trust proxy', 1);

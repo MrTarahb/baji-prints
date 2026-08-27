@@ -19,6 +19,13 @@ plan, including schema and the decisions behind it, is at
 - Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false,
   lockTheme: 'light' })`.
 - `public/index.html` learned `/?cat=<slug>` so the dropdown can link back into a filter.
+- **A chrome change does not reach a returning visitor by itself.** The origin sent no
+  `Cache-Control` for `/shared/*`, so Cloudflare applied its 4-hour browser TTL and the fixed
+  nav kept looking broken on a device that had loaded the page earlier the same day — new HTML
+  asking for `lockTheme`, an old `chrome.js` that had never heard of it, near-white text back on
+  the near-white scrim. `express.static`'s `setHeaders` now sends `no-cache` (revalidate, ETag →
+  304) for anything under `public/shared/`, and the tags carry `?v=2`. Bump `v` when a chrome
+  change must land inside the hour for people already holding a copy.
 
 **The "nav doesn't look right" bug is fixed** — it was never the width alignment the earlier
 note suspected. Three separate things, all now closed:

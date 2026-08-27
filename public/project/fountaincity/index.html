@@ -11,8 +11,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<link rel="stylesheet" href="/shared/chrome.css">
-<script src="/shared/chrome.js"></script>
+<!-- ?v= breaks a browser out of a copy it is already holding: the server now
+     sends no-cache for /shared/*, but a stale file cached under the old 4-hour
+     Cloudflare TTL is not revalidated until that TTL expires, and a chrome.js
+     predating lockTheme silently ignores the mount option below. Bump v only
+     when a change must reach returning visitors within the hour. -->
+<link rel="stylesheet" href="/shared/chrome.css?v=2">
+<script src="/shared/chrome.js?v=2"></script>
 <style>
 :root{
   --fi:'Playfair Display',Georgia,serif;
