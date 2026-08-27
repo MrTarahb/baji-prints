@@ -48,23 +48,18 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
   .leaflet-container,.leaflet-container *{cursor:none !important}
 }
 
-/* The chrome's tokens, pinned to light for this page. The basemap is Positron
-   and the header scrim is a fixed near-white gradient — there is no dark mode
-   here to match, so a nav that followed the visitor's global dark preference
-   would be a black bar sitting on a white map. This block comes after
-   chrome.css and at equal specificity, so it wins over its [data-theme] rules.
+/* This page is pinned to the chrome's LIGHT palette — see lockTheme in the
+   Chrome.mount() call at the foot of the page. The basemap is Positron and the
+   scrim is a fixed near-white gradient, so there is no dark mode here to match.
 
-   The toggle itself is still offered, because it sets the SITE-WIDE preference
-   that every other page reads. It just has nothing to change here yet: giving
-   this page a real dark mode means swapping the MapLibre style for a dark one
-   and darkening this scrim, which is a change of its own. */
-:root{
-  --ch-bg:#FAFAF8;
-  --ch-fg:#111110;
-  --ch-fg-m:rgba(17,17,16,.6);
-  --ch-border:rgba(17,17,16,.1);
-  --ch-gray:#8A857C;
-}
+   It used to be done by redeclaring the --ch-* tokens in a :root block here, on
+   the reasoning that a later block at equal specificity wins. That was wrong:
+   chrome.css's dark block is `:root:not([data-theme="light"])`, specificity
+   (0,2,0) against a plain :root's (0,1,0). So any visitor whose OS is set to
+   dark — and who had no stored preference to override it, i.e. anyone arriving
+   in a private window — got the dark tokens anyway: near-white nav text on this
+   near-white scrim, unreadable. lockTheme sets the data-theme attribute those
+   selectors actually test, which ends the argument rather than joining it. */
 
 input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px;width:100%}
@@ -72,8 +67,19 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
 
 /* ── ADMIN BAR ────────────────────────────────────────────────────────
    Hidden entirely for the public; revealed by .on once /api/fountains
-   says this visitor is the admin. Same idea as the client boards. */
-#adminbar{display:none;background:var(--ink);color:var(--bg);font-size:12px;padding:10px 0;flex:none}
+   says this visitor is the admin. Same idea as the client boards.
+
+   It spans the FOOT of the screen rather than riding in #topstack. The top of
+   this page is already spoken for — scrim, nav, eyebrow, title, tally — and a
+   second dark bar in that stack pushed the map's first usable row a third of
+   the way down the screen. Fixed, so panning the map never carries it off.
+
+   Everything Leaflet parks in the bottom corners has to clear it; --abh is how
+   (see syncAdminBar()). It resolves to 0 for the public, so nothing about the
+   public page moves. */
+#adminbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:600;max-width:100vw;
+  background:var(--ink);color:var(--bg);font-size:12px;padding:10px 0;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));pointer-events:auto}
 #adminbar.on{display:block}
 #adminbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 #adminbar button{background:transparent;color:var(--bg);border-color:#3A3733;padding:5px 10px;font-size:11.5px}
@@ -92,7 +98,6 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
   background:linear-gradient(to bottom,
     rgba(250,250,248,.97) 0%, rgba(250,250,248,.92) 42%,
     rgba(250,250,248,.72) 68%, rgba(250,250,248,0) 100%)}
-#adminbar{pointer-events:auto}
 
 /* ── HEADER ───────────────────────────────────────────────────────────── */
 /* The scrim itself now lives on #topstack, above — the header is just the row
@@ -148,6 +153,11 @@ header .eyebrow,header h1,.intro,#count,#near,
    faint labels, and no railways or ferry routes, which is what made the plain
    OSM tiles read as a transit map. */
 .leaflet-control-attribution{font-size:10px;background:rgba(250,250,248,.86)}
+/* The zoom control, Locate, and the attribution the tiles' licence requires all
+   live down here, so they ride above the admin bar when it is on. --abh is
+   measured rather than assumed: the bar's controls wrap onto a second line on a
+   narrow phone, and it is unset (0) for everyone who is not the admin. */
+.leaflet-bottom{margin-bottom:var(--abh,0px);transition:margin-bottom .2s ease}
 
 /* Bottom-left, not the conventional top-left: this is the one control meant to
    be pressed while walking, so it sits where a thumb already is. */
@@ -199,7 +209,7 @@ header .eyebrow,header h1,.intro,#count,#near,
 .m-label{display:block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:12px 0 5px}
 .m-label:first-child{margin-top:0}
 .m-hint{font-size:11px;color:var(--mute);margin-top:5px;line-height:1.5}
-#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+#toast{position:fixed;bottom:calc(22px + var(--abh,0px));left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:2px;font-size:12.5px;
   opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:1300}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -222,16 +232,6 @@ header .eyebrow,header h1,.intro,#count,#near,
 <body>
 
 <div id="topstack">
-<div id="adminbar">
-  <div class="wrap">
-    <span class="eyebrow" style="color:#9C968C">Admin view</span>
-    <button onclick="addFountain()">+ Fountain</button>
-    <button id="ab-here" onclick="addHere()">+ Fountain here</button>
-    <button onclick="editText()">Edit text</button>
-    <span id="ab-hint">or click anywhere on the map to place one</span>
-  </div>
-</div>
-
 <header>
   <div class="wrap">
     <div class="head-row">
@@ -250,6 +250,18 @@ header .eyebrow,header h1,.intro,#count,#near,
 </div>
 
 <div class="map-wrap"><div id="map"></div></div>
+
+<!-- Across the foot of the screen, outside #topstack: see the ADMIN BAR block
+     in the stylesheet for why it is not part of the floating header. -->
+<div id="adminbar">
+  <div class="wrap">
+    <span class="eyebrow" style="color:#9C968C">Admin view</span>
+    <button onclick="addFountain()">+ Fountain</button>
+    <button id="ab-here" onclick="addHere()">+ Fountain here</button>
+    <button onclick="editText()">Edit text</button>
+    <span id="ab-hint">or click anywhere on the map to place one</span>
+  </div>
+</div>
 
 <div id="modal">
   <div class="modal-card">
@@ -1022,16 +1034,38 @@ function render() {
   updateNear();
 }
 
+// The admin bar is fixed across the foot of the screen, so everything Leaflet
+// puts in the bottom corners — the zoom control, Locate, and the attribution the
+// tiles' licence requires us to keep visible — has to be lifted clear of it. The
+// height is measured rather than written down: the bar's buttons wrap onto a
+// second line on a narrow phone, and a constant would be wrong there.
+function syncAdminBar() {
+  var bar = document.getElementById('adminbar');
+  var h = bar && bar.classList.contains('on') ? bar.offsetHeight : 0;
+  document.documentElement.style.setProperty('--abh', h + 'px');
+}
+window.addEventListener('resize', syncAdminBar, { passive: true });
+
 // ── BOOT ─────────────────────────────────────────────────────────────────────
 // The nav joins #topstack rather than pinning itself to the top of the screen:
 // that stack is already fixed and already takes no pointer events, so the nav
 // becomes its first row and the map stays draggable straight through it. No
 // footer — the map runs to the bottom edge and the tiles' required attribution
 // already sits down there.
+//
+// lockTheme pins the chrome to its light palette. The basemap is Positron and
+// the scrim is a fixed near-white gradient, so a visitor whose system is dark
+// would otherwise get the chrome's dark tokens — near-white text on all of
+// that. It also drops the theme toggle, which on a pinned page could only lie.
+// Giving this page a real dark mode means swapping the MapLibre style for
+// tiles.openfreemap.org/styles/dark and darkening the scrim and the page's own
+// --ink/--bg tokens with it; that is a change of its own, and this line is what
+// to remove when it lands.
 Chrome.mount({
   navInto: document.getElementById('topstack'),
   floating: true,
   footer: false,
+  lockTheme: 'light',
   cursor: '.fmark'                     // the fountain discs swell it like a link
 });
 
@@ -1041,7 +1075,13 @@ api('/api/fountains').then(function (d) {
   isAdmin = !!d.admin;
   text = d.text || {};
   renderText();
-  if (isAdmin) document.getElementById('adminbar').classList.add('on');
+  if (isAdmin) {
+    document.getElementById('adminbar').classList.add('on');
+    syncAdminBar();
+    // Again after a frame: the bar is measured before its webfont has settled,
+    // and a line-height shift there leaves the Locate button half-covered.
+    requestAnimationFrame(syncAdminBar);
+  }
   initMap();
   render();
   // Fit to what exists, but only on load — refitting after every add would yank

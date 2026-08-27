@@ -16,20 +16,34 @@ plan, including schema and the decisions behind it, is at
 - `public/shared/chrome.{css,js}` — the main site's nav, footer, theme toggle, Portfolio
   dropdown and cursor, for standalone pages. See the header comment in chrome.css for why it is
   a second copy of what `public/index.html` carries inline, and what is deliberately not copied.
-- Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false })`.
+- Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false,
+  lockTheme: 'light' })`.
 - `public/index.html` learned `/?cat=<slug>` so the dropdown can link back into a filter.
 
-**Open bug — the desktop nav on `/project/fountaincity` "doesn't look right".** Mobile is fine.
-Ruled out already: both commits are pushed, `/shared/chrome.css` and `/shared/chrome.js` return
-200 live, and the deployed copies contain the latest rules. Suspects, in order:
-1. **Width alignment.** `.ch-nav` spans the full width with its own `padding:1.4rem 2rem`, but
-   everything below it on that page sits inside `.wrap` (`max-width:1120px;margin:0 auto`). On a
-   wide screen the nav name sits hard left while the title starts at the centred wrap's edge.
-   Likely fix: give the in-stack nav the same `.wrap` constraint.
-2. **Scrim opacity.** `#topstack`'s gradient starts at `rgba(250,250,248,.97)` — near-opaque by
-   design, and much heavier than the main site's `rgba(17,17,16,.35)` over the hero.
-3. The theme toggle renders but changes nothing here (tokens are pinned light, see the `:root`
-   block in that page). Offered but not built: a real dark mode via OpenFreeMap's dark style.
+**The "nav doesn't look right" bug is fixed** — it was never the width alignment the earlier
+note suspected. Three separate things, all now closed:
+1. **White on white in a private window.** A host page cannot pin the chrome's palette by
+   redeclaring the `--ch-*` tokens in its own `:root` block: chrome.css's dark block is
+   `:root:not([data-theme="light"])`, specificity (0,2,0) against a plain `:root`'s (0,1,0), so
+   it wins regardless of source order. Anyone with a dark OS and no stored preference — which is
+   every visitor in incognito — got near-white nav text on the near-white scrim. Pin with
+   **`Chrome.mount({ lockTheme: 'light' })`** instead: it sets the `data-theme` attribute those
+   selectors actually test, and never writes it to `localStorage`, so pinning one page does not
+   change the visitor's choice for the rest of the site. It also drops the theme toggle — a
+   pinned page offering one could only lie about what it does.
+2. **Portfolio opened onto an empty box.** `render()` tears the nav down and rebuilds it when the
+   `/api/content` labels arrive, which discarded a menu `loadCategories()` had already filled.
+   The categories are held in a module variable and repainted by every `render()`, and the menu
+   only opens once `.ch-dd-ready` says it has content.
+3. It snapped open and shut. `.ch-dd-menu` hides with `visibility`, not `display:none`, so the
+   fade can actually run.
+
+**Still open, if wanted:** a real dark mode for the map. `https://tiles.openfreemap.org/styles/dark`
+is verified live (background `rgb(12,12,12)`, close to the chrome's `--ch-bg` of `#0E0E0C`); it
+needs the MapLibre style swapped on toggle plus dark values for the page's own `--ink`/`--bg`
+/`--line`/`--mute` and the `#topstack` scrim. Removing the `lockTheme` line is the last step, not
+the first. The scrim is also much heavier than the main site's (`rgba(250,250,248,.97)` against
+the hero nav's `rgba(17,17,16,.35)`) — deliberate, but a dial worth turning if asked.
 
 **Not started:** Stage 2 (projects table, `/project/:slug`, admin panel), Stage 3 (workshops
 table, per-workshop dates/photos, `/workshop/<slug>` page, 301 from `/workshops`), Stage 4 (slug
@@ -384,6 +398,14 @@ A public map of Zürich's public fountains — the first of what the URL implies
 `public/project/fountaincity/index.html`. A fountain is a coordinate, an optional `name`, an
 optional `note` (Bharat's own words, shown to everyone) and at most one photograph.
 
+- **The admin bar spans the FOOT of the screen, not the top stack.** The top is already carrying
+  the scrim, the nav, the eyebrow, the title and the tally; a second dark bar in there pushed the
+  map's first usable row a third of the way down. Everything Leaflet parks in the bottom corners
+  — the zoom control, `Locate`, and the attribution the tiles' licence requires — is lifted clear
+  by `--abh`, which `syncAdminBar()` **measures** rather than assumes: the bar's buttons wrap onto
+  a second line on a narrow phone, and it re-measures on `resize` and once more on the next frame
+  (the first read lands before the webfont settles). It is `0px` for everyone who is not the
+  admin, so nothing about the public page moves.
 - **Public page, admin controls inline** — the same shape as the client boards, minus the gate.
   `GET /api/fountains` returns the rows plus an `admin` flag telling the page whether *this*
   visitor may edit; the fountain rows themselves are public, so there is nothing to withhold

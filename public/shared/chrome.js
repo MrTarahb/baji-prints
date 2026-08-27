@@ -126,6 +126,10 @@ var Chrome = (function () {
   // Real hrefs, not the main site's showPage() calls: leaving one of these pages
   // is a genuine navigation, and the server already serves every one of these
   // paths and deep-links the SPA into the right section on arrival.
+  // A locked page gets no toggle. Offering one that visibly does nothing is
+  // worse than not offering it: the control is the promise.
+  function hasToggle(opts) { return opts.theme !== false && !opts.lockTheme; }
+
   function navHtml(t, opts) {
     var n = cartCount();
     var cls = 'ch-nav' + (opts.floating ? ' floating' : '') + (opts.navInto ? ' ch-instack' : '');
@@ -140,9 +144,9 @@ var Chrome = (function () {
           '<li><a href="/cart">Cart' + (n ? ' (' + n + ')' : '') + '</a></li>' +
           '<li><a href="/contact">' + esc(t.nav_contact) + '</a></li>' +
         '</ul>' +
-        (opts.theme === false ? '' :
+        (hasToggle(opts) ?
           '<button class="ch-theme" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">' +
-          sunSvg('ch-clip-nav', 22) + '</button>') +
+          sunSvg('ch-clip-nav', 22) + '</button>' : '') +
         '<button class="ch-burger" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>' +
       '</div>' +
     '</nav>';
@@ -163,9 +167,9 @@ var Chrome = (function () {
       '<a href="/shop">' + esc(t.nav_shop) + '</a>' +
       '<a href="/cart">Cart' + (n ? ' (' + n + ')' : '') + '</a>' +
       '<a href="/contact">' + esc(t.nav_contact) + '</a>' +
-      (opts.theme === false ? '' :
+      (hasToggle(opts) ?
         '<button class="ch-mobile-theme" type="button" aria-label="Toggle dark mode">' +
-        sunSvg('ch-clip-mob', 20) + '</button>') +
+        sunSvg('ch-clip-mob', 20) + '</button>' : '') +
     '</div>';
   }
 
@@ -204,8 +208,23 @@ var Chrome = (function () {
 
     // The theme is applied before anything is drawn, so the nav never paints in
     // one theme and then flips.
-    var stored = storedTheme();
-    if (stored) document.documentElement.setAttribute('data-theme', stored);
+    //
+    // opts.lockTheme pins the page to one palette, ignoring both the stored
+    // preference and the system one. It sets data-theme rather than leaving the
+    // host page to override the --ch-* tokens itself, because the dark block
+    // here is `:root:not([data-theme="light"])` — specificity (0,2,0), which
+    // outranks the plain `:root` a host page would write. A page that pinned its
+    // tokens that way still went dark for a visitor whose OS is dark, and put
+    // white nav text on a light page. The attribute is what these selectors
+    // actually test, so setting it settles the question instead of competing
+    // with it. It is deliberately NOT written to localStorage: pinning one page
+    // must not change the visitor's choice for the rest of the site.
+    if (opts.lockTheme) {
+      document.documentElement.setAttribute('data-theme', opts.lockTheme);
+    } else {
+      var stored = storedTheme();
+      if (stored) document.documentElement.setAttribute('data-theme', stored);
+    }
 
     render(t, opts);
 
@@ -235,26 +254,44 @@ var Chrome = (function () {
   // These are real links, not filter calls: this page has no feed to filter, so
   // each one goes to the main site with the category named in the query string
   // (/?cat=<slug>), which index.html validates against the same list on arrival.
+  // Held rather than used once. render() tears the nav down and rebuilds it when
+  // the /api/content labels arrive, which threw away a menu that had already
+  // been filled — leaving Portfolio opening onto an empty box for the rest of
+  // the visit. Whoever paints last has to be able to paint the categories again.
+  var categories = null;
+
   function loadCategories() {
     fetch('/api/categories', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (cats) {
-        if (!Array.isArray(cats) || !cats.length) return;   // menu stays empty
-        var desk = '<a href="/?cat=all">All work</a><div class="ch-dd-divider"></div>';
-        var mob = '';
-        cats.forEach(function (c) {
-          if (!c.slug) return;
-          var href = '/?cat=' + encodeURIComponent(c.slug);
-          var label = esc(c.label || c.slug);
-          desk += '<a href="' + href + '">' + label + '</a>';
-          mob += '<a href="' + href + '">' + label + '</a>';
-        });
-        var inner = document.querySelector('.ch-dd-inner');
-        if (inner) inner.innerHTML = desk;
-        var sub = document.querySelector('.ch-mobile-sub');
-        if (sub) sub.innerHTML = '<a href="/?cat=all">All work</a>' + mob;
+        if (!Array.isArray(cats) || !cats.length) return;   // no menu at all
+        categories = cats;
+        paintCategories();
       })
       .catch(function () { /* no menu rather than a broken one */ });
+  }
+
+  // .ch-dd-ready is what lets the menu open. Until the categories are in, the
+  // dropdown must not appear at all: an empty bordered box under Portfolio reads
+  // as the site being broken, and that is exactly what a hover during the first
+  // moments of the page used to produce.
+  function paintCategories() {
+    if (!categories) return;
+    var desk = '<a href="/?cat=all">All work</a><div class="ch-dd-divider"></div>';
+    var mob = '';
+    categories.forEach(function (c) {
+      if (!c.slug) return;
+      var href = '/?cat=' + encodeURIComponent(c.slug);
+      var label = esc(c.label || c.slug);
+      desk += '<a href="' + href + '">' + label + '</a>';
+      mob += '<a href="' + href + '">' + label + '</a>';
+    });
+    var inner = document.querySelector('.ch-dd-inner');
+    if (inner) inner.innerHTML = desk;
+    var sub = document.querySelector('.ch-mobile-sub');
+    if (sub) sub.innerHTML = '<a href="/?cat=all">All work</a>' + mob;
+    var dd = document.querySelector('.ch-dd');
+    if (dd) dd.classList.add('ch-dd-ready');
   }
 
   function render(t, opts) {
@@ -271,6 +308,7 @@ var Chrome = (function () {
       (opts.into || document.body).insertAdjacentHTML('beforeend', footerHtml(t));
     }
     wire();
+    paintCategories();      // this nav is new — the menu has to be refilled
     paintTheme();
   }
 

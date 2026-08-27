@@ -101,16 +101,33 @@
    with padding-top on the menu, never margin, for the same reason: padding is
    part of the hover target and margin is not. */
 .ch-dd { position: relative; }
+/* Hidden with visibility, not display:none — display cannot be transitioned, and
+   the menu appearing and vanishing on a hard cut is what read as clunky. The
+   visibility delay is what holds the element around long enough to fade out;
+   on the way in it has to be 0s or the fade plays against nothing. */
 .ch-dd-menu {
-  display: none;
   position: absolute;
   top: 100%; left: 50%;
   transform: translateX(-50%);
   padding-top: .75rem;
   z-index: 600;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .16s ease, visibility 0s linear .16s;
 }
-.ch-dd.open .ch-dd-menu { display: block; }
+/* .ch-dd-ready is added only once the categories are in. Without it the first
+   hover of the page opens an empty bordered box. */
+.ch-dd.ch-dd-ready.open .ch-dd-menu {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .16s ease, visibility 0s;
+}
+/* The rise lives on the inner panel: .ch-dd-menu already spends its transform on
+   the translateX(-50%) that centres it under the trigger. */
+.ch-dd.ch-dd-ready.open .ch-dd-inner { transform: translateY(0); }
 .ch-dd-inner {
+  transform: translateY(-4px);
+  transition: transform .16s ease;
   background: var(--ch-menu-bg);
   border: 1px solid var(--ch-border);
   border-radius: 3px;
