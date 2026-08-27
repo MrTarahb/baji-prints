@@ -518,11 +518,17 @@ function addBasemap() {
   var dark = themeIsDark();
   if (window.maplibregl && L.maplibreGL && hasWebGL()) {
     basemap = L.maplibreGL({
-      style: 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'),
+      style: styleUrl(dark),
       attribution: '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> ' +
         '&copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
+    // The GL map only exists once the layer has been added. styledata rather
+    // than load: it fires for the first style AND for every swap after it.
+    var glMap = basemap.getMaplibreMap ? basemap.getMaplibreMap() : null;
+    if (glMap && glMap.on) {
+      glMap.on('styledata', function () { tuneBasemap(glMap, styleUrl(themeIsDark())); });
+    }
     return;
   }
   // Esri's Gray Canvas: keyless, and a deliberate data backdrop — no S-Bahn
@@ -564,6 +570,96 @@ function ringStyle() {
   return { color: c, fillColor: c };
 }
 
+// OpenFreeMap's dark style is drawn for a map you glance at, not one you walk
+// with: measured against its own rgb(12,12,12) ground, a minor street is 1.10:1
+// and water is 1.14:1 — invisible — while railways come out at 1.24:1, brighter
+// than the roads. That is the S-Bahn-diagram failure this page rejected plain
+// OSM tiles for, arriving from the other direction.
+//
+// So the style is kept and a handful of its layers are repainted, rather than
+// forking 47 layers of somebody else's cartography. What the table below builds
+// is a ladder: land, then water and the quiet context (parks, buildings,
+// railways) just above it, then paths, minor streets, major roads, motorways,
+// and the labels at the top. The fountains' terracotta lands at 6.4:1 on that
+// land — above every road, below the labels, which is where the subject of the
+// map belongs.
+//
+// Light needs none of this — Positron is already a walking map.
+// The ratios in the comments are measured against the land (#1A1A18) and are
+// the point of the table — a legibility ladder, deliberately spaced, not a set
+// of colours someone liked. Land is lifted off the page's own #0E0E0C so that
+// everything drawn on it has somewhere to go; the map fills the viewport, so
+// nothing but the pre-tile flash sits next to the page background anyway, and
+// #1A1A18 is already the dark --bg2 that flash uses.
+var DARK_TUNE = {
+  background:              { 'background-color': '#1A1A18' },   // land, 1.00
+  // Water is the exception to the ladder: it is a SHAPE, not a line, so it
+  // reads on hue at low contrast. In Zurich the lake and the Limmat are how you
+  // know where you are, so they are lifted just clear of the land and made
+  // unmistakably cool against a page of warm neutrals.
+  water:                   { 'fill-color': '#23323C' },         // 1.32
+  waterway:                { 'line-color': '#2A3A45' },         // 1.49
+  landuse_park:            { 'fill-color': '#1F241D' },         // 1.10
+  landcover_wood:          { 'fill-color': '#1F241D' },         // 1.10
+  building:                { 'fill-color': '#212120', 'fill-outline-color': '#292927' },  // 1.08
+  // Railways sit BELOW the smallest street on purpose. Upstream had them at
+  // 1.24 against roads at 1.10, which is the S-Bahn-diagram failure this page
+  // rejected plain OSM tiles for, arriving from the other direction.
+  railway:                 { 'line-color': '#262622' },         // 1.15
+  railway_minor:           { 'line-color': '#262622' },
+  railway_transit:         { 'line-color': '#262622' },
+  highway_path:            { 'line-color': '#34322D' },         // 1.36
+  highway_minor:           { 'line-color': '#47443D', 'line-opacity': 1 },  // 1.79
+  highway_major_casing:    { 'line-color': 'rgba(125,120,110,.55)' },
+  highway_major_inner:     { 'line-color': '#5A574E' },         // 2.41
+  highway_major_subtle:    { 'line-color': '#413E37' },
+  highway_motorway_casing: { 'line-color': 'rgba(140,135,124,.6)' },
+  highway_motorway_inner:  { 'line-color': '#6E6A5F' },         // 3.23
+  highway_motorway_subtle: { 'line-color': '#494539' },
+  boundary_state:          { 'line-color': '#403D37' },
+  // Labels last. The halo width is what lets a street name cross its own
+  // street: the glyphs need the ground under them, not beside them.
+  highway_name_other:      { 'text-color': '#BAB4A8', 'text-halo-color': 'rgba(26,26,24,.9)',
+                             'text-halo-width': 1.2 },          // 8.45
+  highway_name_motorway:   { 'text-color': '#C6C0B3', 'text-halo-color': 'rgba(26,26,24,.9)',
+                             'text-halo-width': 1.2 },
+  // Upstream labelled the lake in black text on a black ground.
+  water_name:              { 'text-color': '#93AEBE', 'text-halo-color': 'rgba(26,26,24,.85)',
+                             'text-halo-width': 1.1 }           // 5.67 against the water itself
+};
+['place_other','place_suburb','place_village','place_town','place_city','place_city_large']
+  .forEach(function (id) {
+    DARK_TUNE[id] = { 'text-color': '#E8E3D8', 'text-halo-color': 'rgba(26,26,24,.9)',
+                      'text-halo-width': 1.2 };                 // 13.62
+  });
+
+// Which style the overrides above are currently painted onto. Cleared whenever
+// a new style is requested, so the next styledata repaints them.
+var tunedStyle = null;
+
+// styledata fires repeatedly — once when a style loads, and again for each
+// property this very function sets. tunedStyle is what stops that from being a
+// loop: the first pass claims the style, every re-entrant pass returns at the
+// top. A layer that upstream renames or drops is skipped rather than throwing,
+// which keeps a cartography change on their side from taking the map down.
+function tuneBasemap(glMap, styleUrl) {
+  if (!glMap || tunedStyle === styleUrl) return;
+  if (glMap.isStyleLoaded && !glMap.isStyleLoaded()) return;
+  tunedStyle = styleUrl;
+  if (styleUrl.indexOf('/dark') === -1) return;      // Positron is left alone
+  Object.keys(DARK_TUNE).forEach(function (id) {
+    if (glMap.getLayer && !glMap.getLayer(id)) return;
+    var props = DARK_TUNE[id];
+    Object.keys(props).forEach(function (prop) {
+      try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
+    });
+  });
+}
+
+function styleUrl(dark) {
+  return 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron');
+}
+
 // A dark nav over a Positron basemap was the whole reason this page spent a
 // while pinned to light. The basemap turns with everything else instead.
 //
@@ -579,7 +675,8 @@ function applyTheme() {
   if (!map || !basemap) return;
   var glMap = basemap.getMaplibreMap ? basemap.getMaplibreMap() : null;
   if (glMap && glMap.setStyle) {
-    glMap.setStyle('https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'));
+    tunedStyle = null;                  // the incoming style has not been painted yet
+    glMap.setStyle(styleUrl(dark));
     return;
   }
   map.removeLayer(basemap);
@@ -613,8 +710,12 @@ function kreisStyle() {
   // attribute, so unlike everything in the stylesheet it cannot follow a token
   // on its own and has to be restyled when the theme flips.
   var ink = cssVar('--ink') || '#111110';
-  return { color: ink, weight: 1.5, opacity: .5, dashArray: '5 4',
-           fillColor: ink, fillOpacity: .035 };
+  // Dimmer in dark: the same alpha of a near-white ink resolves brighter than a
+  // motorway on the tuned basemap, and the outline is context — it must never
+  // read as content. .26 puts it between a minor street and a major road.
+  var dark = themeIsDark();
+  return { color: ink, weight: 1.5, opacity: dark ? .26 : .5, dashArray: '5 4',
+           fillColor: ink, fillOpacity: dark ? .025 : .035 };
 }
 
 function addKreis() {

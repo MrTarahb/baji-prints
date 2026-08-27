@@ -66,6 +66,23 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   above it rebuilt. The raster fallback has no equivalent, so that branch removes the layer and
   adds the other (`World_Light_Gray_Base` ⇄ `World_Dark_Gray_Base`, the same Esri service with
   one word swapped). Both paths are covered by the `node:vm` suite.
+- **OpenFreeMap's dark style is not usable as shipped, and `DARK_TUNE` is the fix.** Measured
+  against its own `rgb(12,12,12)` ground, a minor street is 1.10:1 and water 1.14:1 — invisible
+  — while railways come out at 1.24:1, *brighter* than the roads: the same S-Bahn-diagram
+  failure that got plain OSM tiles rejected, from the other side. Rather than fork 47 layers,
+  `tuneBasemap()` repaints ~25 of them over the loaded style into a deliberate ladder: land
+  `#1A1A18` (lifted off the page's `#0E0E0C` so there is room above it), water and the quiet
+  context just over it, then paths → minor → major → motorway, labels on top, railways pushed
+  *below* the smallest street. The comments carry the measured ratio for each rung — keep them
+  if you retune, they are the spec. Water is the one exception, kept low-contrast but
+  unmistakably cool: it is a shape, not a line, and in Zürich the lake and the Limmat are the
+  orientation. Positron is left alone.
+- **The tuning hangs off `styledata`, and `tunedStyle` is what stops it looping** — each
+  `setPaintProperty` fires `styledata` again. The first pass claims the style url, re-entrant
+  passes return at the top, and `applyTheme()` clears the claim before a swap. A layer upstream
+  renames or drops is skipped, not thrown on.
+- The Kreis 1 outline dims to `.26` in dark: the same alpha of a near-white ink resolves
+  brighter than a motorway, and that outline is context, never content.
 - **`chrome.js` fires `ch:theme` on `document` from `paintTheme()`** (detail `{dark}`), which is
   how a host page learns about a toggle it does not own, and it now also follows the OS while
   nothing is stored — a system switch with the page open repaints it. `Chrome.isDark()` is
