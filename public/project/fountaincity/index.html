@@ -402,6 +402,19 @@ var PAIR_MIN = 60;      // px apart before two contacts are two fingers, not one
                         // thumb tapping twice faster than the browser reports it
 var PX_PER_ZOOM = 110;  // finger travel, in px, for one whole zoom level
 var DRAG_MIN = 12;      // px before a held second tap becomes a zoom drag
+
+// The desktop wheel, in the same currency: px of scroll for one zoom level. A
+// mouse notch is 100px in Chrome, so it buys most of a level; a trackpad's
+// stream of 1-10px events adds up continuously. WHEEL_PINCH_PX is for a
+// trackpad pinch, which the browser reports as a wheel with ctrlKey set and
+// much smaller numbers. WHEEL_EASE is the fraction of the remaining distance
+// covered each frame — the whole reason the mouse feels smooth rather than
+// stepped, since a notch arrives as one event and has to be *travelled*.
+var WHEEL_PX_PER_ZOOM = 120;
+var WHEEL_PINCH_PX = 45;
+var WHEEL_MAX_PX = 180;  // one absurd notch must not fly across four levels
+var WHEEL_EASE = 0.28;
+var WHEEL_DONE = 0.002;  // closer than this to the target and it has arrived
 var TAPLOG = typeof location !== 'undefined' && /[?&]taplog=1/.test(location.search);
 
 // The page's own copy, editable from the admin bar and stored in the site-wide
@@ -507,6 +520,7 @@ function initMap() {
   initLocate();
   leanOnUse();
   initTapZoom();
+  initWheelZoom();
 
   // Placing by click is admin-only, and the handler is attached only for the
   // admin, so a visitor's stray tap on the map does nothing at all.
@@ -659,6 +673,36 @@ var DARK_TUNE = {
 // city the day map shows.
 var DARK_HIDE = ['road_oneway', 'road_oneway_opposite'];
 
+// transportation_name carries ferry routes under class "ferry", and the dark
+// style's highway_name_other takes everything that is not a motorway — so
+// lifting street labels to 11.45:1 lifted „Fähre Zürichhorn – Wollishofen"
+// across the lake with them. Positron files ferries under none of its
+// highway-name-* classes and never had the problem. The filter is WRAPPED
+// rather than replaced, so upstream's own geometry and class tests survive.
+var DARK_NO_FERRY = ['highway_name_other'];
+
+// Positron needs its own pass — it is a walking map already, but it is a
+// walking map of a country with numbered roads.
+//
+// The shields are the white lozenges stamping "3", "17", "A3W" along half the
+// streets in town. They are a driver's furniture: the number of a road tells
+// you nothing at all about where a fountain is, and there are three shield
+// layers because upstream draws US networks separately.
+var LIGHT_HIDE = ['highway-shield-non-us', 'highway-shield-us-interstate', 'road_shield_us'];
+
+// Zurich maps a handful of its fountains as named WATER AREAS, so
+// water_name_point_label — blue, haloed, and meant for lakes — was captioning
+// exactly three of several hundred fountains (Geisterbrunnen, Münsterhofbrunnen,
+// Zentralhofbrunnen) and saying nothing about the rest. Three named out of
+// hundreds reads as those three mattering.
+//
+// Not hidden outright: the same layer names the lake, and the lake is how you
+// know where you are. Capped at z14 instead — the name is there while the whole
+// city is on screen and gone by the time you are walking a street, which is the
+// only zoom at which a fountain basin is big enough to be labelled. Rivers keep
+// their own line labels at every zoom.
+var LIGHT_ZOOM = { 'water_name_point_label': [0, 14] };
+
 // Which style the overrides above are currently painted onto. Cleared whenever
 // a new style is requested, so the next styledata repaints them.
 var tunedStyle = null;
@@ -682,15 +726,32 @@ function tuneBasemap(glMap, styleUrl) {
   // styledata retries.
   if (!glMap.getLayer || !glMap.getLayer('background')) return;
   tunedStyle = styleUrl;
-  if (styleUrl.indexOf('/dark') === -1) return;      // Positron is left alone
-  Object.keys(DARK_TUNE).forEach(function (id) {
-    if (!glMap.getLayer(id)) return;
-    var props = DARK_TUNE[id];
-    Object.keys(props).forEach(function (prop) {
-      try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
+  var dark = styleUrl.indexOf('/dark') !== -1;
+
+  // Positron's colours are left alone — it is already a walking map, and the
+  // whole ladder above exists only because the dark style is not.
+  if (dark) {
+    Object.keys(DARK_TUNE).forEach(function (id) {
+      if (!glMap.getLayer(id)) return;
+      var props = DARK_TUNE[id];
+      Object.keys(props).forEach(function (prop) {
+        try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
+      });
     });
-  });
-  DARK_HIDE.forEach(function (id) {
+    DARK_NO_FERRY.forEach(function (id) {
+      if (!glMap.getLayer(id) || !glMap.setFilter || !glMap.getFilter) return;
+      var no = ['!=', ['get', 'class'], 'ferry'];
+      var had = glMap.getFilter(id);
+      try { glMap.setFilter(id, had ? ['all', had, no] : no); } catch (e) {}
+    });
+  } else {
+    Object.keys(LIGHT_ZOOM).forEach(function (id) {
+      if (!glMap.getLayer(id) || !glMap.setLayerZoomRange) return;
+      try { glMap.setLayerZoomRange(id, LIGHT_ZOOM[id][0], LIGHT_ZOOM[id][1]); } catch (e) {}
+    });
+  }
+
+  (dark ? DARK_HIDE : LIGHT_HIDE).forEach(function (id) {
     if (!glMap.getLayer(id) || !glMap.setLayoutProperty) return;
     try { glMap.setLayoutProperty(id, 'visibility', 'none'); } catch (e) {}
   });
@@ -750,11 +811,14 @@ function kreisStyle() {
   // attribute, so unlike everything in the stylesheet it cannot follow a token
   // on its own and has to be restyled when the theme flips.
   var ink = cssVar('--ink') || '#111110';
-  // Dimmer in dark: the same alpha of a near-white ink resolves brighter than a
-  // motorway on the tuned basemap, and the outline is context — it must never
-  // read as content. .26 lands it at 2.49:1, just under a minor street.
+  // Dimmer in dark, because the same alpha of a near-white ink resolves
+  // brighter there — but .26 (2.21:1 over the tuned land) undershot: it sat
+  // below a minor street, and a boundary you have to hunt for is not doing its
+  // job. .42 measures 3.61:1 — above every minor street, below the major roads
+  // at 4.28 and well below the fountains at 5.87, so it reads as the reference
+  // line it is and never as content.
   var dark = themeIsDark();
-  return { color: ink, weight: 1.5, opacity: dark ? .26 : .5, dashArray: '5 4',
+  return { color: ink, weight: 1.5, opacity: dark ? .42 : .5, dashArray: '5 4',
            fillColor: ink, fillOpacity: dark ? .025 : .035 };
 }
 
@@ -784,6 +848,111 @@ function addKreis() {
 // zoom is right for a mouse and would double up with this one for a finger, so
 // it steps aside for the duration of a touch and comes back on the next mouse
 // press.
+// One frame's worth of scheduling, shared by the two continuous zooms — the
+// held-tap drag on a phone and the wheel on a desktop. Both coalesce to one
+// apply per frame: every setZoomAround resyncs the MapLibre basemap under the
+// page, and both wheel and touchmove fire far more often than the screen paints.
+var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+  ? function (f) { return window.requestAnimationFrame(f); }
+  : function (f) { return setTimeout(f, 16); };
+var unraf = (typeof window !== 'undefined' && window.cancelAnimationFrame)
+  ? function (h) { window.cancelAnimationFrame(h); }
+  : function (h) { clearTimeout(h); };
+
+// Desktop zoom is continuous, not a staircase. Leaflet's own wheel handler
+// debounces the events and then steps by whole levels, which on a vector
+// basemap throws away the one thing vector tiles are for: every fractional zoom
+// is drawn from geometry at full sharpness, so there is nothing to snap to.
+//
+// A wheel event moves a TARGET zoom and a rAF loop eases the map towards it.
+// The easing is what makes a mouse feel smooth and not merely fractional — a
+// trackpad already sends a stream of small deltas, but a notch on a mouse
+// arrives as ONE event, so the distance has to be travelled rather than
+// assigned. WHEEL_EASE covers that fraction of whatever is left each frame,
+// which lands a notch in about a fifth of a second and lets a second notch
+// mid-flight simply extend the target.
+//
+// The raster fallback keeps Leaflet's stepped handler: it upscales anything
+// between whole levels, so a smooth zoom there is a smoothly blurring picture.
+function initWheelZoom() {
+  var el = map.getContainer && map.getContainer();
+  if (!el || !el.addEventListener) return;
+  if (!(basemap && basemap.getMaplibreMap && basemap.getMaplibreMap())) return;
+  if (map.scrollWheelZoom) map.scrollWheelZoom.disable();
+
+  var wz = { on: false, target: 0, pt: null, snap: 1, raf: 0 };
+
+  // deltaMode 1 is lines and 2 is pages; only mode 0 already speaks px. The cap
+  // is per event: a mouse configured to scroll half a page per notch must not
+  // cross four zoom levels in one flick.
+  function wheelPx(e) {
+    var d = e.deltaY;
+    if (!d) return 0;
+    if (e.deltaMode === 1) d *= 16;
+    else if (e.deltaMode === 2) d *= (el.clientHeight || 600);
+    return Math.max(-WHEEL_MAX_PX, Math.min(WHEEL_MAX_PX, d));
+  }
+
+  function clampZoom(z) {
+    return Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
+  }
+
+  function start() {
+    wz.on = true;
+    wz.target = map.getZoom();
+    // Fractional zoom for the duration only, exactly as the held-tap drag does
+    // it. Everything else — the zoom buttons, fitBounds — keeps landing on whole
+    // levels, and with the grid handed back the next press of + re-aligns a
+    // fractional zoom to it on its own.
+    if (map.options) { wz.snap = map.options.zoomSnap; map.options.zoomSnap = 0; }
+  }
+
+  function step() {
+    wz.raf = 0;
+    if (!wz.on) return;
+    var z = map.getZoom();
+    var d = wz.target - z;
+    // Close enough to be one screen pixel of scale: stop, or the loop runs
+    // forever chasing a difference nothing can see.
+    if (Math.abs(d) < WHEEL_DONE) { stop(); return; }
+    map.setZoomAround(wz.pt, z + d * WHEEL_EASE, { animate: false });
+    wz.raf = raf(step);
+  }
+
+  function stop() {
+    if (!wz.on) return;
+    wz.on = false;
+    if (wz.raf) { unraf(wz.raf); wz.raf = 0; }
+    // Land ON the target rather than a hair short of it — an eased loop only
+    // ever approaches — then hand the whole-level grid back.
+    if (wz.pt && Math.abs(map.getZoom() - wz.target) > 1e-4) {
+      map.setZoomAround(wz.pt, wz.target, { animate: false });
+    }
+    if (map.options) map.options.zoomSnap = wz.snap;
+  }
+
+  el.addEventListener('wheel', function (e) {
+    var px = wheelPx(e);
+    // preventDefault before the early return as well: the page itself cannot
+    // scroll, but a ctrl-wheel over the map would otherwise zoom the whole
+    // document, which is never what someone pinching over a map means.
+    if (e.preventDefault) e.preventDefault();
+    if (!px) return;
+    var r = el.getBoundingClientRect();
+    // The anchor follows the pointer, so whatever is under it stays under it.
+    wz.pt = L.point(e.clientX - r.left, e.clientY - r.top);
+    if (!wz.on) start();
+    // A trackpad pinch arrives as a wheel with ctrlKey set and much smaller
+    // numbers, so it needs its own rate or it barely moves the map.
+    wz.target = clampZoom(wz.target - px / (e.ctrlKey ? WHEEL_PINCH_PX : WHEEL_PX_PER_ZOOM));
+    if (!wz.raf) wz.raf = raf(step);
+  }, { passive: false });
+
+  // A press on +/-, or the start of a pan, takes the map over: the ease must
+  // let go rather than keep pulling towards a target nobody is asking for.
+  el.addEventListener('mousedown', stop, true);
+}
+
 function initTapZoom() {
   var el = map.getContainer && map.getContainer();
   if (!el || !el.addEventListener) return;
@@ -806,13 +975,6 @@ function initTapZoom() {
   // Lifting it without dragging is the plain double tap and steps in by one.
   var dz = { on: false, id: null, y0: 0, y1: 0, z0: 0, pt: null,
              snap: 1, applied: false, raf: 0 };
-
-  var raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
-    ? function (f) { return window.requestAnimationFrame(f); }
-    : function (f) { return setTimeout(f, 16); };
-  var unraf = (typeof window !== 'undefined' && window.cancelAnimationFrame)
-    ? function (h) { window.cancelAnimationFrame(h); }
-    : function (h) { clearTimeout(h); };
 
   function arm(rec, id) {
     prevUp = 0;

@@ -106,8 +106,23 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   OpenFreeMap, asserting every `DARK_TUNE` id still exists there and that each one was painted
   with `isStyleLoaded()` answering false throughout. A stub that answered true is what let the
   guard bug ship.
-- The Kreis 1 outline dims to `.26` in dark: the same alpha of a near-white ink resolves
-  brighter than a motorway, and that outline is context, never content.
+- The Kreis 1 outline dims in dark — the same alpha of a near-white ink resolves brighter there
+  — but `.26` (2.21:1 over the tuned land) undershot and sat *below* a minor street. It is `.42`
+  / 3.61:1 now: above every minor street, below major roads (4.28) and well below the fountains
+  (5.87), so it still reads as context and never as content.
+- **Positron gets a pass of its own now, and it is not colour.** `LIGHT_HIDE` drops the three
+  road-shield layers (`highway-shield-non-us` + the two US ones) — the white lozenges stamping
+  "3", "17", "A3W" along half the streets, which are a driver's furniture. `LIGHT_ZOOM` caps
+  `water_name_point_label` at z14 rather than hiding it: Zürich maps a few fountains as named
+  water areas, so that lake layer was captioning exactly three of several hundred
+  (Geisterbrunnen, Münsterhofbrunnen, Zentralhofbrunnen) and saying nothing about the rest,
+  which reads as those three mattering. The cap keeps the lake's name while the whole city is on
+  screen and drops it at walking zoom. Dark has neither problem: no shield layers, and its
+  `water_name` matches LineString only.
+- **`DARK_NO_FERRY` wraps `highway_name_other`'s filter with `class != ferry`.** That layer takes
+  everything in `transportation_name` that is not a motorway, so lifting street labels to
+  11.45:1 lifted the lake's ferry-route names with them. Wrap upstream's filter in an `['all',
+  …]`, never replace it — its geometry and class tests are still needed.
 - **`chrome.js` fires `ch:theme` on `document` from `paintTheme()`** (detail `{dark}`), which is
   how a host page learns about a toggle it does not own, and it now also follows the OS while
   nothing is stored — a system switch with the page open repaints it. `Chrome.isDark()` is
@@ -511,6 +526,24 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
 - **Leaflet 1.9.4 from cdnjs**, with MapLibre GL and `@maplibre/maplibre-gl-leaflet` from unpkg.
   The bridge mounts the vector basemap as a Leaflet layer, so every marker, popup and handler
   on the page stays plain Leaflet and none of it had to change when the basemap did.
+- **Desktop zoom is continuous, and Leaflet's wheel handler is off** (`initWheelZoom()`). Leaflet
+  debounces wheel events and then steps by whole levels, which on a vector basemap throws away
+  the one thing vector tiles are for — every fractional zoom is drawn from geometry at full
+  sharpness, so there is nothing to snap to. A wheel event moves a *target* zoom and a rAF loop
+  eases the map toward it, anchored on the pointer.
+  - **The easing is not decoration.** A trackpad already sends a stream of small deltas, but a
+    mouse notch arrives as ONE event, so the distance has to be travelled or it lands as the same
+    jump Leaflet produced. `WHEEL_EASE` covers that fraction of what is left each frame; a second
+    notch mid-flight just extends the target.
+  - `zoomSnap` goes to 0 for the duration and is handed back on the way out — the same dance the
+    held-tap drag does, so the buttons and `fitBounds` keep landing on whole levels and the next
+    press of `+` re-aligns a fractional zoom to the grid by itself. The ease also lets go on
+    `mousedown`, or a `+`/`-` press would fight it.
+  - **The raster fallback keeps Leaflet's stepped handler** — it upscales anything between whole
+    levels, so a smooth zoom there is a smoothly blurring picture. `initWheelZoom()` returns
+    early unless the basemap is the MapLibre one.
+  - `deltaMode` is normalised by hand (1 = lines, 2 = pages) and capped per event, and a
+    ctrl-wheel — which is how a browser reports a trackpad pinch — gets its own, much higher rate.
 - **The gesture is double-tap-and-DRAG: tap, lift, tap again and hold, then slide the finger
   DOWN to zoom in and UP to zoom out, continuously** (`initTapZoom()`). Lifting the second tap
   without moving is the plain double tap and steps in one level; a two-finger tap steps out.
