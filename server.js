@@ -3549,20 +3549,20 @@ app.put('/api/admin/fountains/:id', requireAuth, async (req, res) => {
     if (lat === null || lng === null) {
       return res.status(400).json({ error: 'Coordinates must be decimal degrees, e.g. 47.3769, 8.5417' });
     }
-    vals.push(lat); sets.push(`lat=${vals.length}`);
-    vals.push(lng); sets.push(`lng=${vals.length}`);
+    vals.push(lat); sets.push(`lat=$${vals.length}`);
+    vals.push(lng); sets.push(`lng=$${vals.length}`);
   }
   const limits = { name: 120, note: 2000 };
   ['name', 'note'].forEach((col) => {
     if (!Object.prototype.hasOwnProperty.call(req.body, col)) return;
     vals.push((req.body[col] || '').trim().slice(0, limits[col]) || null);
-    sets.push(`${col}=${vals.length}`);
+    sets.push(`${col}=$${vals.length}`);
   });
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
   vals.push(req.params.id);
   try {
     const { rows } = await pool.query(
-      `UPDATE fountains SET ${sets.join(', ')} WHERE id=${vals.length}
+      `UPDATE fountains SET ${sets.join(', ')} WHERE id=$${vals.length}
         RETURNING id, name, lat, lng, note, image_url, image_width, image_height`, vals
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });

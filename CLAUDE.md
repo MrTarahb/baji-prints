@@ -237,6 +237,18 @@ deleting a seeded row lets the next deploy resurrect it.
 `express.json()` (`server.js:472`) — signature verification needs the raw body. `app.set('trust
 proxy', 1)` is load-bearing for per-IP rate limiting behind Railway.
 
+**A placeholder built into a template literal needs `$${n}`, not `${n}`, and one missing `$`
+does not fail loudly.** Both partial-update routes assemble their SQL this way. `PUT
+/api/admin/fountains/:id` shipped with the `$` missing on all four and ran `UPDATE fountains SET
+lat=1, lng=2, name=3, note=4 WHERE id=5` — integer *literals*, so it edited whichever row had
+id 5 rather than the one asked for, moved it to (1, 2) in the Gulf of Guinea, and stored the
+strings '3' and '4' (PostgreSQL assignment-casts a number into a text column without
+complaint). It returned 200 and the page toasted "Saved". Nothing about it looked wrong from
+the outside; it surfaced as "the note I typed isn't on the fountain". `client_photos` at
+`server.js:3456` is the correct pattern — copy from there, and check the built statement rather
+than the code that builds it: lifting the handler out of `server.js` and running it against a
+stub `pool` that prints the SQL takes about thirty lines and answers this exactly.
+
 **Route order.** Literal paths before `/:id` params, always (e.g. `/api/admin/prints/reorder`
 before `/api/admin/prints/:id`).
 
