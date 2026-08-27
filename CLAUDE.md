@@ -16,16 +16,17 @@ plan, including schema and the decisions behind it, is at
 - `public/shared/chrome.{css,js}` — the main site's nav, footer, theme toggle, Portfolio
   dropdown and cursor, for standalone pages. See the header comment in chrome.css for why it is
   a second copy of what `public/index.html` carries inline, and what is deliberately not copied.
-- Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false,
-  lockTheme: 'light' })`.
+- Fountain City wears it: `Chrome.mount({ navInto: #topstack, floating: true, footer: false })` —
+  toggle included, no `lockTheme`; see the dark mode entry below.
 - `public/index.html` learned `/?cat=<slug>` so the dropdown can link back into a filter.
 - **A chrome change does not reach a returning visitor by itself.** The origin sent no
   `Cache-Control` for `/shared/*`, so Cloudflare applied its 4-hour browser TTL and the fixed
   nav kept looking broken on a device that had loaded the page earlier the same day — new HTML
   asking for `lockTheme`, an old `chrome.js` that had never heard of it, near-white text back on
   the near-white scrim. `express.static`'s `setHeaders` now sends `no-cache` (revalidate, ETag →
-  304) for anything under `public/shared/`, and the tags carry `?v=2`. Bump `v` when a chrome
-  change must land inside the hour for people already holding a copy.
+  304) for anything under `public/shared/`, and the tags carry `?v=`. Bump it when a chrome
+  change must land inside the hour for people already holding a copy — `?v=3` is the current
+  one, for the `ch:theme` event.
 
 **The "nav doesn't look right" bug is fixed** — it was never the width alignment the earlier
 note suspected. Three separate things, all now closed:
@@ -37,7 +38,8 @@ note suspected. Three separate things, all now closed:
    **`Chrome.mount({ lockTheme: 'light' })`** instead: it sets the `data-theme` attribute those
    selectors actually test, and never writes it to `localStorage`, so pinning one page does not
    change the visitor's choice for the rest of the site. It also drops the theme toggle — a
-   pinned page offering one could only lie about what it does.
+   pinned page offering one could only lie about what it does. (Fountain City no longer pins;
+   `lockTheme` stays in the chrome for the next page that needs it.)
 2. **Portfolio opened onto an empty box.** `render()` tears the nav down and rebuilds it when the
    `/api/content` labels arrive, which discarded a menu `loadCategories()` had already filled.
    The categories are held in a module variable and repainted by every `render()`, and the menu
@@ -45,12 +47,34 @@ note suspected. Three separate things, all now closed:
 3. It snapped open and shut. `.ch-dd-menu` hides with `visibility`, not `display:none`, so the
    fade can actually run.
 
-**Still open, if wanted:** a real dark mode for the map. `https://tiles.openfreemap.org/styles/dark`
-is verified live (background `rgb(12,12,12)`, close to the chrome's `--ch-bg` of `#0E0E0C`); it
-needs the MapLibre style swapped on toggle plus dark values for the page's own `--ink`/`--bg`
-/`--line`/`--mute` and the `#topstack` scrim. Removing the `lockTheme` line is the last step, not
-the first. The scrim is also much heavier than the main site's (`rgba(250,250,248,.97)` against
-the hero nav's `rgba(17,17,16,.35)`) — deliberate, but a dial worth turning if asked.
+**Dark mode landed on Fountain City**, so it carries the same day/night toggle as everything
+else. What it took, and what to reuse for the next `/project/<name>` page:
+- The page's tokens gained the main site's two dark blocks — `@media (prefers-color-scheme: dark)
+  { :root:not([data-theme="light"]) }` then `:root[data-theme="dark"]` — so the page turns with
+  the attribute `chrome.js` writes. Same order, same guard, or an explicit light choice loses to
+  a dark OS.
+- **A gradient and a text-shadow cannot follow a colour token, so `--scrim` is an rgb triple**
+  (`250,250,248` / `14,14,12`) composed as `rgba(var(--scrim),.97)`. The `#topstack` scrim and
+  the halo behind the title, the tally and the nav links all read it.
+- **Anything drawn as an SVG attribute has to be repainted by hand** — a Leaflet path takes its
+  colour once. `kreisStyle()` and `ringStyle()` read `--ink`/`--geo` off the computed style, and
+  `applyTheme()` pushes them onto the layers that already exist. Leaflet's own zoom buttons ship
+  white with dark glyphs and needed the page's tokens too, as did the popup wrapper *and its
+  tip* (a rotated square that otherwise stays a white beak).
+- **The basemap turns with the page.** MapLibre swaps `positron` ⇄ `dark` in place via
+  `getMaplibreMap().setStyle()` — same GL context, same centre and zoom, no blink and nothing
+  above it rebuilt. The raster fallback has no equivalent, so that branch removes the layer and
+  adds the other (`World_Light_Gray_Base` ⇄ `World_Dark_Gray_Base`, the same Esri service with
+  one word swapped). Both paths are covered by the `node:vm` suite.
+- **`chrome.js` fires `ch:theme` on `document` from `paintTheme()`** (detail `{dark}`), which is
+  how a host page learns about a toggle it does not own, and it now also follows the OS while
+  nothing is stored — a system switch with the page open repaints it. `Chrome.isDark()` is
+  exported as the single reader; asking `matchMedia` separately answers differently for someone
+  whose stored choice contradicts their OS.
+- The first `ch:theme` fires during `mount()`, before `initMap()`, hence the map guard inside
+  `applyTheme()`.
+- Still deliberate: the scrim is much heavier than the main site's (`.97` against the hero nav's
+  `rgba(17,17,16,.35)`) — a dial worth turning if asked, not a bug.
 
 **Not started:** Stage 2 (projects table, `/project/:slug`, admin panel), Stage 3 (workshops
 table, per-workshop dates/photos, `/workshop/<slug>` page, 301 from `/workshops`), Stage 4 (slug

@@ -66,6 +66,13 @@ var Chrome = (function () {
     var dark = isDark();
     var svgs = document.querySelectorAll('.ch-svg');
     for (var i = 0; i < svgs.length; i++) svgs[i].classList.toggle('is-dark', dark);
+    // Anything on the host page that cannot be repainted by CSS alone listens
+    // for this — the fountain map swaps its basemap for a dark one. Dispatched
+    // on every paint, the first one included, so a page can also just react to
+    // the event rather than reading the attribute itself.
+    try {
+      document.dispatchEvent(new CustomEvent('ch:theme', { detail: { dark: dark } }));
+    } catch (e) {}
   }
 
   function toggleTheme() {
@@ -228,6 +235,20 @@ var Chrome = (function () {
 
     render(t, opts);
 
+    // With no attribute and nothing stored, the page is following the OS — so
+    // it has to keep following it. A visitor who switches their system to dark
+    // with this page open gets the same repaint the toggle would have given
+    // them. A visitor who has chosen, or a page that pinned its theme, is left
+    // alone: the guard re-reads the attribute rather than trusting this check.
+    if (!opts.lockTheme && window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      var onSystem = function () {
+        if (!document.documentElement.getAttribute('data-theme')) paintTheme();
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onSystem);
+      else if (mq.addListener) mq.addListener(onSystem);
+    }
+
     // Labels arrive after the first paint on purpose: the built-in defaults are
     // the real strings, so there is nothing visibly wrong to correct, and the
     // page is not held up by a request it can do without.
@@ -350,7 +371,7 @@ var Chrome = (function () {
   // A page that wants the site's cursor but not its nav — the client boards are
   // private and deliberately bare — calls cursor() on its own.
   return {
-    mount: mount, cursor: initCursor, toggleTheme: toggleTheme,
+    mount: mount, cursor: initCursor, toggleTheme: toggleTheme, isDark: isDark,
     cartCount: cartCount, esc: esc
   };
 })();

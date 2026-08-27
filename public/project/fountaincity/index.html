@@ -11,18 +11,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<!-- ?v= breaks a browser out of a copy it is already holding: the server now
-     sends no-cache for /shared/*, but a stale file cached under the old 4-hour
-     Cloudflare TTL is not revalidated until that TTL expires, and a chrome.js
-     predating lockTheme silently ignores the mount option below. Bump v only
-     when a change must reach returning visitors within the hour. -->
-<link rel="stylesheet" href="/shared/chrome.css?v=2">
-<script src="/shared/chrome.js?v=2"></script>
+<!-- ?v= breaks a browser out of a copy it is already holding: the server sends
+     no-cache for /shared/* now, but a file already cached under the old 4-hour
+     Cloudflare TTL is not revalidated until that TTL expires, and this page
+     needs a chrome.js new enough to fire ch:theme. Bump v whenever a chrome
+     change has to reach returning visitors inside the hour. -->
+<link rel="stylesheet" href="/shared/chrome.css?v=3">
+<script src="/shared/chrome.js?v=3"></script>
 <style>
 :root{
   --fi:'Playfair Display',Georgia,serif;
   --fm:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --ink:#111110;
+  --ink-2:#4A453E;
   --bg:#FAFAF8;
   --bg2:#F0EFEC;
   --line:#E2E0DA;
@@ -30,18 +31,67 @@
   --pink:#C8907A;
   --pink-d:#A87060;
   --no:#A8564A;
+  --field:#fff;             /* the ground under an input or a button */
+  --geo:#3F6EA8;            /* your own position — deliberately not the fountains' terracotta */
+  /* An rgb triple, not a colour: the floating stack's gradient and the text
+     halos need their own alpha at each stop, so they compose it themselves. */
+  --scrim:250,250,248;
+  /* The admin bar is INVERTED against the page — ink ground, page-coloured
+     text — so its own borders and hints cannot use --line or --mute, which are
+     tuned for the page. They flip with the theme like everything else. */
+  --ab-line:#3A3733;
+  --ab-mute:#9C968C;
+}
+
+/* Dark mode, in the two blocks the main site uses and in the same order: the
+   system preference first, guarded so an explicit light choice outranks it,
+   then the explicit dark choice. Both test the data-theme attribute that
+   shared/chrome.js writes, so the nav and the page turn together.
+
+   The map turns too — see applyTheme(). A dark nav over a Positron basemap was
+   the reason this page was pinned to light for a while; nothing pins it now
+   unless someone puts lockTheme back in the Chrome.mount() call. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink:#F0EFEC;
+    --ink-2:rgba(240,239,236,.78);
+    --bg:#0E0E0C;
+    --bg2:#1A1A18;
+    --line:rgba(240,239,236,.14);
+    --mute:rgba(240,239,236,.5);
+    --no:#D07A6B;
+    --field:#1A1A18;
+    --geo:#6C9BD8;
+    --scrim:14,14,12;
+    --ab-line:#D6D2CA;
+    --ab-mute:#7C776E;
+  }
+}
+:root[data-theme="dark"] {
+  --ink:#F0EFEC;
+  --ink-2:rgba(240,239,236,.78);
+  --bg:#0E0E0C;
+  --bg2:#1A1A18;
+  --line:rgba(240,239,236,.14);
+  --mute:rgba(240,239,236,.5);
+  --no:#D07A6B;
+  --field:#1A1A18;
+  --geo:#6C9BD8;
+  --scrim:14,14,12;
+  --ab-line:#D6D2CA;
+  --ab-mute:#7C776E;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--fm);font-weight:300;font-size:14px;
   line-height:1.65;-webkit-font-smoothing:antialiased;height:100dvh;overflow:hidden}
-button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;
+button{font-family:var(--fm);font-size:13px;cursor:pointer;border:1px solid var(--line);background:var(--field);
   color:var(--ink);padding:8px 14px;border-radius:2px;transition:border-color .18s,background .18s,color .18s}
 button:hover{border-color:var(--ink)}
 button:disabled{opacity:.45;cursor:default}
-input{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;
+input{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:var(--field);
   border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
-input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:#fff;
+input,textarea{font-family:var(--fm);font-size:13px;font-weight:300;color:var(--ink);background:var(--field);
   border:1px solid var(--line);border-radius:2px;padding:9px 11px;width:100%}
 input:focus,textarea:focus{outline:none;border-color:var(--ink)}
 textarea{resize:vertical;min-height:76px;line-height:1.6}
@@ -53,18 +103,16 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
   .leaflet-container,.leaflet-container *{cursor:none !important}
 }
 
-/* This page is pinned to the chrome's LIGHT palette — see lockTheme in the
-   Chrome.mount() call at the foot of the page. The basemap is Positron and the
-   scrim is a fixed near-white gradient, so there is no dark mode here to match.
+/* This page carries the site's toggle and follows the site's theme, like every
+   other page. It spent a while pinned to light (Chrome.mount's lockTheme, now
+   gone) because a dark nav over a Positron basemap is a black bar on a white
+   map — the page turns with the nav now, basemap included.
 
-   It used to be done by redeclaring the --ch-* tokens in a :root block here, on
-   the reasoning that a later block at equal specificity wins. That was wrong:
+   Never pin the chrome by redeclaring the --ch-* tokens in a :root block here:
    chrome.css's dark block is `:root:not([data-theme="light"])`, specificity
-   (0,2,0) against a plain :root's (0,1,0). So any visitor whose OS is set to
-   dark — and who had no stored preference to override it, i.e. anyone arriving
-   in a private window — got the dark tokens anyway: near-white nav text on this
-   near-white scrim, unreadable. lockTheme sets the data-theme attribute those
-   selectors actually test, which ends the argument rather than joining it. */
+   (0,2,0) against a plain :root's (0,1,0), so it wins regardless of order. That
+   version put near-white nav text on this near-white scrim for anyone whose OS
+   was dark. The data-theme attribute is what those selectors test. */
 
 input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px;width:100%}
@@ -87,9 +135,9 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
   padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));pointer-events:auto}
 #adminbar.on{display:block}
 #adminbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-#adminbar button{background:transparent;color:var(--bg);border-color:#3A3733;padding:5px 10px;font-size:11.5px}
+#adminbar button{background:transparent;color:var(--bg);border-color:var(--ab-line);padding:5px 10px;font-size:11.5px}
 #adminbar button:hover{border-color:var(--bg)}
-#ab-hint{color:#9C968C;font-size:11.5px}
+#ab-hint{color:var(--ab-mute);font-size:11.5px}
 
 /* ── FLOATING TOP STACK ───────────────────────────────────────────────
    The admin bar and the title sit over the map. The stack itself takes no
@@ -101,8 +149,8 @@ input[type=file]{padding:7px 9px;font-size:12px;background:var(--bg2)}
    the map keeps running underneath and simply fades out from under all of it. */
 #topstack{position:fixed;top:0;left:0;right:0;z-index:500;pointer-events:none;max-width:100vw;
   background:linear-gradient(to bottom,
-    rgba(250,250,248,.97) 0%, rgba(250,250,248,.92) 42%,
-    rgba(250,250,248,.72) 68%, rgba(250,250,248,0) 100%)}
+    rgba(var(--scrim),.97) 0%, rgba(var(--scrim),.92) 42%,
+    rgba(var(--scrim),.72) 68%, rgba(var(--scrim),0) 100%)}
 
 /* ── HEADER ───────────────────────────────────────────────────────────── */
 /* The scrim itself now lives on #topstack, above — the header is just the row
@@ -116,7 +164,7 @@ h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:34px;line-h
    Android Chrome, which is exactly what the whole layout rests on here. */
 header .eyebrow,header h1,.intro,#count,#near,
 #topstack .ch-name,#topstack .ch-links > li > a{
-  text-shadow:0 1px 3px rgba(250,250,248,.95), 0 0 14px rgba(250,250,248,.85)}
+  text-shadow:0 1px 3px rgba(var(--scrim),.95), 0 0 14px rgba(var(--scrim),.85)}
 
 /* The sentence collapses once the map is touched — see leanOnUse().
 
@@ -137,7 +185,7 @@ header .eyebrow,header h1,.intro,#count,#near,
    where the sentence actually collapses. */
 #lean-toggle{display:none;pointer-events:auto;width:30px;height:30px;padding:0;
   line-height:1;font-size:15px;border-radius:50%;border:1px solid var(--line);
-  background:rgba(250,250,248,.92);color:var(--mute);flex:none}
+  background:rgba(var(--scrim),.92);color:var(--mute);flex:none}
 #lean-toggle:hover{border-color:var(--ink);color:var(--ink)}
 #count b{font-weight:500;color:var(--ink)}
 
@@ -157,7 +205,13 @@ header .eyebrow,header h1,.intro,#count,#near,
    basemap is built to sit under data — it draws land, water, roads and a few
    faint labels, and no railways or ferry routes, which is what made the plain
    OSM tiles read as a transit map. */
-.leaflet-control-attribution{font-size:10px;background:rgba(250,250,248,.86)}
+.leaflet-control-attribution{font-size:10px;background:rgba(var(--scrim),.86);color:var(--mute)}
+.leaflet-control-attribution a{color:var(--ink)}
+/* Leaflet's own zoom buttons ship white with near-black glyphs, which is a pair
+   of bright squares on a dark map. They take the page's tokens instead. */
+.leaflet-bar a,.leaflet-bar a:hover{background:var(--bg);color:var(--ink);border-bottom-color:var(--line)}
+.leaflet-bar a:hover{background:var(--bg2)}
+.leaflet-bar a.leaflet-disabled{background:var(--bg2);color:var(--mute)}
 /* The zoom control, Locate, and the attribution the tiles' licence requires all
    live down here, so they ride above the admin bar when it is on. --abh is
    measured rather than assumed: the bar's controls wrap onto a second line on a
@@ -172,7 +226,7 @@ header .eyebrow,header h1,.intro,#count,#near,
 .loc-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .loc-btn.busy{opacity:.7}
 /* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
-.me-dot{width:14px;height:14px;border-radius:50%;background:#3F6EA8;border:2px solid #fff;
+.me-dot{width:14px;height:14px;border-radius:50%;background:var(--geo);border:2px solid var(--bg);
   box-shadow:0 0 0 1px rgba(17,17,16,.28)}
 /* A fountain's name is free text and lands in here — ellipsis rather than
    letting a long one push the title off its own line. */
@@ -187,11 +241,14 @@ header .eyebrow,header h1,.intro,#count,#near,
   transition:transform .15s,background .15s}
 .fmark:hover{transform:scale(1.35);background:var(--pink-d)}
 .leaflet-popup-content-wrapper{border-radius:3px;box-shadow:0 4px 20px rgba(17,17,16,.18)}
+/* The tip is a rotated square, so it has to be told the same ground as the
+   wrapper or the popup grows a white beak in dark mode. */
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--bg);color:var(--ink)}
 .leaflet-popup-content{margin:13px 15px;font-size:12.5px;line-height:1.55}
 .pop-name{font-family:var(--fi);font-style:italic;font-size:16px;display:block;margin-bottom:2px}
 .pop-name.none{font-family:var(--fm);font-style:normal;font-size:12.5px;color:var(--mute)}
 .pop-co{color:var(--mute);font-size:11px;letter-spacing:.02em;display:block}
-.pop-note{margin:6px 0 0;color:#4A453E;font-size:12px;white-space:pre-wrap;
+.pop-note{margin:6px 0 0;color:var(--ink-2);font-size:12px;white-space:pre-wrap;
   border-left:2px solid var(--pink);padding-left:9px}
 /* The photograph bleeds to the popup's edges — the negative margins cancel
    .leaflet-popup-content's own padding rather than fighting it. */
@@ -260,7 +317,7 @@ header .eyebrow,header h1,.intro,#count,#near,
      in the stylesheet for why it is not part of the floating header. -->
 <div id="adminbar">
   <div class="wrap">
-    <span class="eyebrow" style="color:#9C968C">Admin view</span>
+    <span class="eyebrow" style="color:var(--ab-mute)">Admin view</span>
     <button onclick="addFountain()">+ Fountain</button>
     <button id="ab-here" onclick="addHere()">+ Fountain here</button>
     <button onclick="editText()">Edit text</button>
@@ -297,6 +354,9 @@ header .eyebrow,header h1,.intro,#count,#near,
 var fountains = [];
 var isAdmin = false;
 var map, layer;
+// The basemap and the district outline are held so a theme change can restyle
+// them — everything else on this page follows the CSS tokens by itself.
+var basemap = null, kreis = null;
 // Markers indexed by fountain id, so an edit can reopen the popup it came from
 // — render() rebuilds every marker, which would otherwise close it silently.
 var markerById = {};
@@ -455,27 +515,81 @@ function initMap() {
 // and it needs WebGL; if either is unavailable the page still gets a map (the
 // Esri canvas this page used before) rather than a blank grey rectangle.
 function addBasemap() {
+  var dark = themeIsDark();
   if (window.maplibregl && L.maplibreGL && hasWebGL()) {
-    L.maplibreGL({
-      style: 'https://tiles.openfreemap.org/styles/positron',
+    basemap = L.maplibreGL({
+      style: 'https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'),
       attribution: '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> ' +
         '&copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     return;
   }
-  // Esri's Light Gray Canvas: keyless, and a deliberate data backdrop — no
-  // S-Bahn lines, no ferry routes, barely any labels. Note {y} precedes {x}
-  // here, unlike OSM. It stops rendering at zoom 16, so maxNativeZoom upscales
-  // the last steps, and detectRetina fetches the next zoom's tiles to draw at
-  // half size, which is what keeps it sharp on a 2x screen.
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  // Esri's Gray Canvas: keyless, and a deliberate data backdrop — no S-Bahn
+  // lines, no ferry routes, barely any labels. Light and Dark are the same
+  // service with one word swapped. Note {y} precedes {x} here, unlike OSM. It
+  // stops rendering at zoom 16, so maxNativeZoom upscales the last steps, and
+  // detectRetina fetches the next zoom's tiles to draw at half size, which is
+  // what keeps it sharp on a 2x screen.
+  basemap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_' +
+      (dark ? 'Dark' : 'Light') + '_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>',
     detectRetina: true,
     maxNativeZoom: 16,
     maxZoom: 19
   }).addTo(map);
 }
+
+// ── THEME ────────────────────────────────────────────────────────────────────
+// The nav's toggle is the site's, not this page's: it writes data-theme and the
+// same localStorage key every other page reads, so a choice made here is still
+// made when the visitor lands on the shop. Chrome.isDark() is the one reader —
+// asking matchMedia here as well would answer differently for someone whose
+// stored choice contradicts their OS.
+function themeIsDark() {
+  if (window.Chrome && Chrome.isDark) return Chrome.isDark();
+  var set = document.documentElement.getAttribute('data-theme');
+  if (set) return set === 'dark';
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
+function cssVar(name) {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  } catch (e) { return ''; }
+}
+
+function ringStyle() {
+  var c = cssVar('--geo') || '#3F6EA8';
+  return { color: c, fillColor: c };
+}
+
+// A dark nav over a Positron basemap was the whole reason this page spent a
+// while pinned to light. The basemap turns with everything else instead.
+//
+// MapLibre swaps its style in place — the GL context, the current centre and
+// zoom and the Leaflet layer all survive, so nothing below the basemap has to
+// be rebuilt and the map does not blink. The raster fallback has no equivalent,
+// so that branch removes the layer and adds the other one; markers and the
+// outline live in different panes and are untouched either way.
+function applyTheme() {
+  var dark = themeIsDark();
+  if (kreis) kreis.setStyle(kreisStyle());
+  if (geo.ring) geo.ring.setStyle(ringStyle());
+  if (!map || !basemap) return;
+  var glMap = basemap.getMaplibreMap ? basemap.getMaplibreMap() : null;
+  if (glMap && glMap.setStyle) {
+    glMap.setStyle('https://tiles.openfreemap.org/styles/' + (dark ? 'dark' : 'positron'));
+    return;
+  }
+  map.removeLayer(basemap);
+  basemap = null;
+  addBasemap();
+}
+
+// chrome.js fires this on every theme paint, including its first — which lands
+// before initMap() has run, hence the map guard inside applyTheme().
+document.addEventListener('ch:theme', applyTheme);
 
 function hasWebGL() {
   try {
@@ -494,17 +608,20 @@ function hasWebGL() {
 // land on it, and the admin places fountains BY clicking the map — an
 // interactive polygon would make the whole of Kreis 1 the one place a pin
 // could not be dropped.
+function kreisStyle() {
+  // Ink, whichever ink that currently is: an SVG path takes its colour as an
+  // attribute, so unlike everything in the stylesheet it cannot follow a token
+  // on its own and has to be restyled when the theme flips.
+  var ink = cssVar('--ink') || '#111110';
+  return { color: ink, weight: 1.5, opacity: .5, dashArray: '5 4',
+           fillColor: ink, fillOpacity: .035 };
+}
+
 function addKreis() {
   fetch(KREIS1_URL, { credentials: 'same-origin' })
     .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
     .then(function (geo) {
-      L.geoJSON(geo, {
-        interactive: false,
-        style: {
-          color: '#111110', weight: 1.5, opacity: .5, dashArray: '5 4',
-          fillColor: '#111110', fillOpacity: .035
-        }
-      }).addTo(map);
+      kreis = L.geoJSON(geo, { interactive: false, style: kreisStyle() }).addTo(map);
     })
     .catch(function (e) {
       // The boundary is a nicety; a map without it still works, so this stays
@@ -910,8 +1027,8 @@ function onPos(p) {
     }).addTo(map);
     // The accuracy ring is the honest part: a 40m fix should look like 40m.
     geo.ring = L.circle(ll, { interactive: false, radius: geo.pos.acc,
-      color: '#3F6EA8', weight: 1, opacity: .45,
-      fillColor: '#3F6EA8', fillOpacity: .07 }).addTo(map);
+      weight: 1, opacity: .45, fillOpacity: .07 })
+      .setStyle(ringStyle()).addTo(map);
   } else {
     geo.marker.setLatLng(ll);
     geo.ring.setLatLng(ll).setRadius(geo.pos.acc);
@@ -1058,19 +1175,12 @@ window.addEventListener('resize', syncAdminBar, { passive: true });
 // footer — the map runs to the bottom edge and the tiles' required attribution
 // already sits down there.
 //
-// lockTheme pins the chrome to its light palette. The basemap is Positron and
-// the scrim is a fixed near-white gradient, so a visitor whose system is dark
-// would otherwise get the chrome's dark tokens — near-white text on all of
-// that. It also drops the theme toggle, which on a pinned page could only lie.
-// Giving this page a real dark mode means swapping the MapLibre style for
-// tiles.openfreemap.org/styles/dark and darkening the scrim and the page's own
-// --ink/--bg tokens with it; that is a change of its own, and this line is what
-// to remove when it lands.
+// No lockTheme: the nav offers the day/night toggle here exactly as it does on
+// the main site, and the page and the basemap turn with it (see applyTheme()).
 Chrome.mount({
   navInto: document.getElementById('topstack'),
   floating: true,
   footer: false,
-  lockTheme: 'light',
   cursor: '.fmark'                     // the fountain discs swell it like a link
 });
 
