@@ -91,6 +91,21 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   `setPaintProperty` fires `styledata` again. The first pass claims the style url, re-entrant
   passes return at the top, and `applyTheme()` clears the claim before a swap. A layer upstream
   renames or drops is skipped, not thrown on.
+- **Readiness for that pass is `getLayer('background')`, never `isStyleLoaded()`.** MapLibre's
+  "style loaded" also waits for every source cache and the sprite — i.e. for tiles — and tiles
+  arriving fire `sourcedata`, not `styledata`. Gating on it meant the single `styledata` a page
+  load delivers was always rejected and *none* of the ladder was ever painted: the map shipped
+  as upstream's own `rgb(12,12,12)` ground under 1.10:1 streets and `rgba(80,78,78)` labels.
+  That reads exactly like a tuning problem, and it was a guard that never opened — measure a
+  suspect dark map against the values in `DARK_TUNE` before retuning it.
+- **`DARK_HIDE` turns off `road_oneway` / `road_oneway_opposite`.** Positron has no such layers,
+  so day and night showed different cities; the dark style stamps an arrow every 200px along
+  every one-way street, which over the old town is a field of chevrons the fountains compete
+  with. Off outright, not dimmed.
+- The node:vm suite runs `tuneBasemap()` against the **real** style JSON fetched from
+  OpenFreeMap, asserting every `DARK_TUNE` id still exists there and that each one was painted
+  with `isStyleLoaded()` answering false throughout. A stub that answered true is what let the
+  guard bug ship.
 - The Kreis 1 outline dims to `.26` in dark: the same alpha of a near-white ink resolves
   brighter than a motorway, and that outline is context, never content.
 - **`chrome.js` fires `ch:theme` on `document` from `paintTheme()`** (detail `{dark}`), which is

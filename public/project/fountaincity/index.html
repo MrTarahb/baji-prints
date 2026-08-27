@@ -234,10 +234,14 @@ header .eyebrow,header h1,.intro,#count,#near,
 /* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
 .me-dot{width:14px;height:14px;border-radius:50%;background:var(--geo);border:2px solid var(--bg);
   box-shadow:0 0 0 1px rgba(17,17,16,.28)}
-/* A fountain's name is free text and lands in here — ellipsis rather than
-   letting a long one push the title off its own line. */
-#near{display:block;color:var(--mute);max-width:22ch;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
+/* A fountain's name is free text and lands in here, and Zurich's are compounds
+   — 22ch cut most of them off mid-word („Flös…"), which reads as a broken page
+   and defeats the point of the readout: naming the fountain you are walking to.
+   It wraps onto a second line instead. The width cap is what keeps a long name
+   off the title — that was the ellipsis's job, and the cap does it without
+   hiding anything — and overflow-wrap breaks a compound carrying no space at
+   all rather than letting it push past the cap. */
+#near{display:block;color:var(--mute);max-width:min(32ch,58vw);overflow-wrap:anywhere}
 #near b{font-weight:500;color:var(--ink)}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
@@ -648,6 +652,13 @@ var DARK_TUNE = {
                       'text-halo-width': 1.3 };                 // 13.91
   });
 
+// Positron draws no one-way arrows; the dark style draws one every 200px along
+// every one-way street, which over the old town is a field of chevrons for the
+// fountains to compete with. This is a map of fountains, not a driving map, so
+// they are turned off outright rather than dimmed — dark should show the same
+// city the day map shows.
+var DARK_HIDE = ['road_oneway', 'road_oneway_opposite'];
+
 // Which style the overrides above are currently painted onto. Cleared whenever
 // a new style is requested, so the next styledata repaints them.
 var tunedStyle = null;
@@ -659,15 +670,29 @@ var tunedStyle = null;
 // which keeps a cartography change on their side from taking the map down.
 function tuneBasemap(glMap, styleUrl) {
   if (!glMap || tunedStyle === styleUrl) return;
-  if (glMap.isStyleLoaded && !glMap.isStyleLoaded()) return;
+  // Ready means THE LAYERS EXIST — never isStyleLoaded(). That one is loaded in
+  // a much wider sense: it also waits for every source cache and the sprite,
+  // i.e. for tiles, and tiles arriving fire sourcedata, not styledata. So the
+  // one styledata a page load delivers was always rejected, nothing ever fired
+  // again, and none of the ladder below was painted: the map shipped as
+  // upstream's own rgb(12,12,12) ground under 1.10:1 streets and rgba(80,78,78)
+  // labels — precisely the grey-on-grey this table exists to fix, and it looked
+  // like a tuning problem rather than a guard that never opened. background is
+  // in both styles; if it is missing the style has not parsed and a later
+  // styledata retries.
+  if (!glMap.getLayer || !glMap.getLayer('background')) return;
   tunedStyle = styleUrl;
   if (styleUrl.indexOf('/dark') === -1) return;      // Positron is left alone
   Object.keys(DARK_TUNE).forEach(function (id) {
-    if (glMap.getLayer && !glMap.getLayer(id)) return;
+    if (!glMap.getLayer(id)) return;
     var props = DARK_TUNE[id];
     Object.keys(props).forEach(function (prop) {
       try { glMap.setPaintProperty(id, prop, props[prop]); } catch (e) {}
     });
+  });
+  DARK_HIDE.forEach(function (id) {
+    if (!glMap.getLayer(id) || !glMap.setLayoutProperty) return;
+    try { glMap.setLayoutProperty(id, 'visibility', 'none'); } catch (e) {}
   });
 }
 
