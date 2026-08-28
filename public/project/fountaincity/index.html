@@ -61,6 +61,18 @@
     --line:rgba(240,239,236,.14);
     --mute:rgba(240,239,236,.5);
     --no:#D07A6B;
+  /* The fountains keep their terracotta in dark, but a brighter and MORE
+     SATURATED one: #C8907A was mixed against a near-white page and over the
+     tuned #22221F land it fell to 5.87:1, barely clear of a motorway at 5.22.
+     #E38F63 measures 6.36:1 and lifts saturation 43% -> 56%, which is the half
+     that actually does the work - the basemap either side of a fountain is a
+     desaturated grey-brown, so chroma separates a 13px disc from it faster
+     than luminance does, and it is what keeps the discs distinct from the
+     near-neutral Kreis dashes. Hover goes BRIGHTER here, not darker: --pink-d
+     darkens against the light page to gain contrast, and on dark land the same
+     move would lose it. */
+  --pink:#E38F63;
+  --pink-d:#F2AE88;
     --field:#1A1A18;
     --map-land:#22221F;
     --geo:#6C9BD8;
@@ -77,6 +89,18 @@
   --line:rgba(240,239,236,.14);
   --mute:rgba(240,239,236,.5);
   --no:#D07A6B;
+  /* The fountains keep their terracotta in dark, but a brighter and MORE
+     SATURATED one: #C8907A was mixed against a near-white page and over the
+     tuned #22221F land it fell to 5.87:1, barely clear of a motorway at 5.22.
+     #E38F63 measures 6.36:1 and lifts saturation 43% -> 56%, which is the half
+     that actually does the work - the basemap either side of a fountain is a
+     desaturated grey-brown, so chroma separates a 13px disc from it faster
+     than luminance does, and it is what keeps the discs distinct from the
+     near-neutral Kreis dashes. Hover goes BRIGHTER here, not darker: --pink-d
+     darkens against the light page to gain contrast, and on dark land the same
+     move would lose it. */
+  --pink:#E38F63;
+  --pink-d:#F2AE88;
   --field:#1A1A18;
   --map-land:#22221F;
   --geo:#6C9BD8;
@@ -258,7 +282,9 @@ header .eyebrow,header h1,.intro,#count,#near,
 .loc-btn.busy .loc-ico{animation:loc-pulse 1.1s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.loc-btn.busy .loc-ico{animation:none;opacity:.5}}
 /* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
-.me-dot{width:14px;height:14px;border-radius:50%;background:var(--geo);border:2px solid var(--bg);
+/* Ringed in --ink for the same reason .fmark is — it opposes the ground
+   instead of matching it, so the dot keeps its edge in both themes. */
+.me-dot{width:14px;height:14px;border-radius:50%;background:var(--geo);border:2px solid var(--ink);
   box-shadow:0 0 0 1px rgba(17,17,16,.28)}
 /* A fountain's name is free text and lands in here, and Zurich's are compounds
    — 22ch cut most of them off mid-word („Flös…"), which reads as a broken page
@@ -275,9 +301,18 @@ header .eyebrow,header h1,.intro,#count,#near,
 #near:empty{display:none}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
-   as a pincushion, and a disc keeps its exact point at its own centre. */
+   as a pincushion, and a disc keeps its exact point at its own centre.
+
+   The ring is --ink, NOT --bg: it separates the disc from the map by opposing
+   the ground rather than matching it, so it is dark on the light basemap and
+   bright on the dark one. Matching the page ground gave a white ring on light
+   grey land — the two were close enough that the disc lost its edge — and in
+   dark it put a near-black ring on land only a shade lighter. Ink flips with
+   the theme on its own, so this stays one declaration. box-sizing is
+   border-box globally, so the ring eats into the 13px rather than growing it
+   and the icon still matches its 13px iconSize / 6.5px anchor. */
 .fmark{width:13px;height:13px;border-radius:50%;background:var(--pink);
-  border:2px solid var(--bg);box-shadow:0 1px 4px rgba(17,17,16,.4);
+  border:2px solid var(--ink);box-shadow:0 1px 4px rgba(17,17,16,.4);
   transition:transform .15s,background .15s}
 .fmark:hover{transform:scale(1.35);background:var(--pink-d)}
 .leaflet-popup-content-wrapper{border-radius:3px;box-shadow:0 4px 20px rgba(17,17,16,.18)}
@@ -729,7 +764,8 @@ var DARK_TUNE = {
   highway_major_inner:     { 'line-color': '#8A8474' },         // 4.28
   highway_major_subtle:    { 'line-color': '#5E5A50' },         // 2.32
   highway_motorway_casing: { 'line-color': 'rgba(160,154,140,.55)' },
-  // Trimmed to sit just under the fountains' terracotta (5.87): a motorway must
+  // Trimmed to sit under the fountains' terracotta, which is 6.36:1 in dark
+  // (--pink is #E38F63 there, not the page's #C8907A): a motorway must
   // not be as loud as the thing the map is about.
   highway_motorway_inner:  { 'line-color': '#9A9382' },         // 5.22
   highway_motorway_subtle: { 'line-color': '#66614F' },         // 2.57
@@ -1030,14 +1066,22 @@ function kreisStyle() {
   // attribute, so unlike everything in the stylesheet it cannot follow a token
   // on its own and has to be restyled when the theme flips.
   var ink = cssVar('--ink') || '#111110';
-  // Dimmer in dark, because the same alpha of a near-white ink resolves
-  // brighter there — but .26 (2.21:1 over the tuned land) undershot: it sat
-  // below a minor street, and a boundary you have to hunt for is not doing its
-  // job. .42 measures 3.61:1 — above every minor street, below the major roads
-  // at 4.28 and well below the fountains at 5.87, so it reads as the reference
-  // line it is and never as content.
+  // Dark wants MORE alpha, not less, and the two earlier values here were both
+  // too low for the wrong reason: they were picked to sit at a rung of the
+  // DARK_TUNE road ladder, but a partly transparent white over #22221F land
+  // composites to a literal grey, and a grey dashed line on grey land reads as
+  // an artefact rather than a boundary. .26 came out rgb(88,87,84) (2.21:1) and
+  // .42 rgb(121,120,117) (3.61:1) — both mid-grey.
+  //
+  // .8 composites to rgb(199,198,195) at 9.33:1: white, which is what a
+  // district boundary should look like. That IS louder than the fountains
+  // (6.36) and the motorways (5.22), which the ladder otherwise forbids — the
+  // trade is deliberate. Contrast ratio measures legibility, not visual weight,
+  // and this is a 1.5px line dashed '5 4', so it covers a sliver of the area a
+  // 13px filled disc does; the discs still win the page on area and on hue.
+  // Turn this down before touching the ladder if it ever does compete.
   var dark = themeIsDark();
-  return { color: ink, weight: 1.5, opacity: dark ? .42 : .5, dashArray: '5 4',
+  return { color: ink, weight: 1.5, opacity: dark ? .8 : .5, dashArray: '5 4',
            fillColor: ink, fillOpacity: dark ? .025 : .035 };
 }
 

@@ -82,7 +82,7 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   phone outdoors, which is the only place this map is ever used. The land is what gives every
   line above it somewhere to go, so blackening it squeezes the whole ladder into a range no
   screen resolves in daylight. Land is now `#22221F`, minor streets 2.95:1, major 4.28:1,
-  motorways 5.22:1 (trimmed to stay under the fountains' terracotta at 5.87 — a motorway must
+  motorways 5.22:1 (trimmed to stay under the fountains' terracotta, 6.36:1 in dark — a motorway must
   not be as loud as the subject), street labels 11.45:1. **Retune from the land first and let
   the rungs follow; brightening lines against a black ground is the move that already failed.**
   `--map-land` carries the same value in CSS so the pre-tile frame is the colour the tiles
@@ -98,10 +98,32 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
   as upstream's own `rgb(12,12,12)` ground under 1.10:1 streets and `rgba(80,78,78)` labels.
   That reads exactly like a tuning problem, and it was a guard that never opened — measure a
   suspect dark map against the values in `DARK_TUNE` before retuning it.
-- The Kreis 1 outline dims in dark — the same alpha of a near-white ink resolves brighter there
-  — but `.26` (2.21:1 over the tuned land) undershot and sat *below* a minor street. It is `.42`
-  / 3.61:1 now: above every minor street, below major roads (4.28) and well below the fountains
-  (5.87), so it still reads as context and never as content.
+- **The Kreis 1 outline is BRIGHTER in dark, not dimmer, and two earlier values got that
+  backwards.** Both were chosen to land on a rung of the road ladder — `.26` (2.21:1 over the
+  tuned land), then `.42` (3.61:1) — but a partly transparent white over `#22221F` composites to
+  a literal grey (`rgb(88,87,84)` and `rgb(121,120,117)`), and a grey dashed line on grey land
+  reads as an artefact rather than a boundary. It is `.8` / `rgb(199,198,195)` / 9.33:1 now,
+  which is white. That is deliberately **above** the fountains (6.36) and the motorways (5.22) —
+  the one place this page breaks its own ladder. Contrast ratio measures legibility, not visual
+  weight, and a 1.5px line dashed `5 4` covers a sliver of the area a 13px filled disc does.
+  Turn this alpha down before touching `DARK_TUNE` if it ever does compete.
+- **Both marker rings are `--ink`, never `--bg`** — the fountain disc (`.fmark`) and your own position
+  dot (`.me-dot`). A ring separates a marker from the map by *opposing* the ground, not by
+  matching it: `--bg` gave a white ring on the light basemap's near-white land, where the disc
+  lost its edge, and a near-black ring on dark land only a shade lighter. `--ink` flips with the
+  theme by itself, so it stays one declaration per marker. `box-sizing` is `border-box` globally,
+  so the ring eats into the 13px rather than growing it and the icon still matches its
+  `iconSize` and anchor.
+- **`--pink` is overridden in dark, and saturation is what earns its visibility.** The page
+  terracotta `#C8907A` was mixed against a near-white ground; over the tuned `#22221F` land it
+  falls to 5.87:1, barely clear of a motorway at 5.22. Dark uses `#E38F63` — 6.36:1, and
+  saturation 43% → 56%. The chroma is the half that does the work: the basemap either side of
+  a fountain is a desaturated grey-brown, so a 13px disc separates from it on hue faster than
+  on luminance, and that is also what keeps the discs distinct from the near-neutral Kreis
+  dashes now that those are brighter than the discs. **Hover goes brighter in dark, not
+  darker** — `--pink-d` darkens against the light page to gain contrast, and the same move on
+  dark land would lose it, so it is `#F2AE88` (8.50:1) there. Both dark blocks carry the pair;
+  they must stay in step like every other token.
 - **The two styles must show the same city, and `DARK_PLAN` / `LIGHT_PLAN` are how that is
   enforced.** Dark and light are two people's cartography, not one style in two palettes, and
   left alone they disagree about what a map of Zürich *contains* — that is a different problem
