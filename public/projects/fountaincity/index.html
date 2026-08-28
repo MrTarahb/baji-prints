@@ -492,9 +492,9 @@ var markerById = {};
 
 // The Stadtkreis 1 outline, as published by Stadt Zürich (see kreis1.geojson
 // for the source and retrieval date). Absolute path, not relative: the page is
-// served at /project/fountaincity with no trailing slash, so a relative fetch
-// would resolve against /project/ and 404.
-var KREIS1_URL = '/project/fountaincity/kreis1.geojson';
+// served at /projects/fountaincity with no trailing slash, so a relative fetch
+// would resolve against /projects/ and 404.
+var KREIS1_URL = '/projects/fountaincity/kreis1.geojson';
 
 // Live position. watchId non-null means the watch is running; pos is the last
 // fix, kept so "add here" doesn't have to wait for a fresh one.

@@ -929,7 +929,7 @@ async function initDB() {
     ALTER TABLE client_photos ADD COLUMN IF NOT EXISTS original_name TEXT;
     -- ── FOUNTAIN CITY ──────────────────────────────────────────────────
     -- Every public fountain in Zürich, plotted on the map at
-    -- /project/fountaincity. Coordinates are WGS84 decimal degrees — the form
+    -- /projects/fountaincity. Coordinates are WGS84 decimal degrees — the form
     -- Google Maps and the city's own open data both hand out — so a coordinate
     -- can be pasted straight in. name is nullable on purpose: most of the
     -- city's fountains simply don't have one, and inventing one would be worse
@@ -3482,7 +3482,7 @@ app.delete('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
 });
 
 // ── FOUNTAIN CITY ─────────────────────────────────────────────────────────────
-// A public map of Zürich's fountains at /project/fountaincity. Management is
+// A public map of Zürich's fountains at /projects/fountaincity. Management is
 // inline on the page, the same idea as the client boards: open it while logged
 // in as admin and the controls appear. There is no separate admin screen.
 
@@ -3637,11 +3637,15 @@ app.delete('/api/admin/fountains/:id', requireAuth, async (req, res) => {
 // The map page. Public, but not linked from the site and not in sitemap.xml
 // yet, so the noindex keeps a half-built project out of search results until
 // it is ready to be found — delete that one line to let it be indexed.
-app.get('/project/fountaincity', (req, res) => {
+app.get('/projects/fountaincity', (req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'project', 'fountaincity', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'projects', 'fountaincity', 'index.html'));
 });
+// Renamed from the singular /project/fountaincity. 301 so a bookmark or an open
+// tab on the old URL still lands on the page rather than the catch-all SPA.
+// Remove once nothing points at the old path.
+app.get('/project/fountaincity', (req, res) => res.redirect(301, '/projects/fountaincity'));
 
 // The board page itself. noindex/nofollow belt-and-braces alongside robots.txt.
 app.get('/client/:slug', (req, res) => {

@@ -48,7 +48,7 @@ note suspected. Three separate things, all now closed:
    fade can actually run.
 
 **Dark mode landed on Fountain City**, so it carries the same day/night toggle as everything
-else. What it took, and what to reuse for the next `/project/<name>` page:
+else. What it took, and what to reuse for the next `/projects/<name>` page:
 - The page's tokens gained the main site's two dark blocks — `@media (prefers-color-scheme: dark)
   { :root:not([data-theme="light"]) }` then `:root[data-theme="dark"]` — so the page turns with
   the attribute `chrome.js` writes. Same order, same guard, or an explicit light choice loses to
@@ -186,7 +186,7 @@ else. What it took, and what to reuse for the next `/project/<name>` page:
 - Still deliberate: the scrim is much heavier than the main site's (`.97` against the hero nav's
   `rgba(17,17,16,.35)`) — a dial worth turning if asked, not a bug.
 
-**Not started:** Stage 2 (projects table, `/project/:slug`, admin panel), Stage 3 (workshops
+**Not started:** Stage 2 (projects table, `/projects/:slug`, admin panel), Stage 3 (workshops
 table, per-workshop dates/photos, `/workshop/<slug>` page, 301 from `/workshops`), Stage 4 (slug
 renaming). **Hard constraint carried into all of it: never overwrite the hand-written
 `workshop_*` values in `content`** — per-workshop copy goes in a new overrides table that falls
@@ -230,7 +230,7 @@ Five tracked source files. Everything else is `node_modules` / config.
 | `public/index.html` | 4,300 | Public site — vanilla-JS SPA, inline `<style>` + `<script>`, no framework, no bundler |
 | `public/admin/index.html` | 2,250 | Admin panel — separate vanilla-JS SPA |
 | `public/client/index.html` | 1,075 | Private client proofing boards — separate vanilla-JS SPA, German UI |
-| `public/project/fountaincity/index.html` | 330 | Fountain City — public Leaflet map of Zürich's fountains, separate vanilla-JS SPA |
+| `public/projects/fountaincity/index.html` | 330 | Fountain City — public Leaflet map of Zürich's fountains, separate vanilla-JS SPA |
 
 Request flow: Cloudflare DNS → Railway/Express (serves the SPA with server-injected `<meta>`)
 → images from Cloudinary → purchase → Stripe Checkout → webhook → Postgres → Resend.
@@ -280,7 +280,7 @@ Don't weaken this — it guards edition counters and duplicate emails.
 
 **Cloudinary URL builder is quadruplicated.** `cldUrl()` in `server.js:286`, `cld()` in
 `public/index.html:2716`, `cld()` in `public/admin/index.html:749`, `cld()` in
-`public/project/fountaincity/index.html`. Keep them in sync. Use `q_auto:good`, never bare
+`public/projects/fountaincity/index.html`. Keep them in sync. Use `q_auto:good`, never bare
 `q_auto` (bands dark gradients when `f_auto` serves AVIF).
 
 **Cloudinary cleanup is per-route and two routes leak** (known, accepted, left as-is). Deleting
@@ -297,7 +297,7 @@ When adding an image-bearing table, follow the client-board pattern: collect `pu
 **The custom cursor is site-wide, and it is a fifth copy to keep in step.** The main site
 replaces the OS pointer with a 10px white disc (`#cur`, `mix-blend-mode:difference`) that swells
 to 48px over anything actionable; `public/client/index.html` and
-`public/project/fountaincity/index.html` carry the same dot, driven by the same delegated
+`public/projects/fountaincity/index.html` carry the same dot, driven by the same delegated
 `mouseover`/`mouseout` pair. Only `CUR_TARGETS` differs per page. `/admin` deliberately does
 **not** get it — it is a tool, and its drag-to-reorder needs real `grab`/`grabbing` cursors.
 - **Delegation on `document`, never a `querySelectorAll` snapshot.** Every one of these pages
@@ -544,11 +544,11 @@ that is belt-and-braces, not the guard.
   block that renames only if the old column exists *and* the new one does not, followed by
   `ADD COLUMN IF NOT EXISTS` so fresh databases get it too.
 
-### Fountain City (`/project/fountaincity`)
+### Fountain City (`/projects/fountaincity`)
 
 A public map of Zürich's public fountains — the first of what the URL implies will be several
-`/project/<name>` pages. One table (`fountains`), one page,
-`public/project/fountaincity/index.html`. A fountain is a coordinate, an optional `name`, an
+`/projects/<name>` pages. One table (`fountains`), one page,
+`public/projects/fountaincity/index.html`. A fountain is a coordinate, an optional `name`, an
 optional `note` (Bharat's own words, shown to everyone) and at most one photograph.
 
 - **The admin bar spans the FOOT of the screen, not the top stack.** The top is already carrying
@@ -709,8 +709,8 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   is copied rather than approximated. Refetch the same way to add the other eleven Kreise.
   - It lives in its own file rather than inline: 17KB of coordinates would swamp the page source
     and the extract-the-`<script>` verification step.
-  - **Fetched by absolute path.** The page is served at `/project/fountaincity` with no trailing
-    slash, so a relative `kreis1.geojson` resolves against `/project/` and 404s.
+  - **Fetched by absolute path.** The page is served at `/projects/fountaincity` with no trailing
+    slash, so a relative `kreis1.geojson` resolves against `/projects/` and 404s.
   - **`interactive: false` is load-bearing.** A Leaflet path swallows clicks that land on it, and
     the admin places fountains *by* clicking the map — an interactive polygon would make the
     whole of Kreis 1 the one place a pin could not be dropped.
