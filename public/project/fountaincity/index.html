@@ -181,7 +181,16 @@ header .eyebrow,header h1,.intro,#count,#near,
 .intro{color:var(--mute);font-size:12.5px;max-width:62ch;min-height:0;overflow:hidden}
 #topstack.lean .intro-wrap{grid-template-rows:0fr;opacity:0;margin-top:0}
 #topstack.lean header{padding-bottom:26px}
+/* On a phone the eyebrow rides out with the sentence and comes back with it
+   (see the mobile block); on a desktop it never collapses at all. The same
+   1fr→0fr grid track as .intro-wrap, and for the same reason — the string is
+   editable from the admin bar, so there is no max-height that stays safe. */
+.eyebrow-wrap{display:grid;grid-template-rows:1fr;
+  transition:grid-template-rows .32s ease,opacity .32s ease}
+.eyebrow-wrap .eyebrow{min-height:0;overflow:hidden}
+.head-left{min-width:0}
 .head-right{display:flex;align-items:flex-start;gap:10px}
+.meta{min-width:0}
 #count{font-size:11.5px;letter-spacing:.04em;color:var(--mute);white-space:nowrap}
 /* The one thing in the floating header that takes pointer events besides the
    admin bar. Desktop has room for the sentence permanently, so it only appears
@@ -225,12 +234,29 @@ header .eyebrow,header h1,.intro,#count,#near,
 .leaflet-bottom{margin-bottom:var(--abh,0px);transition:margin-bottom .2s ease}
 
 /* Bottom-left, not the conventional top-left: this is the one control meant to
-   be pressed while walking, so it sits where a thumb already is. */
-.loc-btn{background:var(--bg);border:1px solid var(--line);border-radius:2px;
-  padding:9px 13px;font-size:12px;font-family:var(--fm);color:var(--ink);cursor:pointer;
-  box-shadow:0 1px 6px rgba(17,17,16,.22);white-space:nowrap}
+   be pressed while walking, so it sits where a thumb already is.
+
+   A crosshair, not the words "Locate me". The label had to say three different
+   things — Locate me / Locating... / Following — so the button changed width
+   under the thumb that was pressing it, and it was the widest object in the
+   corner for something every map app draws as one glyph. The state lives in
+   the button's own appearance now (outline → pulsing → filled) and in its
+   title/aria-label, which is what a screen reader and a desktop hover read.
+   setLocState() is the single place that sets all three. */
+.loc-btn{background:var(--bg);border:1px solid var(--line);border-radius:50%;
+  width:40px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--fm);color:var(--ink);cursor:pointer;
+  box-shadow:0 1px 6px rgba(17,17,16,.22)}
+.loc-ico{width:19px;height:19px;display:block}
+/* Following: the button inverts, and the glyph comes with it because every
+   stroke in the SVG is currentColor. */
 .loc-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.loc-btn.busy{opacity:.7}
+/* A fix can take several seconds outdoors, so the button has to show it is
+   working. A spinner on a crosshair reads as the map itself turning; a pulse
+   does not. */
+@keyframes loc-pulse{0%,100%{opacity:1}50%{opacity:.28}}
+.loc-btn.busy .loc-ico{animation:loc-pulse 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.loc-btn.busy .loc-ico{animation:none;opacity:.5}}
 /* Blue, and deliberately not the fountains' terracotta — you are not a fountain. */
 .me-dot{width:14px;height:14px;border-radius:50%;background:var(--geo);border:2px solid var(--bg);
   box-shadow:0 0 0 1px rgba(17,17,16,.28)}
@@ -243,6 +269,10 @@ header .eyebrow,header h1,.intro,#count,#near,
    all rather than letting it push past the cap. */
 #near{display:block;color:var(--mute);max-width:min(32ch,58vw);overflow-wrap:anywhere}
 #near b{font-weight:500;color:var(--ink)}
+/* There is no readout until a position fix arrives, and on a phone the tally
+   and the readout share one line with a separator drawn by ::before — which
+   would otherwise leave a lone middot hanging after the count. */
+#near:empty{display:none}
 
 /* A fountain is a small terracotta disc, not a pin — a few hundred pins read
    as a pincushion, and a disc keeps its exact point at its own centre. */
@@ -286,18 +316,70 @@ header .eyebrow,header h1,.intro,#count,#near,
   opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:1300}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ── MOBILE ───────────────────────────────────────────────────────────
+   A phone is where this map is actually used — outdoors, one-handed, walking
+   — and the floating stack was taking roughly a third of that screen before
+   anything of Zürich was visible. Every rule below buys map back. */
 @media(max-width:640px){
-  header{padding:20px 0 38px}
-  h1{font-size:26px}
-  /* Two lines of eyebrow + title is all that stays over the map once the
-     sentence has collapsed. */
-  #topstack.lean header{padding-bottom:20px}
-  #lean-toggle{display:block}
-  .intro{font-size:12px}
   .wrap{padding-left:16px;padding-right:16px}
-  .head-row{align-items:flex-start}
-  .loc-btn{padding:12px 15px;font-size:13px}
-  .loc-btn{padding:12px 15px;font-size:13px}
+
+  /* The nav is this page's first row, not a document's header, so it does not
+     need a document's breathing room. Tightened here rather than in
+     shared/chrome.css, which every standalone page reads: this is the map
+     page's own judgement, not the chrome's. The 16px matches .wrap, so the
+     brand lines up with the title's gutter instead of sitting 4px outside it. */
+  #topstack .ch-nav{padding:.85rem 16px .35rem;
+    padding-top:calc(.85rem + env(safe-area-inset-top,0px))}
+
+  header{padding:4px 0 30px}
+  h1{font-size:25px;transition:font-size .32s ease,margin-top .32s ease}
+  .intro{font-size:12px}
+
+  /* The tally and the nearest-fountain readout drop BENEATH the title instead
+     of sharing its row. They were a right-hand column capped at 58vw, and a
+     Zürich compound name wraps to two lines inside that cap — so the busiest,
+     tallest thing in the header was a piece of metadata, and it squeezed the
+     title into the leftover third. One line under the title, at the tally's own
+     size, reads as a single sentence and leaves the title the full width. */
+  .head-row{flex-wrap:wrap;align-items:flex-start;gap:0}
+  .head-right{width:100%;margin-top:5px;align-items:center;
+    justify-content:space-between;gap:10px}
+  .meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 7px}
+  #count,#near{display:inline;font-size:12px;letter-spacing:.03em}
+  #near{max-width:none}
+  #near::before{content:'\00B7';margin-right:7px;color:var(--mute)}
+
+  /* Once the map has been touched the header is down to two rows: the title,
+     smaller, and the one line of metadata. The eyebrow leaves with the
+     sentence — it says what the project is, which is the one thing you have
+     already read by the time you reach for the map. #lean-toggle brings all of
+     it back. */
+  #topstack.lean .eyebrow-wrap{grid-template-rows:0fr;opacity:0}
+  #topstack.lean h1{font-size:22px;margin-top:0}
+  #topstack.lean header{padding-bottom:14px}
+  #lean-toggle{display:block}
+
+  /* Zoom buttons are desktop furniture. Here the page already carries pinch,
+     double-tap and the double-tap-and-drag gesture (initTapZoom), so the
+     control was a permanent 60px column in the corner duplicating something
+     the screen does better — and it sat directly above the one button that has
+     to be findable while walking. Desktop keeps it; the wheel there is
+     continuous but the buttons are how you land on a whole zoom level. */
+  .leaflet-control-zoom{display:none}
+  .loc-btn{width:46px;height:46px}
+  .loc-ico{width:21px;height:21px}
+
+  /* The admin bar was three wrapped lines of chrome across the foot of a phone
+     — a label, three buttons and a sentence — for a tool used while standing
+     at a fountain. Label and hint are desktop affordances (the bar is inverted
+     against the page, which already says "admin", and tap-to-place is learned
+     once), so on a phone it is the three buttons and nothing else, on one
+     line. syncAdminBar() measures what is left, so Locate and the attribution
+     follow it up and down by themselves. */
+  #adminbar{padding:6px 0;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+  #adminbar .wrap{gap:6px;padding-left:12px;padding-right:12px}
+  #adminbar .ab-label,#adminbar #ab-hint{display:none}
+  #adminbar button{padding:6px 8px;font-size:10.5px}
 }
 </style>
 </head>
@@ -307,12 +389,14 @@ header .eyebrow,header h1,.intro,#count,#near,
 <header>
   <div class="wrap">
     <div class="head-row">
-      <div>
-        <div class="eyebrow" id="p-eyebrow"></div>
+      <div class="head-left">
+        <div class="eyebrow-wrap"><div class="eyebrow" id="p-eyebrow"></div></div>
         <h1 id="p-title"></h1>
       </div>
+      <!-- Right of the title on a desktop, a full-width line under it on a
+           phone: see the mobile block in the stylesheet. -->
       <div class="head-right">
-        <div><div id="count"></div><div id="near"></div></div>
+        <div class="meta"><div id="count"></div><div id="near"></div></div>
         <button id="lean-toggle" type="button" onclick="toggleLean()">&#8964;</button>
       </div>
     </div>
@@ -327,7 +411,7 @@ header .eyebrow,header h1,.intro,#count,#near,
      in the stylesheet for why it is not part of the floating header. -->
 <div id="adminbar">
   <div class="wrap">
-    <span class="eyebrow" style="color:var(--ab-mute)">Admin view</span>
+    <span class="eyebrow ab-label" style="color:var(--ab-mute)">Admin view</span>
     <button onclick="addFountain()">+ Fountain</button>
     <button id="ab-here" onclick="addHere()">+ Fountain here</button>
     <button onclick="editText()">Edit text</button>
@@ -1366,6 +1450,41 @@ function blockAdd() {
 // GEOLOCATION
 // The point of the whole feature: you are standing at the fountain, so the
 // phone already knows the coordinate better than you could read it off a map.
+// A crosshair rather than a word, on every screen. The button had three
+// different labels for its three states, so it changed width under the thumb
+// pressing it, and on a phone it was the widest thing in the corner for the one
+// idea every map app draws as a single glyph. Drawn in currentColor throughout,
+// so the .on state's inversion carries the glyph with it for free.
+var LOC_SVG =
+  '<svg class="loc-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<circle cx="12" cy="12" r="6.9" fill="none" stroke="currentColor" stroke-width="1.7"></circle>' +
+    '<circle cx="12" cy="12" r="2.5" fill="currentColor"></circle>' +
+    '<path d="M12 1.3V4.5M12 19.5V22.7M1.3 12H4.5M19.5 12H22.7" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>' +
+  '</svg>';
+
+// With the label gone this is the only text the button carries, so it has to
+// say the whole state: a desktop hover shows it, a screen reader reads it, and
+// on a phone it is what the browser announces on focus.
+var LOC_LABEL = {
+  off:  'Show my position',
+  busy: 'Looking for your position...',
+  on:   'Following your position - tap to stop'
+};
+
+// One place sets class, title and aria-label together. Splitting them is how a
+// button ends up looking like it is following you while still announcing
+// "Locate me".
+function setLocState(s) {
+  var b = document.getElementById('loc-btn');
+  if (!b) return;
+  b.classList[s === 'busy' ? 'add' : 'remove']('busy');
+  b.classList[s === 'on' ? 'add' : 'remove']('on');
+  var t = LOC_LABEL[s] || LOC_LABEL.off;
+  b.title = t;
+  if (b.setAttribute) b.setAttribute('aria-label', t);
+}
+
 function initLocate() {
   if (!navigator.geolocation) return;     // no API, no button - nothing to offer
   var Ctl = L.Control.extend({
@@ -1374,7 +1493,9 @@ function initLocate() {
       var b = L.DomUtil.create('button', 'loc-btn');
       b.id = 'loc-btn';
       b.type = 'button';
-      b.innerHTML = 'Locate me';
+      b.innerHTML = LOC_SVG;
+      b.title = LOC_LABEL.off;
+      if (b.setAttribute) b.setAttribute('aria-label', LOC_LABEL.off);
       // Without this the press also lands on the map underneath, which for the
       // admin opens the Add dialog every time the button is touched.
       L.DomEvent.disableClickPropagation(b);
@@ -1427,8 +1548,7 @@ function toggleLean() {
 
 function toggleLocate() {
   if (geo.watchId !== null) { stopLocate(); return; }
-  var b = document.getElementById('loc-btn');
-  if (b) { b.classList.add('busy'); b.innerHTML = 'Locating...'; }
+  setLocState('busy');
   geo.follow = true;
   // enableHighAccuracy asks for GPS rather than wifi/cell triangulation. It is
   // slower and costs battery, which is exactly the trade you want when the fix
@@ -1444,8 +1564,7 @@ function stopLocate() {
   geo.follow = false;
   if (geo.marker) { map.removeLayer(geo.marker); geo.marker = null; }
   if (geo.ring) { map.removeLayer(geo.ring); geo.ring = null; }
-  var b = document.getElementById('loc-btn');
-  if (b) { b.classList.remove('on', 'busy'); b.innerHTML = 'Locate me'; }
+  setLocState('off');
   updateNear();
 }
 
@@ -1453,8 +1572,7 @@ function onPos(p) {
   geo.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy || 0 };
   geo.at = Date.now();
   var ll = [geo.pos.lat, geo.pos.lng];
-  var b = document.getElementById('loc-btn');
-  if (b) { b.classList.remove('busy'); b.classList.add('on'); b.innerHTML = 'Following'; }
+  setLocState('on');
 
   if (!geo.marker) {
     geo.marker = L.marker(ll, {
