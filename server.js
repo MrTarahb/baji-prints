@@ -962,14 +962,41 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_client_photos_spot ON client_photos(spot_id);
   `);
 
+  // ── PROJECTS (boards refactor, stage 2) ────────────────────────────────
+  // One row per /projects/<slug> page. The row is the envelope — routing, the
+  // /admin overview, publish state and the page's own copy — while the bespoke
+  // data a project needs (the fountains table for the map) stays in its own
+  // table. `type` tells GET /projects/:slug which template to serve. `published`
+  // drives noindex only: false is "reachable by direct URL but not indexed",
+  // which is Fountain City's not-shipped-yet state; it does not hide the page.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id SERIAL PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      type TEXT NOT NULL DEFAULT 'map',
+      title TEXT,
+      eyebrow TEXT,
+      intro TEXT,
+      published BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  // CREATE IF NOT EXISTS is a no-op on an existing table, so every column has
+  // its own ALTER — the same rule the fountains table documents above.
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'map'`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS title TEXT`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS eyebrow TEXT`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS intro TEXT`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+
   // Step 2: seed default content with parameterised queries
   const defaults = [
-    // Fountain City's page copy. Same key/value table as the rest of the site's
-    // editable text, so it gets the existing PUT /api/admin/content for free.
-    ['fountain_eyebrow', 'Zürich · Ongoing'],
-    ['fountain_title', 'Fountain City'],
-    ['fountain_intro', 'Zürich runs on drinking water. This is a map of the public fountains, ' +
-      'added one at a time as I find and photograph them.'],
+    // Fountain City's page copy used to live here under fountain_* keys. It is
+    // owned by the projects table now (see the projects seed below), so it is
+    // no longer seeded into content — and the old keys are migrated out and
+    // deleted there. Nothing on the site reads fountain_* any more.
     ['hero_eyebrow', 'Zürich · Wiedikon · Fine Art Print'],
     ['hero_tagline', 'I make photographs and print them. From a small atelier in Wiedikon.'],
     ['hero_meta', 'Photography · Fine art print · Zürich'],
@@ -1069,6 +1096,40 @@ async function initDB() {
       [key, value]
     );
   }
+
+  // Seed Fountain City's project row once, and migrate its copy off the old
+  // content keys onto the row. On an existing database the fountain_* values
+  // (possibly edited by the admin) are read across first; on a fresh one they
+  // are gone from the defaults above, so the built-in strings are used. Gated
+  // on COUNT so deleting the row doesn't let a later deploy resurrect it.
+  const { rows: projCount } = await pool.query('SELECT COUNT(*)::int AS n FROM projects');
+  if (projCount[0].n === 0) {
+    const { rows: oldCopy } = await pool.query(
+      `SELECT key, value FROM content
+        WHERE key IN ('fountain_eyebrow','fountain_title','fountain_intro')`
+    );
+    const c = {};
+    oldCopy.forEach((r) => { c[r.key] = r.value; });
+    await pool.query(
+      `INSERT INTO projects (slug, type, title, eyebrow, intro, published, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (slug) DO NOTHING`,
+      [
+        'fountaincity', 'map',
+        c.fountain_title !== undefined ? c.fountain_title : 'Fountain City',
+        c.fountain_eyebrow !== undefined ? c.fountain_eyebrow : 'Zürich · Ongoing',
+        c.fountain_intro !== undefined ? c.fountain_intro
+          : 'Zürich runs on drinking water. This is a map of the public fountains, '
+            + 'added one at a time as I find and photograph them.',
+        false, 0,
+      ]
+    );
+  }
+  // The row owns the copy now — drop the old keys so there is one source of
+  // truth. Idempotent, and they are gone from the seed defaults so they never
+  // return. Runs after the row is guaranteed to exist above.
+  await pool.query(
+    `DELETE FROM content WHERE key IN ('fountain_eyebrow','fountain_title','fountain_intro')`
+  );
 
   // Step 3: seed default shipping rates (CHF cents) — editable later from admin
   const shippingDefaults = [
@@ -3500,20 +3561,77 @@ app.get('/api/fountains', async (req, res) => {
     const { rows } = await pool.query(
       'SELECT id, name, lat, lng, note, image_url, image_width, image_height FROM fountains ORDER BY id'
     );
-    // The page's own copy rides along rather than costing a second request to
-    // /api/content — that route returns the whole site's text, almost none of
-    // which this page has any use for, and a second round trip would paint the
-    // built-in defaults first and then visibly replace them.
-    const { rows: copy } = await pool.query(
-      `SELECT key, value FROM content
-        WHERE key IN ('fountain_eyebrow','fountain_title','fountain_intro')`
+    // The page's own copy rides along rather than costing a second request —
+    // it lives on the fountaincity projects row now (stage 2 of the boards
+    // refactor). A NULL column means "never written" and the page falls back to
+    // its built-in default; a stored '' means deliberately empty, so the key is
+    // returned as '' and only omitted when the column is NULL — that distinction
+    // is what stops a cleared intro reappearing on the next load.
+    const { rows: prow } = await pool.query(
+      `SELECT id, title, eyebrow, intro FROM projects WHERE slug = 'fountaincity'`
     );
+    const p = prow[0] || {};
     const text = {};
-    copy.forEach((r) => { text[r.key.slice('fountain_'.length)] = r.value; });
+    if (p.eyebrow != null) text.eyebrow = p.eyebrow;
+    if (p.title != null) text.title = p.title;
+    if (p.intro != null) text.intro = p.intro;
     // The admin flag only reveals whether THIS visitor is the admin, so the
     // page can show its controls. The fountain rows themselves are public —
-    // there is nothing on them to withhold.
-    res.json({ fountains: rows, admin: !!req.session.admin, text: text });
+    // there is nothing on them to withhold. projectId lets the admin's Edit
+    // text dialog PUT straight to the row.
+    res.json({ fountains: rows, admin: !!req.session.admin, text: text, projectId: p.id || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// The /admin Projects overview. Admin-only and returns every row regardless of
+// published — the panel is where publishing is toggled, so it must see the
+// unpublished ones. Ordered the way they would appear once there is a public
+// index to order.
+app.get('/api/admin/projects', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, slug, type, title, eyebrow, intro, published, sort_order
+         FROM projects ORDER BY sort_order, id`
+    );
+    res.json({ projects: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Partial update — writes only the body keys actually present, so editing the
+// title can't blank the intro, and column names come from a fixed allow-list,
+// never the request. Built the client_photos way: `$${n}` with the DOUBLE
+// dollar, because a template literal eats a single $ and one missing there
+// ships integer LITERALS into the SET clause (the fountains PUT bug at cfde0c6,
+// which silently edited whichever row had that id). eyebrow/intro keep a stored
+// '' (deliberately empty); an empty title falls back to NULL so the page's
+// "title never blanks" rule holds.
+app.put('/api/admin/projects/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad project id' });
+  const cols = [];
+  const vals = [];
+  const set = (col, val) => { cols.push(col); vals.push(val); };
+  if ('title' in req.body) set('title', (String(req.body.title || '')).trim().slice(0, 200) || null);
+  if ('eyebrow' in req.body) set('eyebrow', (String(req.body.eyebrow || '')).trim().slice(0, 200));
+  if ('intro' in req.body) set('intro', (String(req.body.intro || '')).trim().slice(0, 4000));
+  if ('type' in req.body) set('type', (String(req.body.type || '')).trim().slice(0, 40) || 'map');
+  if ('published' in req.body) set('published', !!req.body.published);
+  if ('sort_order' in req.body) set('sort_order', parseInt(req.body.sort_order, 10) || 0);
+  if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
+  const setSql = cols.map((c, i) => `${c}=$${i + 1}`).join(', ');
+  vals.push(id);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE projects SET ${setSql} WHERE id = $${vals.length}
+        RETURNING id, slug, type, title, eyebrow, intro, published, sort_order`,
+      vals
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Project not found' });
+    res.json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -3634,13 +3752,27 @@ app.delete('/api/admin/fountains/:id', requireAuth, async (req, res) => {
   }
 });
 
-// The map page. Public, but not linked from the site and not in sitemap.xml
-// yet, so the noindex keeps a half-built project out of search results until
-// it is ready to be found — delete that one line to let it be indexed.
-app.get('/projects/fountaincity', (req, res) => {
-  res.setHeader('X-Robots-Tag', 'noindex');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'projects', 'fountaincity', 'index.html'));
+// A /projects/<slug> page. The slug is looked up in the projects table and the
+// template its `type` names is served; the file lives at public/projects/<slug>/.
+// `published` drives noindex only — an unpublished project is still reachable by
+// direct URL (Fountain City's state today), it just isn't offered to search
+// engines, so publish it from the /admin Projects panel when it is ready. An
+// unknown slug or an unhandled type falls through to the SPA catch-all, exactly
+// as any other unmatched path does. p.slug comes from the row, not the request,
+// so there is nothing user-controlled in the file path.
+app.get('/projects/:slug', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT slug, type, published FROM projects WHERE slug = $1', [req.params.slug]
+    );
+    const p = rows[0];
+    if (!p || p.type !== 'map') return next();
+    if (!p.published) res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'projects', p.slug, 'index.html'));
+  } catch (e) {
+    next(e);
+  }
 });
 // Renamed from the singular /project/fountaincity. 301 so a bookmark or an open
 // tab on the old URL still lands on the page rather than the catch-all SPA.

@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex">
+<!-- No hardcoded robots meta: indexing is controlled by the project row's
+     `published` flag, which the /projects/:slug route turns into an
+     X-Robots-Tag: noindex header while the project is unpublished. A meta tag
+     here would override that and keep the page out of search even after it is
+     published from the /admin Projects panel. -->
 <title>Fountain City · Bharat Bhatia</title>
 <meta name="description" content="An ongoing project mapping the public fountains of Zürich.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -482,6 +486,10 @@ header .eyebrow,header h1,.intro,#count,#near,
 // ── STATE ────────────────────────────────────────────────────────────────────
 var fountains = [];
 var isAdmin = false;
+// This page IS a project row now (boards refactor, stage 2). projectId is that
+// row's id, sent by /api/fountains, so the admin's Edit-text dialog can PUT the
+// page's copy straight to it. null until the first load returns.
+var projectId = null;
 var map, layer;
 // The basemap and the district outline are held so a theme change can restyle
 // them — everything else on this page follows the CSS tokens by itself.
@@ -1789,6 +1797,7 @@ api('/api/fountains').then(function (d) {
   fountains = d.fountains || [];
   isAdmin = !!d.admin;
   text = d.text || {};
+  projectId = d.projectId || null;
   renderText();
   if (isAdmin) {
     document.getElementById('adminbar').classList.add('on');
@@ -1862,17 +1871,18 @@ function editText() {
                  title: (v.title || '').trim(),
                  intro: (v.intro || '').trim() };
     if (!next.title) return toast('The title cannot be empty');
-    Promise.all(Object.keys(next).map(function (k) {
-      return api('/api/admin/content', {
-        method: 'PUT', body: { key: 'fountain_' + k, value: next[k] }
-      });
-    })).then(function () {
+    if (!projectId) return toast('Project not loaded — reload the page');
+    // One write to the project row, not three to the content table: the copy
+    // lives on the row now, so the whole save is atomic and the old
+    // partial-save-with-no-transaction hazard is gone.
+    api('/api/admin/projects/' + projectId, {
+      method: 'PUT', body: { title: next.title, eyebrow: next.eyebrow, intro: next.intro }
+    }).then(function () {
       text = next;
       renderText();
       toast('Text saved');
     }).catch(function (e) {
-      // A partial save is possible here — three writes, no transaction — so the
-      // page is reloaded from the server rather than left showing what was typed.
+      // Re-read rather than leave what was typed on screen if the save fails.
       toast('Could not save: ' + e.message);
       api('/api/fountains').then(function (d) { text = d.text || {}; renderText(); });
     });

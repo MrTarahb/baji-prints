@@ -186,11 +186,33 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
 - Still deliberate: the scrim is much heavier than the main site's (`.97` against the hero nav's
   `rgba(17,17,16,.35)`) — a dial worth turning if asked, not a bug.
 
-**Not started:** Stage 2 (projects table, `/projects/:slug`, admin panel), Stage 3 (workshops
-table, per-workshop dates/photos, `/workshop/<slug>` page, 301 from `/workshops`), Stage 4 (slug
-renaming). **Hard constraint carried into all of it: never overwrite the hand-written
-`workshop_*` values in `content`** — per-workshop copy goes in a new overrides table that falls
-back to those keys.
+**Stage 2 (projects) — built, in the working tree** (first slice; not yet its own deploy):
+- **`projects` table** — one row per `/projects/<slug>` page: `slug` (unique), `type`, `title`,
+  `eyebrow`, `intro`, `published`, `sort_order`. The row is the *envelope* — routing, the
+  `/admin` overview, publish state and the page's copy — while a project's bespoke data (the
+  `fountains` table for the map) stays in its own table. `type` tells `/projects/:slug` which
+  template to serve; today only `map` is handled.
+- **Fountain City is seeded as the first row**, and its copy was migrated off the old
+  `content.fountain_*` keys onto the row — those keys are read across once in `initDB()` (so an
+  admin's edits survive), written to the row, then **deleted from `content`**. They are also
+  gone from the content seed defaults, so nothing re-creates them. The main site never read
+  them, so this touched nothing public.
+- **`GET /projects/:slug`** looks the slug up and serves `public/projects/<slug>/index.html`;
+  the file path is built from the *row* slug, never the request param. **`published` drives
+  noindex only** — an unpublished project is still reachable by its URL (Fountain City's state),
+  it just gets `X-Robots-Tag: noindex`. The old singular `/project/fountaincity` 301 stays.
+- **`GET /api/admin/projects`** (overview) and **`PUT /api/admin/projects/:id`** (partial update,
+  built the `client_photos` way — `$${n}`, fixed column allow-list). The `/admin` **Projects**
+  panel lists projects and carries the publish switch; copy is still edited inline on the page.
+- Verified by lifting each handler against a stub `pool` (the SQL-shape / noindex / copy-shaping
+  checks) and a `node:vm` run of the page script — the method these routes' comments cite.
+- **Not done in this slice:** creating a *new* project from `/admin`. Each `type` still needs a
+  hand-built page template (the map is the only one), so there is nothing generic to spin up yet.
+
+**Not started:** Stage 3 (workshops table, per-workshop dates/photos, `/workshop/<slug>` page,
+301 from `/workshops`), Stage 4 (slug renaming). **Hard constraint carried into all of it: never
+overwrite the hand-written `workshop_*` values in `content`** — per-workshop copy goes in a new
+overrides table that falls back to those keys.
 
 Delete this section once the refactor lands.
 
@@ -564,10 +586,14 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   visitor may edit; the fountain rows themselves are public, so there is nothing to withhold
   from the payload the way a client board withholds `public_id`. Log in at `/admin`, then open
   the map and the admin bar appears.
-- **It is `noindex` for now, not private.** The page is reachable by anyone with the URL but is
-  linked from nowhere, absent from `sitemap.xml`, and carries `X-Robots-Tag: noindex` on the
-  route plus a `<meta name="robots">`. That is a deliberate not-finished-yet state, *not* the
-  client boards' privacy posture — remove both lines and add a sitemap entry when it ships.
+- **It is `noindex` for now, not private, and the `published` flag on its project row is what
+  controls that** (stage 2). The page is reachable by anyone with the URL but is linked from
+  nowhere and absent from `sitemap.xml`; while `published` is false the `/projects/:slug` route
+  sends `X-Robots-Tag: noindex`. There is no longer a `<meta name="robots">` in the page — a
+  hardcoded one would override the flag and keep the page out of search even after publishing.
+  That is a deliberate not-finished-yet state, *not* the client boards' privacy posture. **To
+  ship it: hit Publish in the `/admin` Projects panel and add a `sitemap.xml` entry** — the
+  sitemap step is still manual.
 - **The basemap is vector (MapLibre + OpenFreeMap Positron), and three earlier choices were
   tried and rejected.** In order: CARTO Positron looked right but now stamps an "API key
   required" watermark over unkeyed requests, and every other *pre-styled raster* basemap
@@ -769,21 +795,23 @@ optional `note` (Bharat's own words, shown to everyone) and at most one photogra
   Leaflet's own prefix is a courtesy, and dropping it (`setPrefix('')`, in `initMap` so it runs
   even where geolocation is absent) is what keeps the strip to one line on a phone. The
   bottom-left corner is also lifted 24px on small screens so the Locate button clears it.
-- **The page's own copy is editable, and lives in the site-wide `content` table** under
-  `fountain_eyebrow` / `fountain_title` / `fountain_intro` — the same key/value table and the
-  same `PUT /api/admin/content` route the rest of the site's text uses. No new table, no new
-  route; `editText()` in the admin bar writes one key per request.
-  - The copy **rides along in `GET /api/fountains`** rather than costing a second call to
-    `/api/content`, which returns the whole site's text and would paint the built-in defaults
-    first and then visibly replace them.
-  - `TEXT_DEFAULTS` in the page mirrors the seeded strings, so the page still reads correctly
-    if the fetch fails or a key was never written.
-  - **An empty string means deliberately empty; only a key that was never written falls back.**
-    Otherwise clearing the intro would have it reappear on the next load. The title is the
-    exception — blank falls back, because a page with no title is never what was meant, and
-    `editText()` trims before checking rather than trusting the dialog to have done it.
-  - A save is three writes with no transaction, so a **partial failure re-reads from the server**
-    instead of leaving what was typed on screen.
+- **The page's own copy is editable, and lives on its `projects` row** as `title` / `eyebrow` /
+  `intro` (stage 2 moved it off the old `content.fountain_*` keys). `editText()` in the admin
+  bar writes all three in **one** `PUT /api/admin/projects/:id`, using the `projectId` that
+  `GET /api/fountains` hands back.
+  - The copy **rides along in `GET /api/fountains`** (read from the row) rather than costing a
+    second call to `/api/content`, which returns the whole site's text and would paint the
+    built-in defaults first and then visibly replace them.
+  - `TEXT_DEFAULTS` in the page mirrors the seeded strings, so the page still reads correctly if
+    the fetch fails or a column was never written.
+  - **A stored empty string means deliberately empty; only a NULL column falls back.** The
+    handler returns `''` as `''` and omits a NULL, so the page's `txt()` shows blank for the
+    first and its default for the second — otherwise clearing the intro would have it reappear
+    on the next load. The title is the exception — blank falls back, because a page with no
+    title is never what was meant, and `editText()` trims before checking.
+  - The save is now **one write, so it is atomic** — the old three-writes-no-transaction hazard
+    (and its re-read-on-partial-failure workaround) is gone. A failed save still re-reads from
+    the server rather than leaving what was typed on screen.
 - The page's `<script>` runs under `node:vm` against stub `L` and `document` objects, which is
   how the parsing, popup-escaping and render behaviour was verified without a browser.
 

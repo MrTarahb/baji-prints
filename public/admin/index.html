@@ -357,6 +357,8 @@ textarea.field-input{resize:vertical;min-height:70px}
       <button class="sidebar-btn" onclick="showPanel('messages',this)">Messages <span class="badge" id="unread-badge" style="display:none">0</span></button>
       <span class="sidebar-label">Clients</span>
       <button class="sidebar-btn" onclick="showPanel('clients',this)">Client boards <span class="badge" id="clients-badge" style="display:none">0</span></button>
+      <span class="sidebar-label">Projects</span>
+      <button class="sidebar-btn" onclick="showPanel('projects',this)">Projects</button>
       <span class="sidebar-label">Portfolio</span>
       <button class="sidebar-btn" onclick="showPanel('categories',this)">Categories</button>
       <button class="sidebar-btn" onclick="showPanel('prints',this)">Manage prints</button>
@@ -389,6 +391,18 @@ textarea.field-input{resize:vertical;min-height:70px}
         <h2 class="panel-title">Client boards</h2>
         <p class="panel-sub">Private, password-protected photo selection pages. Open a board to add rooms, spots and photos, and to read the client's feedback.</p>
         <div id="clients-list" style="margin-top:1rem">Loading…</div>
+      </div>
+
+      <!-- PROJECTS -->
+      <!-- Public /projects/<slug> pages (Fountain City is the first). Like the
+           client boards, each project is edited inline on its own page while
+           logged in here — this panel is the overview plus the publish switch.
+           "Published" only controls whether search engines may index it; an
+           unpublished project is still reachable by anyone with the URL. -->
+      <div class="panel" id="panel-projects">
+        <h2 class="panel-title">Projects</h2>
+        <p class="panel-sub">Public project pages. Open one to edit it inline. <strong>Publish</strong> lets search engines index it — an unpublished project is still reachable by its URL, just not indexed. (A published project still needs a sitemap entry to be found; that step stays manual.)</p>
+        <div id="projects-list" style="margin-top:1rem">Loading…</div>
       </div>
 
       <!-- STATS -->
@@ -2076,6 +2090,7 @@ async function loadAll(){
   await loadShopPrints();
   await loadOrders();
   await loadClientBoards();
+  await loadProjects();
   renderMarginReference();
 }
 
@@ -2106,6 +2121,46 @@ async function loadClientBoards(){
   }catch(e){
     el.innerHTML = `<p class="panel-sub" style="color:#A8564A">${esc(e.message)}</p>`;
   }
+}
+
+// Projects overview — list + the publish switch. Each project's copy and its
+// own content (the fountain map) are edited inline on the page itself, the same
+// way the client boards work, so this panel is just the way in plus the one
+// thing that belongs here: whether search engines may index it.
+async function loadProjects(){
+  const el = document.getElementById('projects-list');
+  try{
+    const r = await fetch('/api/admin/projects');
+    if(!r.ok) throw new Error('Could not load projects');
+    const list = (await r.json()).projects || [];
+    if(!list.length){ el.innerHTML = '<p class="panel-sub">No projects yet.</p>'; return; }
+    el.innerHTML = list.map(p=>`
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.9rem 0;border-bottom:1px solid #E2E0DA">
+        <div style="flex:1;min-width:180px">
+          <strong>${esc(p.title||p.slug)}</strong>
+          <div class="panel-sub" style="margin:.15rem 0 0">/projects/${esc(p.slug)} · ${esc(p.type)}
+            · ${p.published
+                ? '<span style="color:#3B7A57">published — indexable</span>'
+                : '<span style="color:#A8564A">not indexed (reachable by URL)</span>'}</div>
+        </div>
+        <button class="btn-order-action" onclick="toggleProjectPublished(${p.id}, ${p.published ? 'false' : 'true'})">
+          ${p.published ? 'Unpublish' : 'Publish'}</button>
+        <a class="btn-order-action" href="/projects/${encodeURIComponent(p.slug)}" target="_blank" rel="noopener"
+           style="text-decoration:none">Open page</a>
+      </div>`).join('');
+  }catch(e){
+    el.innerHTML = `<p class="panel-sub" style="color:#A8564A">${esc(e.message)}</p>`;
+  }
+}
+async function toggleProjectPublished(id, publish){
+  try{
+    const r = await fetch('/api/admin/projects/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ published: publish })
+    });
+    if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.error || 'Save failed'); }
+    await loadProjects();
+  }catch(e){ alert(e.message); }
 }
 
 // Builds the static margin-geometry reference table (all sizes × orientations).
