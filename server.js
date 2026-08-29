@@ -991,6 +991,52 @@ async function initDB() {
   await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
 
+  // ── WORKSHOPS (boards refactor, stage 3) ───────────────────────────────
+  // Until now there was one workshop, its copy in content.workshop_* and its
+  // dates/photos in tables that implicitly belonged to it. A `workshops` row is
+  // the entity that lets there be more than one, at its own /workshop/<slug>
+  // standalone page. `published` drives noindex the same way a project's does.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workshops (
+      id SERIAL PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT,
+      published BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS title TEXT`);
+  await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false`);
+  await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+
+  // Per-workshop copy OVERRIDES. Deliberately an overrides table, not columns:
+  // the hand-written content.workshop_* strings stay the site-wide default and
+  // are NEVER overwritten (the hard constraint carried through the whole
+  // refactor), and a workshop row supplies only the keys it wants to differ on.
+  // A missing (workshop_id, key) row means "use the content default"; an empty
+  // string means "deliberately empty", the same distinction the project copy
+  // draws. key is the content key WITHOUT the workshop_ prefix (heading, intro…).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workshop_overrides (
+      id SERIAL PRIMARY KEY,
+      workshop_id INTEGER NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value TEXT,
+      UNIQUE (workshop_id, key)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_workshop_overrides_ws ON workshop_overrides(workshop_id)`);
+
+  // Scope the existing dates and photos to a workshop. Nullable + a plain
+  // reference so the backfill below can claim the pre-refactor rows for the
+  // seeded workshop; ON DELETE SET NULL keeps a deleted workshop from taking
+  // paid-booking history down with it (workshop_bookings hangs off dates).
+  await pool.query(`ALTER TABLE workshop_dates ADD COLUMN IF NOT EXISTS workshop_id INTEGER REFERENCES workshops(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE workshop_photos ADD COLUMN IF NOT EXISTS workshop_id INTEGER REFERENCES workshops(id) ON DELETE CASCADE`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_workshop_dates_ws ON workshop_dates(workshop_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_workshop_photos_ws ON workshop_photos(workshop_id)`);
+
   // Step 2: seed default content with parameterised queries
   const defaults = [
     // Fountain City's page copy used to live here under fountain_* keys. It is
@@ -1130,6 +1176,30 @@ async function initDB() {
   await pool.query(
     `DELETE FROM content WHERE key IN ('fountain_eyebrow','fountain_title','fountain_intro')`
   );
+
+  // Seed the first workshop once, and claim the pre-refactor dates and photos
+  // for it. Its copy is NOT migrated — it stays in content.workshop_* as the
+  // shared default, and this workshop overrides nothing, so the standalone page
+  // reads exactly the strings /workshops showed before. published=true because
+  // the old /workshops was indexed and in the sitemap; the 301 + the seeded
+  // slug keep that, rather than dropping the page out of search on deploy.
+  const { rows: wsCount } = await pool.query('SELECT COUNT(*)::int AS n FROM workshops');
+  if (wsCount[0].n === 0) {
+    const heading = await pool.query(`SELECT value FROM content WHERE key = 'workshop_heading'`);
+    const title = (heading.rows[0] && heading.rows[0].value) || 'Workshop';
+    const { rows: wsRows } = await pool.query(
+      `INSERT INTO workshops (slug, title, published, sort_order)
+       VALUES ($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING RETURNING id`,
+      ['photo-to-print', title.replace(/\.$/, ''), true, 0]
+    );
+    const wsId = wsRows[0] && wsRows[0].id;
+    if (wsId) {
+      // Only rows that predate the column (workshop_id IS NULL) — a re-run after
+      // a manual reassignment must not drag everything back onto this workshop.
+      await pool.query('UPDATE workshop_dates SET workshop_id = $1 WHERE workshop_id IS NULL', [wsId]);
+      await pool.query('UPDATE workshop_photos SET workshop_id = $1 WHERE workshop_id IS NULL', [wsId]);
+    }
+  }
 
   // Step 3: seed default shipping rates (CHF cents) — editable later from admin
   const shippingDefaults = [
@@ -2603,7 +2673,32 @@ const ROUTE_META = {
 
 // Static routes with their own meta.
 app.get('/', (req, res) => serveWithMeta(res, { ...ROUTE_META['/'], path: '/' }));
-app.get('/workshops', (req, res) => serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' }));
+// /workshops was the single workshop's page; each workshop is a standalone
+// /workshop/<slug> page now (stage 3). 301 to the first published workshop so
+// the old URL — which was indexed and in the sitemap — keeps its place. The
+// target is looked up rather than hardcoded, so a reseed or reorder is followed.
+app.get('/workshops', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT slug FROM workshops WHERE published = true ORDER BY sort_order, id LIMIT 1'
+    );
+    if (rows[0]) return res.redirect(301, '/workshop/' + rows[0].slug);
+  } catch (e) { /* fall through to the shell below */ }
+  return serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' });
+});
+// The standalone workshop page — one template for every workshop, reading its
+// slug from the path and fetching /api/workshops/<slug>. published drives
+// noindex the same way a project's does; an unknown slug falls through to the
+// SPA catch-all. The path is a fixed file, so nothing user-controlled reaches it.
+app.get('/workshop/:slug', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT published FROM workshops WHERE slug = $1', [req.params.slug]);
+    if (!rows.length) return next();
+    if (!rows[0].published) res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, 'public', 'workshop', 'index.html'));
+  } catch (e) { next(e); }
+});
 app.get('/shop', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 for (const p of ['/about', '/contact', '/faq']) {
@@ -2701,15 +2796,19 @@ app.get('/api/workshop-photos', async (req, res) => {
 // Admin: all dates (any status) with booking counts
 app.get('/api/admin/workshop-dates', requireAuth, async (req, res) => {
   try {
+    // Optional ?workshop_id scopes to one workshop (the standalone page passes
+    // it); without it every date is returned, for the legacy admin panel.
+    const wsId = req.query.workshop_id ? parseInt(req.query.workshop_id, 10) : null;
     const { rows } = await pool.query(`
       SELECT wd.*,
         COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
         COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
       FROM workshop_dates wd
       LEFT JOIN workshop_bookings wb ON wb.workshop_date_id = wd.id
+      ${wsId ? 'WHERE wd.workshop_id = $1' : ''}
       GROUP BY wd.id
       ORDER BY wd.date DESC
-    `);
+    `, wsId ? [wsId] : []);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2718,10 +2817,13 @@ app.post('/api/admin/workshop-dates', requireAuth, async (req, res) => {
   try {
     const { date, capacity, price_chf_cents, frame_price_chf_cents, status } = req.body;
     if (!date) return res.status(400).json({ error: 'Date is required' });
+    // workshop_id ties the date to its workshop. Nullable for the legacy admin
+    // panel, which manages the one seeded workshop's dates without passing it.
+    const workshopId = req.body.workshop_id ? parseInt(req.body.workshop_id, 10) : null;
     const { rows } = await pool.query(
-      `INSERT INTO workshop_dates (date, capacity, price_chf_cents, frame_price_chf_cents, status)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [date, capacity || 6, price_chf_cents || 30000, frame_price_chf_cents || null, status || 'draft']
+      `INSERT INTO workshop_dates (date, capacity, price_chf_cents, frame_price_chf_cents, status, workshop_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [date, capacity || 6, price_chf_cents || 30000, frame_price_chf_cents || null, status || 'draft', workshopId]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -2777,10 +2879,17 @@ app.get('/api/admin/workshop-bookings', requireAuth, async (req, res) => {
 app.post('/api/admin/workshop-photos', requireAuth, workshopUpload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file received' });
-    const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), 0) AS max FROM workshop_photos');
+    // multer parses multipart text fields into req.body, so workshop_id rides
+    // alongside the file. sort_order is scoped to the workshop so each gallery
+    // orders independently.
+    const workshopId = req.body.workshop_id ? parseInt(req.body.workshop_id, 10) : null;
+    const { rows: maxRows } = await pool.query(
+      `SELECT COALESCE(MAX(sort_order), 0) AS max FROM workshop_photos
+        WHERE workshop_id IS NOT DISTINCT FROM $1`, [workshopId]
+    );
     const { rows } = await pool.query(
-      'INSERT INTO workshop_photos (image_url, public_id, sort_order) VALUES ($1, $2, $3) RETURNING *',
-      [req.file.path, req.file.filename, maxRows[0].max + 1]
+      'INSERT INTO workshop_photos (image_url, public_id, sort_order, workshop_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.file.path, req.file.filename, maxRows[0].max + 1, workshopId]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -2804,6 +2913,133 @@ app.put('/api/admin/workshop-photos/reorder', requireAuth, async (req, res) => {
       await pool.query('UPDATE workshop_photos SET sort_order = $1 WHERE id = $2', [i, order[i]]);
     }
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WORKSHOP as a project (stage 3) ────────────────────────────────────────
+// The copy keys a workshop page shows, WITHOUT the workshop_ prefix.
+// content.workshop_<key> is the site-wide default (never overwritten);
+// workshop_overrides(workshop_id, key) overrides it per workshop.
+const WORKSHOP_COPY_KEYS = ['banner_text', 'banner_enabled', 'heading', 'sub', 'intro',
+  'schedule', 'included', 'bring', 'weather', 'min', 'price_note', 'cta'];
+
+// Merge one workshop's overrides over the content defaults. Every copy key is
+// present in the result: the content default unless the workshop overrides it,
+// and a stored override of '' stays '' (deliberately empty) rather than falling
+// back — the same distinction the project copy draws.
+async function workshopCopy(workshopId) {
+  const out = {};
+  WORKSHOP_COPY_KEYS.forEach((k) => { out[k] = ''; });
+  const { rows: def } = await pool.query(
+    'SELECT key, value FROM content WHERE key = ANY($1)',
+    [WORKSHOP_COPY_KEYS.map((k) => 'workshop_' + k)]
+  );
+  def.forEach((r) => { out[r.key.slice('workshop_'.length)] = r.value; });
+  if (workshopId) {
+    const { rows: ov } = await pool.query(
+      'SELECT key, value FROM workshop_overrides WHERE workshop_id = $1', [workshopId]
+    );
+    ov.forEach((r) => { if (WORKSHOP_COPY_KEYS.indexOf(r.key) !== -1) out[r.key] = r.value == null ? '' : r.value; });
+  }
+  return out;
+}
+
+// Public: everything the standalone /workshop/<slug> page needs in one request
+// — merged copy, this workshop's upcoming open dates (with spots_left), its
+// photos, and whether the viewer is the admin. Booking is disabled in the UI,
+// but spots_left still reflects any historical paid rows.
+app.get('/api/workshops/:slug', async (req, res) => {
+  try {
+    const { rows: wrows } = await pool.query(
+      'SELECT id, slug, title, published FROM workshops WHERE slug = $1', [req.params.slug]
+    );
+    const w = wrows[0];
+    if (!w) return res.status(404).json({ error: 'Workshop not found' });
+    const copy = await workshopCopy(w.id);
+    const { rows: dates } = await pool.query(`
+      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.frame_price_chf_cents,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
+      FROM workshop_dates wd
+      LEFT JOIN workshop_bookings wb ON wb.workshop_date_id = wd.id
+      WHERE wd.workshop_id = $1 AND wd.status = 'open' AND wd.date >= CURRENT_DATE
+      GROUP BY wd.id ORDER BY wd.date ASC
+    `, [w.id]);
+    const { rows: photos } = await pool.query(
+      'SELECT id, image_url FROM workshop_photos WHERE workshop_id = $1 ORDER BY sort_order ASC, id ASC', [w.id]
+    );
+    res.json({
+      workshopId: w.id, slug: w.slug, title: w.title, published: w.published,
+      admin: !!req.session.admin,
+      copy,
+      dates: dates.map((r) => ({
+        id: r.id, date: r.date, capacity: r.capacity,
+        price_chf_cents: r.price_chf_cents, frame_price_chf_cents: r.frame_price_chf_cents,
+        spots_left: Math.max(0, r.capacity - parseInt(r.paid_count) - parseInt(r.pending_count)),
+      })),
+      photos,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin overview — every workshop regardless of published (the panel is where
+// publishing is toggled), newest ordering left to sort_order for a future index.
+app.get('/api/admin/workshops', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, slug, title, published, sort_order FROM workshops ORDER BY sort_order, id'
+    );
+    res.json({ workshops: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Workshop meta (title, published). Slug renaming is deliberately NOT here — it
+// is Stage 4, and moving a slug needs a redirect for the old URL. Built the
+// client_photos way: `$${n}`, fixed column allow-list.
+app.put('/api/admin/workshops/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad workshop id' });
+  const cols = [], vals = [];
+  const set = (c, v) => { cols.push(c); vals.push(v); };
+  if ('title' in req.body) set('title', String(req.body.title || '').trim().slice(0, 200) || null);
+  if ('published' in req.body) set('published', !!req.body.published);
+  if ('sort_order' in req.body) set('sort_order', parseInt(req.body.sort_order, 10) || 0);
+  if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
+  const setSql = cols.map((c, i) => `${c}=$${i + 1}`).join(', ');
+  vals.push(id);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE workshops SET ${setSql} WHERE id = $${vals.length}
+        RETURNING id, slug, title, published, sort_order`, vals
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Workshop not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Per-workshop copy. One key per request. Storing a value equal to the site-wide
+// content default (or an explicit null) DELETES the override, so the table holds
+// only genuine differences and re-typing the default resets a field. Multiline
+// fields (schedule, lists) are stored verbatim — no trim, newlines are content.
+app.put('/api/admin/workshops/:id/copy', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad workshop id' });
+  const key = String(req.body.key || '');
+  if (WORKSHOP_COPY_KEYS.indexOf(key) === -1) return res.status(400).json({ error: 'Unknown copy field' });
+  const value = req.body.value == null ? null : String(req.body.value);
+  try {
+    const { rows: def } = await pool.query('SELECT value FROM content WHERE key = $1', ['workshop_' + key]);
+    const dflt = def[0] ? def[0].value : '';
+    if (value == null || value === dflt) {
+      await pool.query('DELETE FROM workshop_overrides WHERE workshop_id = $1 AND key = $2', [id, key]);
+    } else {
+      await pool.query(
+        `INSERT INTO workshop_overrides (workshop_id, key, value) VALUES ($1, $2, $3)
+         ON CONFLICT (workshop_id, key) DO UPDATE SET value = EXCLUDED.value`,
+        [id, key, value]
+      );
+    }
+    res.json({ ok: true, copy: await workshopCopy(id) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2910,7 +3146,6 @@ app.get('/sitemap.xml', async (req, res) => {
   const staticUrls = [
     { loc: '/',          freq: 'weekly',  pri: '1.0' },
     { loc: '/shop',      freq: 'weekly',  pri: '0.9' },
-    { loc: '/workshops', freq: 'monthly', pri: '0.6' },
     { loc: '/about',     freq: 'monthly', pri: '0.5' },
     { loc: '/contact',   freq: 'yearly',  pri: '0.4' },
     { loc: '/faq',       freq: 'monthly', pri: '0.4' },
@@ -2922,7 +3157,17 @@ app.get('/sitemap.xml', async (req, res) => {
     );
     productUrls = rows.map(r => ({ loc: `/shop/${r.id}`, freq: 'weekly', pri: '0.8' }));
   } catch (e) { /* fall back to static-only sitemap */ }
-  const all = [...staticUrls, ...productUrls];
+  // Each published workshop's standalone page. This replaced the single static
+  // /workshops entry (stage 3) — the old URL 301s to whichever of these is
+  // first, and unpublished workshops are noindex so they stay out of here.
+  let workshopUrls = [];
+  try {
+    const { rows } = await pool.query(
+      'SELECT slug FROM workshops WHERE published = true ORDER BY sort_order, id'
+    );
+    workshopUrls = rows.map(r => ({ loc: `/workshop/${r.slug}`, freq: 'monthly', pri: '0.6' }));
+  } catch (e) { /* fall back without workshops */ }
+  const all = [...staticUrls, ...workshopUrls, ...productUrls];
   const body = all.map(u =>
     `  <url><loc>${base}${u.loc}</loc><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
   ).join('\n');

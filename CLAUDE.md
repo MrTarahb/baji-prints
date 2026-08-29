@@ -209,10 +209,41 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
 - **Not done in this slice:** creating a *new* project from `/admin`. Each `type` still needs a
   hand-built page template (the map is the only one), so there is nothing generic to spin up yet.
 
-**Not started:** Stage 3 (workshops table, per-workshop dates/photos, `/workshop/<slug>` page,
-301 from `/workshops`), Stage 4 (slug renaming). **Hard constraint carried into all of it: never
-overwrite the hand-written `workshop_*` values in `content`** — per-workshop copy goes in a new
-overrides table that falls back to those keys.
+**Stage 3 (workshops) — built, in the working tree** (the *standalone-page* variant — the
+workshop is its own page now, `public/workshop/index.html`, not a section of the main SPA):
+- **`workshops` table** — one row per `/workshop/<slug>` page (`slug`, `title`, `published`,
+  `sort_order`). **`workshop_overrides` (workshop_id, key, value)** holds per-workshop copy: the
+  hand-written `content.workshop_*` strings stay the shared default and are **never overwritten**
+  (the hard constraint), and a row overrides only the keys it wants to differ on. `workshop_dates`
+  and `workshop_photos` gained a `workshop_id`; the seed backfills the pre-refactor rows onto the
+  first workshop (`photo-to-print`, seeded `published=true` because `/workshops` was indexed).
+- **`workshopCopy(id)`** merges overrides over the content defaults; a stored `''` stays `''`
+  (deliberately empty), a missing key falls back — the same distinction the project copy draws.
+- **`GET /api/workshops/:slug`** returns merged copy + this workshop's open upcoming dates
+  (with `spots_left`) + photos + the admin flag, in one request. **`GET /workshop/:slug`** serves
+  the one standalone template (it reads its slug from the path); `published` drives noindex.
+  **`/workshops` 301s** to the first published workshop and the sitemap lists `/workshop/<slug>`
+  in its place, so the old indexed URL keeps its rank. Admin: `GET /api/admin/workshops`,
+  `PUT /api/admin/workshops/:id` (title/published, `$${n}` allow-list), `PUT …/:id/copy` (one key;
+  saving the site default *deletes* the override so the table holds only genuine differences); the
+  existing `workshop-dates`/`workshop-photos` routes now carry `workshop_id`.
+- **The page carries its own inline admin** (copy per-field, date CRUD, photo add/delete) like the
+  fountain map, so the **old `/admin` workshop panel was retired** — `/admin` now has a *Workshops
+  overview* (link + publish switch) beside Projects. The workshop page and its wiring were removed
+  from `public/index.html` (markup, `.ws-*`/`#workshop-page` CSS, `loadWorkshopData`, the
+  `/workshops`↔`workshop` routing). **Booking stays disabled** (the button is inert); the schema
+  is scoped and ready but nothing re-enables it.
+- **Now-unused, left in place:** the pre-refactor global `GET /api/workshops` (all open dates) and
+  `GET /api/workshop-photos` (all photos) — nothing calls them since the SPA page is gone; harmless,
+  removable later.
+- Verified by lifting every handler against a stub `pool` (copy merge, override upsert-vs-reset,
+  `$${n}` shape, the data route, the `/workshop/:slug` dispatch) and a `node:vm` run of the page.
+- **Not done:** creating a *new* workshop from `/admin` (the schema supports it; there's no
+  add-workshop UI yet), and slug renaming (Stage 4 — the `PUT` deliberately omits `slug`).
+
+**Not started:** Stage 4 (slug renaming — needs an old-slug→new redirect, for both projects and
+workshops). **Hard constraint still standing: never overwrite the hand-written `workshop_*` values
+in `content`** — they are the shared fallback the overrides table sits on top of.
 
 Delete this section once the refactor lands.
 
@@ -222,9 +253,12 @@ No test suite, no linter, no build step. Verification before committing is manua
 
 ```bash
 node --check server.js
-# For each of the three HTML SPAs: extract the <script> block to a temp file and
-# `node --check` it, assert the <style> block's { } counts match, and assert the
-# file contains no control characters (see below).
+# For each HTML SPA (public/index, admin, client, projects/fountaincity,
+# workshop): extract the <script> block to a temp file and `node --check` it,
+# assert the <style> block's { } counts match, and assert the file contains no
+# control characters (see below). Server route/handler logic is checked by
+# lifting a handler against a stub `pool` that records the SQL (see the boards
+# refactor's projects/workshops tests); render logic by a node:vm run of a page.
 ```
 
 **Check the HTML files for stray control characters.** A NUL or other control byte written
@@ -244,15 +278,16 @@ locally is render logic: the client board's `<script>` runs under `node:vm` agai
 
 ## Architecture
 
-Five tracked source files. Everything else is `node_modules` / config.
+Six tracked source files. Everything else is `node_modules` / config.
 
 | File | ~Lines | Role |
 |---|---|---|
-| `server.js` | 3,300 | Entire Express app: schema init/migrations/seeds, all API routes, Stripe webhook, email, SSR meta injection |
-| `public/index.html` | 4,300 | Public site — vanilla-JS SPA, inline `<style>` + `<script>`, no framework, no bundler |
-| `public/admin/index.html` | 2,250 | Admin panel — separate vanilla-JS SPA |
+| `server.js` | 3,600 | Entire Express app: schema init/migrations/seeds, all API routes, Stripe webhook, email, SSR meta injection |
+| `public/index.html` | 4,200 | Public site — vanilla-JS SPA, inline `<style>` + `<script>`, no framework, no bundler |
+| `public/admin/index.html` | 2,150 | Admin panel — separate vanilla-JS SPA |
 | `public/client/index.html` | 1,075 | Private client proofing boards — separate vanilla-JS SPA, German UI |
 | `public/projects/fountaincity/index.html` | 330 | Fountain City — public Leaflet map of Zürich's fountains, separate vanilla-JS SPA |
+| `public/workshop/index.html` | 440 | Workshop — standalone `/workshop/<slug>` page, data-driven, inline admin, separate vanilla-JS SPA |
 
 Request flow: Cloudflare DNS → Railway/Express (serves the SPA with server-injected `<meta>`)
 → images from Cloudinary → purchase → Stripe Checkout → webhook → Postgres → Resend.
