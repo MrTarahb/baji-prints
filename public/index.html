@@ -2291,7 +2291,7 @@ async function loadContent() {
       if (link) { link.href = 'mailto:' + d.impressum_email; link.textContent = d.impressum_email; }
     }
 
-    // The workshop page moved to its own standalone /workshop/<slug> page
+    // The workshop page moved to its own standalone /workshops/<slug> page
     // (boards refactor, stage 3); its content is no longer rendered here.
 
     // FAQ — hide items where *_enabled is explicitly 'false'
@@ -4114,7 +4114,7 @@ updateCartBar();
 // or building it while #main-content is hidden behind a shop overlay.
 let mainFeedBuilt = false;
 
-// The workshop page is a standalone /workshop/<slug> page now (stage 3); its
+// The workshop page is a standalone /workshops/<slug> page now (stage 3); its
 // data loading lives there, not in the main SPA.
 
 // Determine initial route FIRST, then decide whether to build the main feed.

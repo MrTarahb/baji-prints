@@ -650,7 +650,7 @@ textarea.field-input{resize:vertical;min-height:70px}
       </div>
 
       <!-- WORKSHOPS -->
-      <!-- Public /workshop/<slug> pages. Like the client boards and Fountain
+      <!-- Public /workshops/<slug> pages. Like the client boards and Fountain
            City, each workshop is edited inline on its own page (copy, dates,
            photos) while logged in here — this panel is the overview plus the
            publish switch. -->
@@ -1829,7 +1829,7 @@ async function confirmClearOrders(){
 // ── SHIPPING RATES ────────────────────────────────────────────────────────────
 
 // Workshops overview — list + the publish switch. Each workshop's text, dates
-// and photos are edited inline on its own /workshop/<slug> page (the old admin
+// and photos are edited inline on its own /workshops/<slug> page (the old admin
 // panel that did that here was retired in stage 3), so this panel is just the
 // way in plus the one thing that belongs here.
 async function loadWorkshops(){
@@ -1843,14 +1843,14 @@ async function loadWorkshops(){
       <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.9rem 0;border-bottom:1px solid #E2E0DA">
         <div style="flex:1;min-width:180px">
           <strong>${esc(w.title||w.slug)}</strong>
-          <div class="panel-sub" style="margin:.15rem 0 0">/workshop/${esc(w.slug)}
+          <div class="panel-sub" style="margin:.15rem 0 0">/workshops/${esc(w.slug)}
             · ${w.published
                 ? '<span style="color:#3B7A57">published — indexable</span>'
                 : '<span style="color:#A8564A">not indexed (reachable by URL)</span>'}</div>
         </div>
         <button class="btn-order-action" onclick="toggleWorkshopPublished(${w.id}, ${w.published ? 'false' : 'true'})">
           ${w.published ? 'Unpublish' : 'Publish'}</button>
-        <a class="btn-order-action" href="/workshop/${encodeURIComponent(w.slug)}" target="_blank" rel="noopener"
+        <a class="btn-order-action" href="/workshops/${encodeURIComponent(w.slug)}" target="_blank" rel="noopener"
            style="text-decoration:none">Open page</a>
       </div>`).join('');
   }catch(e){

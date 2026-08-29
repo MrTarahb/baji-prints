@@ -213,9 +213,9 @@ button, input, textarea, select { font-family: var(--fm); }
 
 <script>
 // ── STATE ──────────────────────────────────────────────────────────────────
-// The slug is read from the path — /workshop/<slug>. One template serves every
+// The slug is read from the path — /workshops/<slug>. One template serves every
 // workshop; the data (copy, dates, photos) comes from /api/workshops/<slug>.
-var SLUG = decodeURIComponent((location.pathname.match(/\/workshop\/([^\/?#]+)/) || [])[1] || '');
+var SLUG = decodeURIComponent((location.pathname.match(/\/workshops\/([^\/?#]+)/) || [])[1] || '');
 var wsId = null;
 var isAdmin = false;
 var copy = {};

@@ -210,8 +210,8 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
   hand-built page template (the map is the only one), so there is nothing generic to spin up yet.
 
 **Stage 3 (workshops) — built, in the working tree** (the *standalone-page* variant — the
-workshop is its own page now, `public/workshop/index.html`, not a section of the main SPA):
-- **`workshops` table** — one row per `/workshop/<slug>` page (`slug`, `title`, `published`,
+workshop is its own page now, `public/workshops/index.html`, not a section of the main SPA):
+- **`workshops` table** — one row per `/workshops/<slug>` page (`slug`, `title`, `published`,
   `sort_order`). **`workshop_overrides` (workshop_id, key, value)** holds per-workshop copy: the
   hand-written `content.workshop_*` strings stay the shared default and are **never overwritten**
   (the hard constraint), and a row overrides only the keys it wants to differ on. `workshop_dates`
@@ -220,10 +220,12 @@ workshop is its own page now, `public/workshop/index.html`, not a section of the
 - **`workshopCopy(id)`** merges overrides over the content defaults; a stored `''` stays `''`
   (deliberately empty), a missing key falls back — the same distinction the project copy draws.
 - **`GET /api/workshops/:slug`** returns merged copy + this workshop's open upcoming dates
-  (with `spots_left`) + photos + the admin flag, in one request. **`GET /workshop/:slug`** serves
-  the one standalone template (it reads its slug from the path); `published` drives noindex.
-  **`/workshops` 301s** to the first published workshop and the sitemap lists `/workshop/<slug>`
-  in its place, so the old indexed URL keeps its rank. Admin: `GET /api/admin/workshops`,
+  (with `spots_left`) + photos + the admin flag, in one request. **`GET /workshops/:slug`** serves
+  the one standalone template from `public/workshops/index.html` (it reads its slug from the path);
+  `published` drives noindex. **`/workshops` (bare) 301s** to the first published workshop and the
+  sitemap lists `/workshops/<slug>` in its place, so the old indexed URL keeps its rank. The page
+  URL is **plural** (`/workshops/<slug>`) to match `/projects/<slug>`; the singular
+  **`/workshop/<slug>` 301s to it** (it was live only in the first stage-3 push). Admin: `GET /api/admin/workshops`,
   `PUT /api/admin/workshops/:id` (title/published, `$${n}` allow-list), `PUT …/:id/copy` (one key;
   saving the site default *deletes* the override so the table holds only genuine differences); the
   existing `workshop-dates`/`workshop-photos` routes now carry `workshop_id`.
@@ -237,7 +239,7 @@ workshop is its own page now, `public/workshop/index.html`, not a section of the
   `GET /api/workshop-photos` (all photos) — nothing calls them since the SPA page is gone; harmless,
   removable later.
 - Verified by lifting every handler against a stub `pool` (copy merge, override upsert-vs-reset,
-  `$${n}` shape, the data route, the `/workshop/:slug` dispatch) and a `node:vm` run of the page.
+  `$${n}` shape, the data route, the `/workshops/:slug` dispatch) and a `node:vm` run of the page.
 - **Not done:** creating a *new* workshop from `/admin` (the schema supports it; there's no
   add-workshop UI yet), and slug renaming (Stage 4 — the `PUT` deliberately omits `slug`).
 
@@ -287,7 +289,7 @@ Six tracked source files. Everything else is `node_modules` / config.
 | `public/admin/index.html` | 2,150 | Admin panel — separate vanilla-JS SPA |
 | `public/client/index.html` | 1,075 | Private client proofing boards — separate vanilla-JS SPA, German UI |
 | `public/projects/fountaincity/index.html` | 330 | Fountain City — public Leaflet map of Zürich's fountains, separate vanilla-JS SPA |
-| `public/workshop/index.html` | 440 | Workshop — standalone `/workshop/<slug>` page, data-driven, inline admin, separate vanilla-JS SPA |
+| `public/workshops/index.html` | 440 | Workshop — standalone `/workshops/<slug>` page, data-driven, inline admin, separate vanilla-JS SPA |
 
 Request flow: Cloudflare DNS → Railway/Express (serves the SPA with server-injected `<meta>`)
 → images from Cloudinary → purchase → Stripe Checkout → webhook → Postgres → Resend.

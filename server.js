@@ -994,7 +994,7 @@ async function initDB() {
   // ── WORKSHOPS (boards refactor, stage 3) ───────────────────────────────
   // Until now there was one workshop, its copy in content.workshop_* and its
   // dates/photos in tables that implicitly belonged to it. A `workshops` row is
-  // the entity that lets there be more than one, at its own /workshop/<slug>
+  // the entity that lets there be more than one, at its own /workshops/<slug>
   // standalone page. `published` drives noindex the same way a project's does.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS workshops (
@@ -2674,7 +2674,7 @@ const ROUTE_META = {
 // Static routes with their own meta.
 app.get('/', (req, res) => serveWithMeta(res, { ...ROUTE_META['/'], path: '/' }));
 // /workshops was the single workshop's page; each workshop is a standalone
-// /workshop/<slug> page now (stage 3). 301 to the first published workshop so
+// /workshops/<slug> page now (stage 3). 301 to the first published workshop so
 // the old URL — which was indexed and in the sitemap — keeps its place. The
 // target is looked up rather than hardcoded, so a reseed or reorder is followed.
 app.get('/workshops', async (req, res) => {
@@ -2682,23 +2682,27 @@ app.get('/workshops', async (req, res) => {
     const { rows } = await pool.query(
       'SELECT slug FROM workshops WHERE published = true ORDER BY sort_order, id LIMIT 1'
     );
-    if (rows[0]) return res.redirect(301, '/workshop/' + rows[0].slug);
+    if (rows[0]) return res.redirect(301, '/workshops/' + rows[0].slug);
   } catch (e) { /* fall through to the shell below */ }
   return serveWithMeta(res, { ...ROUTE_META['/workshops'], path: '/workshops' });
 });
-// The standalone workshop page — one template for every workshop, reading its
-// slug from the path and fetching /api/workshops/<slug>. published drives
-// noindex the same way a project's does; an unknown slug falls through to the
-// SPA catch-all. The path is a fixed file, so nothing user-controlled reaches it.
-app.get('/workshop/:slug', async (req, res, next) => {
+// The standalone workshop page, at /workshops/<slug> to match the /projects/<slug>
+// convention — one template for every workshop, reading its slug from the path
+// and fetching /api/workshops/<slug>. published drives noindex the same way a
+// project's does; an unknown slug falls through to the SPA catch-all. The path is
+// a fixed file, so nothing user-controlled reaches it.
+app.get('/workshops/:slug', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT published FROM workshops WHERE slug = $1', [req.params.slug]);
     if (!rows.length) return next();
     if (!rows[0].published) res.setHeader('X-Robots-Tag', 'noindex');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'workshop', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'workshops', 'index.html'));
   } catch (e) { next(e); }
 });
+// Renamed from the singular /workshops/<slug> (which was live only briefly, in
+// the first stage-3 push). 301 so any link or crawl of the old URL follows.
+app.get('/workshop/:slug', (req, res) => res.redirect(301, '/workshops/' + req.params.slug));
 app.get('/shop', (req, res) => serveWithMeta(res, { ...ROUTE_META['/shop'], path: '/shop' }));
 app.get('/cart', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 for (const p of ['/about', '/contact', '/faq']) {
@@ -2944,7 +2948,7 @@ async function workshopCopy(workshopId) {
   return out;
 }
 
-// Public: everything the standalone /workshop/<slug> page needs in one request
+// Public: everything the standalone /workshops/<slug> page needs in one request
 // — merged copy, this workshop's upcoming open dates (with spots_left), its
 // photos, and whether the viewer is the admin. Booking is disabled in the UI,
 // but spots_left still reflects any historical paid rows.
@@ -3165,7 +3169,7 @@ app.get('/sitemap.xml', async (req, res) => {
     const { rows } = await pool.query(
       'SELECT slug FROM workshops WHERE published = true ORDER BY sort_order, id'
     );
-    workshopUrls = rows.map(r => ({ loc: `/workshop/${r.slug}`, freq: 'monthly', pri: '0.6' }));
+    workshopUrls = rows.map(r => ({ loc: `/workshops/${r.slug}`, freq: 'monthly', pri: '0.6' }));
   } catch (e) { /* fall back without workshops */ }
   const all = [...staticUrls, ...workshopUrls, ...productUrls];
   const body = all.map(u =>
