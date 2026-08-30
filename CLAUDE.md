@@ -241,13 +241,33 @@ workshop is its own page now, `public/workshops/index.html`, not a section of th
 - Verified by lifting every handler against a stub `pool` (copy merge, override upsert-vs-reset,
   `$${n}` shape, the data route, the `/workshops/:slug` dispatch) and a `node:vm` run of the page.
 - **Not done:** creating a *new* workshop from `/admin` (the schema supports it; there's no
-  add-workshop UI yet), and slug renaming (Stage 4 — the `PUT` deliberately omits `slug`).
+  add-workshop UI yet).
 
-**Not started:** Stage 4 (slug renaming — needs an old-slug→new redirect, for both projects and
-workshops). **Hard constraint still standing: never overwrite the hand-written `workshop_*` values
-in `content`** — they are the shared fallback the overrides table sits on top of.
+**Stage 4 (slug renaming) — built, in the working tree.** Projects and workshops can be renamed
+from their `/admin` overview (a **Rename** button per row); the old URL keeps working.
+- **`old_slugs TEXT[]`** on both tables holds every slug a row has ever had. Each page route
+  (`/projects/:slug`, `/workshops/:slug`), on a current-slug miss, looks the requested slug up in
+  `old_slugs` and **301s to the current slug**. `computeSlugRename()` pushes the current slug into
+  `old_slugs` and removes the new one, so a rename-back (a→b→a) leaves no self-redirect; the `PUT`
+  routes catch a `23505` and answer "slug already taken".
+- **A project also has a `folder` column — its stable identity, decoupled from the slug.** The
+  `/projects/:slug` route serves `public/projects/<folder>/index.html` (not `<slug>`), and
+  **`/api/fountains` is keyed to `WHERE folder = 'fountaincity'`, not the slug.** That is what
+  lets Fountain City's slug be renamed without moving its on-disk folder, breaking its hard-coded
+  `KREIS1_URL` (`/projects/fountaincity/kreis1.geojson`, folder-based, unchanged), or losing its
+  copy. `folder` is set in the seed *and* backfilled (`folder = slug WHERE folder IS NULL`) —
+  both, because on a fresh DB the backfill runs before the seed. Workshops need no folder: one
+  template (`public/workshops/index.html`) serves every slug.
+- Slug renaming is the one thing the `PUT` routes fetch the current row for (it needs the old
+  slug + `old_slugs`); everything else stays in the `$${n}` allow-list. Verified by lifting the
+  helpers and both routes against a stub pool.
 
-Delete this section once the refactor lands.
+**Hard constraint still standing: never overwrite the hand-written `workshop_*` values in
+`content`** — they are the shared fallback the overrides table sits on top of.
+
+**The boards refactor is complete** (stages 1–4 all built). Remaining niceties, not part of the
+plan: an add-new-project/workshop UI in `/admin`, and a second data-driven project `type` beyond
+the bespoke `map`. Delete this whole section once it has all deployed and settled.
 
 ## Commands
 

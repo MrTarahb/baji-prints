@@ -1848,6 +1848,7 @@ async function loadWorkshops(){
                 ? '<span style="color:#3B7A57">published — indexable</span>'
                 : '<span style="color:#A8564A">not indexed (reachable by URL)</span>'}</div>
         </div>
+        <button class="btn-order-action" onclick="renameWorkshop(${w.id}, '${esc(w.slug)}')">Rename</button>
         <button class="btn-order-action" onclick="toggleWorkshopPublished(${w.id}, ${w.published ? 'false' : 'true'})">
           ${w.published ? 'Unpublish' : 'Publish'}</button>
         <a class="btn-order-action" href="/workshops/${encodeURIComponent(w.slug)}" target="_blank" rel="noopener"
@@ -1864,6 +1865,22 @@ async function toggleWorkshopPublished(id, publish){
       body: JSON.stringify({ published: publish })
     });
     if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.error || 'Save failed'); }
+    await loadWorkshops();
+  }catch(e){ alert(e.message); }
+}
+// Rename a workshop's URL slug; the old URL 301-redirects to the new one.
+async function renameWorkshop(id, slug){
+  const next = prompt('New URL slug (letters, numbers, hyphens). The old link will redirect.', slug);
+  if(next == null) return;
+  const clean = next.trim();
+  if(!clean || clean === slug) return;
+  try{
+    const r = await fetch('/api/admin/workshops/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ slug: clean })
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Rename failed');
     await loadWorkshops();
   }catch(e){ alert(e.message); }
 }
@@ -2001,6 +2018,7 @@ async function loadProjects(){
                 ? '<span style="color:#3B7A57">published — indexable</span>'
                 : '<span style="color:#A8564A">not indexed (reachable by URL)</span>'}</div>
         </div>
+        <button class="btn-order-action" onclick="renameProject(${p.id}, '${esc(p.slug)}')">Rename</button>
         <button class="btn-order-action" onclick="toggleProjectPublished(${p.id}, ${p.published ? 'false' : 'true'})">
           ${p.published ? 'Unpublish' : 'Publish'}</button>
         <a class="btn-order-action" href="/projects/${encodeURIComponent(p.slug)}" target="_blank" rel="noopener"
@@ -2017,6 +2035,25 @@ async function toggleProjectPublished(id, publish){
       body: JSON.stringify({ published: publish })
     });
     if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.error || 'Save failed'); }
+    await loadProjects();
+  }catch(e){ alert(e.message); }
+}
+// Rename a project's URL slug. The old URL keeps working — the server records
+// the old slug and 301-redirects it to the new one. The on-disk folder and the
+// page's assets are keyed to a stable identity, not the slug, so a map project
+// keeps rendering after a rename.
+async function renameProject(id, slug){
+  const next = prompt('New URL slug (letters, numbers, hyphens). The old link will redirect.', slug);
+  if(next == null) return;
+  const clean = next.trim();
+  if(!clean || clean === slug) return;
+  try{
+    const r = await fetch('/api/admin/projects/'+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include',
+      body: JSON.stringify({ slug: clean })
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Rename failed');
     await loadProjects();
   }catch(e){ alert(e.message); }
 }

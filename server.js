@@ -990,6 +990,14 @@ async function initDB() {
   await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS intro TEXT`);
   await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+  // Stage 4 (slug renaming). old_slugs holds every slug this row has ever had, so
+  // /projects/:slug can 301 an old URL to the current one. folder is the row's
+  // stable identity — the on-disk directory it serves and the key its bespoke
+  // data uses — so the URL slug can change without moving files or breaking the
+  // map's asset URL. Backfilled to the current slug for the seeded row.
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS old_slugs TEXT[] NOT NULL DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS folder TEXT`);
+  await pool.query(`UPDATE projects SET folder = slug WHERE folder IS NULL`);
 
   // ── WORKSHOPS (boards refactor, stage 3) ───────────────────────────────
   // Until now there was one workshop, its copy in content.workshop_* and its
@@ -1009,6 +1017,9 @@ async function initDB() {
   await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS title TEXT`);
   await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
+  // Stage 4: every past slug, so /workshops/:slug can 301 an old URL to the
+  // current one. Workshops need no folder — one template serves every slug.
+  await pool.query(`ALTER TABLE workshops ADD COLUMN IF NOT EXISTS old_slugs TEXT[] NOT NULL DEFAULT '{}'`);
 
   // Per-workshop copy OVERRIDES. Deliberately an overrides table, not columns:
   // the hand-written content.workshop_* strings stay the site-wide default and
@@ -1157,10 +1168,14 @@ async function initDB() {
     const c = {};
     oldCopy.forEach((r) => { c[r.key] = r.value; });
     await pool.query(
-      `INSERT INTO projects (slug, type, title, eyebrow, intro, published, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (slug) DO NOTHING`,
+      // folder is set here too, not just by the backfill above — on a fresh DB
+      // the backfill runs before this seed (when the table is empty), so the row
+      // would otherwise land with a NULL folder and /api/fountains, which is
+      // keyed to folder, would find nothing.
+      `INSERT INTO projects (slug, folder, type, title, eyebrow, intro, published, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (slug) DO NOTHING`,
       [
-        'fountaincity', 'map',
+        'fountaincity', 'fountaincity', 'map',
         c.fountain_title !== undefined ? c.fountain_title : 'Fountain City',
         c.fountain_eyebrow !== undefined ? c.fountain_eyebrow : 'Zürich · Ongoing',
         c.fountain_intro !== undefined ? c.fountain_intro
@@ -2694,7 +2709,14 @@ app.get('/workshops', async (req, res) => {
 app.get('/workshops/:slug', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT published FROM workshops WHERE slug = $1', [req.params.slug]);
-    if (!rows.length) return next();
+    if (!rows.length) {
+      // A renamed slug 301s to the current one (stage 4).
+      const { rows: r2 } = await pool.query(
+        'SELECT slug FROM workshops WHERE $1 = ANY(old_slugs) LIMIT 1', [req.params.slug]
+      );
+      if (r2[0]) return res.redirect(301, '/workshops/' + r2[0].slug);
+      return next();
+    }
     if (!rows[0].published) res.setHeader('X-Robots-Tag', 'noindex');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(__dirname, 'public', 'workshops', 'index.html'));
@@ -3008,6 +3030,15 @@ app.put('/api/admin/workshops/:id', requireAuth, async (req, res) => {
   if ('title' in req.body) set('title', String(req.body.title || '').trim().slice(0, 200) || null);
   if ('published' in req.body) set('published', !!req.body.published);
   if ('sort_order' in req.body) set('sort_order', parseInt(req.body.sort_order, 10) || 0);
+  // Slug rename (stage 4). Resolved against the current row, then the old slug
+  // is remembered so /workshops/<old> 301s forward.
+  if ('slug' in req.body) {
+    const { rows: cur } = await pool.query('SELECT slug, old_slugs FROM workshops WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Workshop not found' });
+    const r = computeSlugRename(cur[0].slug, cur[0].old_slugs, req.body.slug);
+    if (r.error) return res.status(400).json({ error: r.error });
+    if (!r.unchanged) { set('slug', r.slug); set('old_slugs', r.old_slugs); }
+  }
   if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
   const setSql = cols.map((c, i) => `${c}=$${i + 1}`).join(', ');
   vals.push(id);
@@ -3018,7 +3049,10 @@ app.put('/api/admin/workshops/:id', requireAuth, async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Workshop not found' });
     res.json(rows[0]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    if (e.code === '23505') return res.status(400).json({ error: 'That slug is already taken by another workshop' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Per-workshop copy. One key per request. Storing a value equal to the site-wide
@@ -3812,12 +3846,14 @@ app.get('/api/fountains', async (req, res) => {
     );
     // The page's own copy rides along rather than costing a second request —
     // it lives on the fountaincity projects row now (stage 2 of the boards
-    // refactor). A NULL column means "never written" and the page falls back to
-    // its built-in default; a stored '' means deliberately empty, so the key is
-    // returned as '' and only omitted when the column is NULL — that distinction
-    // is what stops a cleared intro reappearing on the next load.
+    // refactor). Keyed to folder, NOT slug: stage 4 lets the URL slug be renamed,
+    // and this endpoint must still find the row afterwards — the folder is the
+    // row's stable identity. A NULL column means "never written" and the page
+    // falls back to its built-in default; a stored '' means deliberately empty,
+    // returned as '' and only omitted when NULL, which stops a cleared intro
+    // reappearing on the next load.
     const { rows: prow } = await pool.query(
-      `SELECT id, title, eyebrow, intro FROM projects WHERE slug = 'fountaincity'`
+      `SELECT id, title, eyebrow, intro FROM projects WHERE folder = 'fountaincity'`
     );
     const p = prow[0] || {};
     const text = {};
@@ -3858,6 +3894,27 @@ app.get('/api/admin/projects', requireAuth, async (req, res) => {
 // which silently edited whichever row had that id). eyebrow/intro keep a stored
 // '' (deliberately empty); an empty title falls back to NULL so the page's
 // "title never blanks" rule holds.
+// ── SLUG RENAMING (stage 4) ────────────────────────────────────────────────
+// A slug is a URL segment: lowercased, only letters/digits/hyphens, no leading
+// or trailing hyphen. The same normaliser the admin sees, so what it stores is
+// what it typed cleaned up.
+function normalizeSlug(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+// Given a row's current slug + its past slugs and a requested new slug, return
+// { slug, old_slugs } to write, { unchanged: true } if it is the same slug, or
+// { error } if the requested slug is empty after normalising. The current slug
+// is pushed into old_slugs (so its old URL 301s forward) and the new slug is
+// removed from old_slugs, so a rename-back a→b→a leaves no stale self-redirect.
+function computeSlugRename(currentSlug, currentOldSlugs, newRaw) {
+  const slug = normalizeSlug(newRaw);
+  if (!slug) return { error: 'Slug must have at least one letter, number or hyphen' };
+  if (slug === currentSlug) return { unchanged: true };
+  const kept = (currentOldSlugs || []).filter((s) => s !== slug);
+  kept.push(currentSlug);
+  return { slug, old_slugs: Array.from(new Set(kept)) };
+}
+
 app.put('/api/admin/projects/:id', requireAuth, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad project id' });
@@ -3870,6 +3927,16 @@ app.put('/api/admin/projects/:id', requireAuth, async (req, res) => {
   if ('type' in req.body) set('type', (String(req.body.type || '')).trim().slice(0, 40) || 'map');
   if ('published' in req.body) set('published', !!req.body.published);
   if ('sort_order' in req.body) set('sort_order', parseInt(req.body.sort_order, 10) || 0);
+  // Slug rename needs the current row first, so it is resolved before the update
+  // rather than in the allow-list loop above. folder is NOT touched — it is the
+  // row's stable identity, and only the URL slug moves.
+  if ('slug' in req.body) {
+    const { rows: cur } = await pool.query('SELECT slug, old_slugs FROM projects WHERE id = $1', [id]);
+    if (!cur.length) return res.status(404).json({ error: 'Project not found' });
+    const r = computeSlugRename(cur[0].slug, cur[0].old_slugs, req.body.slug);
+    if (r.error) return res.status(400).json({ error: r.error });
+    if (!r.unchanged) { set('slug', r.slug); set('old_slugs', r.old_slugs); }
+  }
   if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
   const setSql = cols.map((c, i) => `${c}=$${i + 1}`).join(', ');
   vals.push(id);
@@ -3882,6 +3949,7 @@ app.put('/api/admin/projects/:id', requireAuth, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Project not found' });
     res.json(rows[0]);
   } catch (e) {
+    if (e.code === '23505') return res.status(400).json({ error: 'That slug is already taken by another project' });
     res.status(500).json({ error: e.message });
   }
 });
@@ -4012,13 +4080,25 @@ app.delete('/api/admin/fountains/:id', requireAuth, async (req, res) => {
 app.get('/projects/:slug', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT slug, type, published FROM projects WHERE slug = $1', [req.params.slug]
+      'SELECT slug, folder, type, published FROM projects WHERE slug = $1', [req.params.slug]
     );
     const p = rows[0];
-    if (!p || p.type !== 'map') return next();
+    if (!p) {
+      // A renamed slug? old_slugs holds every past slug pointing at the current
+      // one, so an old bookmark or crawl 301s to where the project lives now.
+      const { rows: r2 } = await pool.query(
+        'SELECT slug FROM projects WHERE $1 = ANY(old_slugs) LIMIT 1', [req.params.slug]
+      );
+      if (r2[0]) return res.redirect(301, '/projects/' + r2[0].slug);
+      return next();
+    }
+    if (p.type !== 'map') return next();
     if (!p.published) res.setHeader('X-Robots-Tag', 'noindex');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'public', 'projects', p.slug, 'index.html'));
+    // Served by folder, not slug — the folder is stable across a slug rename, so
+    // the on-disk directory and the page's own /projects/<folder>/kreis1.geojson
+    // asset URL keep working whatever the URL slug is now.
+    res.sendFile(path.join(__dirname, 'public', 'projects', p.folder || p.slug, 'index.html'));
   } catch (e) {
     next(e);
   }
