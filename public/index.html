@@ -1527,6 +1527,26 @@ nav.on-light .nav-hamburger span,
 @media(max-width: 640px) {
   .category-desc { padding: 2.25rem 1.5rem 0; font-size: 11.5px; }
 }
+
+/* Inline category chips — the portfolio filter row at the top of the feed.
+   Understated to fit the site: mono, small, monochrome; the active one fills
+   with ink. Bordered pills (not plain text) so they read as tappable — the
+   whole point is discoverability. */
+.feed-chips {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: .5rem; max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem .5rem;
+}
+.chip {
+  font-family: var(--fm); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fg-m); background: transparent; border: 1px solid var(--border);
+  border-radius: 100px; padding: .5rem 1rem; transition: color .18s, background .18s, border-color .18s;
+}
+.chip:hover { color: var(--fg); border-color: var(--fg-l); }
+.chip.active { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+@media(max-width: 640px) {
+  .feed-chips { padding: 2rem 1rem .35rem; gap: .4rem; }
+  .chip { font-size: 9px; padding: .45rem .85rem; letter-spacing: .08em; }
+}
 .about-body p:last-child { margin-bottom: 0; }
 .about-body strong { color: var(--fg); font-weight: 400; }
 .about-divider { width: 40px; height: 1px; background: var(--border); margin: 2rem 0; }
@@ -1720,6 +1740,12 @@ nav.on-light .nav-hamburger span,
   </div>
 
   </div><!-- /.intro -->
+
+  <!-- INLINE CATEGORY CHIPS — the portfolio filters surfaced on the feed itself,
+       so browsing by category doesn't depend on finding the nav dropdown. Built
+       by buildChips() from the live category list; hidden until it has content so
+       there's no empty gap before prints load. -->
+  <div class="feed-chips" id="feed-chips" role="group" aria-label="Filter portfolio by category" style="display:none"></div>
 
   <!-- Category description — admin-editable, shown only while browsing a
        specific category (not on the main/default view), and only if that
@@ -2509,18 +2535,23 @@ async function loadCategories() {
   else if (currentFilter === null) currentFilter = CATEGORY_ORDER[0]?.filter || 'all';
 }
 
-function buildDropdown() {
-  const inner = document.getElementById('work-dropdown-inner');
-  const mobileInner = document.getElementById('nav-mobile-work-sub');
-
-  // Collect categories present in allPrints — check both new array and legacy string
-  const presentFilters = new Set();
+// The categories that actually have photos, in CATEGORY_ORDER. Shared by the
+// nav dropdown and the inline feed chips so the two can never drift. Checks both
+// the new categories array and the legacy single-category string.
+function presentCategories() {
+  const present = new Set();
   allPrints.forEach(p => {
     const cats = Array.isArray(p.categories) && p.categories.length
       ? p.categories
       : [(p.category || 'abstract-bnw')];
-    cats.forEach(cat => presentFilters.add(cat.toLowerCase()));
+    cats.forEach(cat => present.add(cat.toLowerCase()));
   });
+  return CATEGORY_ORDER.filter(c => present.has(c.filter.toLowerCase()));
+}
+
+function buildDropdown() {
+  const inner = document.getElementById('work-dropdown-inner');
+  const mobileInner = document.getElementById('nav-mobile-work-sub');
 
   const makeLink = (filter, label, mobile) => {
     const a = document.createElement('a');
@@ -2535,7 +2566,7 @@ function buildDropdown() {
     return a;
   };
 
-  const presentOrdered = CATEGORY_ORDER.filter(c => presentFilters.has(c.filter.toLowerCase()));
+  const presentOrdered = presentCategories();
 
   // Desktop dropdown
   if (inner) {
@@ -2557,12 +2588,45 @@ function buildDropdown() {
   }
 }
 
+// Inline category chips at the top of the feed — the portfolio filters surfaced
+// on the page itself, so browsing by category no longer depends on finding the
+// nav dropdown. Same source of truth as the dropdown (presentCategories), so
+// slugs are never hardcoded and the two always agree. Only shown when there is
+// more than one category to choose between — a single-category site has nothing
+// to filter, and one lone "All" chip would just be noise.
+function buildChips() {
+  const wrap = document.getElementById('feed-chips');
+  if (!wrap) return;
+  const present = presentCategories();
+  if (present.length < 2) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  wrap.innerHTML = '';
+  [{ filter: 'all', label: 'All' }].concat(present).forEach(it => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (it.filter === currentFilter ? ' active' : '');
+    b.dataset.filter = it.filter;
+    b.textContent = it.label;
+    b.setAttribute('aria-pressed', it.filter === currentFilter ? 'true' : 'false');
+    // No showPage('main') here (unlike the nav dropdown, which can be clicked
+    // from another page): the chips only exist on the feed, so we filter in
+    // place rather than jumping the reader back up to the hero.
+    b.onclick = () => { track('filter', it.filter); setFilter(it.filter); };
+    wrap.appendChild(b);
+  });
+}
+
 function setFilter(filter) {
   currentFilter = filter;
   categorySelected = (filter !== 'all');
   // Update active state on dropdown links
   document.querySelectorAll('#work-dropdown [data-filter]').forEach(a => {
     a.classList.toggle('active-filter', a.dataset.filter === filter);
+  });
+  // …and on the inline feed chips.
+  document.querySelectorAll('#feed-chips .chip').forEach(b => {
+    const on = b.dataset.filter === filter;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   pickHeroForFilter(filter);
   updateCategoryDescription();
@@ -2716,6 +2780,7 @@ async function buildFeed(prints) {
   allPrints = feedPrints;
   allOrientations = orientations;
   buildDropdown();
+  buildChips();
 
   // Hero pick: main-page treatment (exclude_from_hero-aware, whole portfolio)
   // since categorySelected starts false on every fresh load — the default
