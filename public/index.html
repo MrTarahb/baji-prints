@@ -2032,6 +2032,29 @@ nav.on-light .nav-hamburger span,
 </div>
 
 <script>
+// ── ANALYTICS (privacy-first: no cookies, no personal data, no consent banner) ─
+// BP_VISIT is a random id generated in memory at page load and NEVER written to
+// a cookie or localStorage — it only groups this one visit's events server-side
+// so behaviour can be read as rates, and it is gone on reload. No IP, user-agent
+// or fingerprint is sent. BP_DEVICE is a coarse mobile/desktop bucket (one bit,
+// not personal) because nav discoverability is mostly a mobile problem.
+var BP_VISIT = Math.random().toString(36).slice(2) + Date.now().toString(36);
+var BP_DEVICE = (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 'm' : 'd';
+// The admin sets this on their own browser (via /admin) so their own visits
+// don't pollute the stats — an opt-OUT flag, not visitor tracking.
+function isNoTrack(){ try{ return localStorage.getItem('baji_notrack')==='1'; }catch(e){ return false; } }
+// Fire a behaviour event. Fire-and-forget; `once` dedupes within a visit for
+// things that can repeat (scroll milestones), so a visit counts once per step.
+var _bpFired = {};
+function track(type, detail, once){
+  if (isNoTrack()) return;
+  if (once){ var k = type + ':' + (detail || ''); if (_bpFired[k]) return; _bpFired[k] = true; }
+  try {
+    fetch('/api/event', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ visit: BP_VISIT, type: type, detail: detail == null ? null : String(detail) }) }).catch(function(){});
+  } catch(e){}
+}
+
 // SCROLL ANIMATION
 function initScrollAnimation() {
   const intro = document.getElementById('intro');
@@ -2166,6 +2189,15 @@ function initScrollAnimation() {
   window.addEventListener('resize', updateNavBlend, { passive: true });
   window.addEventListener('scroll', () => {
     const y = window.scrollY;
+    // Scroll-depth milestones, once per visit. The window only scrolls on the
+    // main feed (sub-pages are fixed overlays that scroll internally), so this
+    // measures how far into the portfolio people actually get.
+    const sh = document.documentElement.scrollHeight - window.innerHeight;
+    if (sh > 400) {
+      const pct = y / sh;
+      if (pct >= 0.5) track('scroll', '50', true);
+      if (pct >= 0.9) track('scroll', '90', true);
+    }
     // Hide scroll indicator once user starts scrolling
     const scrollHint = document.querySelector('.intro-scroll');
     if (scrollHint) scrollHint.classList.toggle('hidden', y > 30);
@@ -2495,9 +2527,9 @@ function buildDropdown() {
     a.dataset.filter = filter;
     a.textContent = label;
     if (mobile) {
-      a.onclick = () => { showPage('main'); setFilter(filter); closeMobileNav(); };
+      a.onclick = () => { track('filter', filter); showPage('main'); setFilter(filter); closeMobileNav(); };
     } else {
-      a.onclick = () => { showPage('main'); setFilter(filter); closeWorkDropdown(); };
+      a.onclick = () => { track('filter', filter); showPage('main'); setFilter(filter); closeWorkDropdown(); };
       if (filter === currentFilter) a.classList.add('active-filter');
     }
     return a;
@@ -2856,6 +2888,10 @@ function getLightboxList() {
 function openLightbox(src, title, printId) {
   if (printId) {
     if(!isNoTrack()) fetch('/api/photoview', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({print_id:printId})}).catch(()=>{});
+    // Behaviour: a photo was opened, and whether it even had a story — so the
+    // funnel can compare "opened a storied photo" against "read the story".
+    const _op = allPrints.find(x => x.id === printId);
+    track('photo_open', (_op && _op.description && _op.description.trim()) ? 'story' : 'plain');
   }
 
   // Track position in the filtered list for keyboard navigation
@@ -3022,6 +3058,7 @@ function toggleLightboxDesc() {
   const toggle = document.getElementById('lightbox-desc-toggle');
   const lb = document.getElementById('lightbox');
   const isOpen = panel.classList.toggle('open');
+  if (isOpen) track('story_read');   // the discovery we care about: a story was actually opened
   storyPref = isOpen; // remember the choice so it carries to the next photo
   if (lb) lb.classList.toggle('story-open', isOpen); // :has() fallback for the image shrink
   toggle.textContent = isOpen ? 'Hide the story' : 'Read the story';
@@ -3137,6 +3174,7 @@ function heroMenuClick() {
 }
 
 function openMobileNav() {
+  track('nav_open', 'mobile');   // the key nav-discoverability signal (mobile hamburger)
   document.getElementById('nav-mobile-menu').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -4159,14 +4197,15 @@ if (initialPath.indexOf('/shop/success') === 0) {
   showPage(pathToPage[landingPage]);
 }
 
-// Track pageview with referrer — skipped on browsers flagged via the admin
-// (localStorage 'baji_notrack'), so your own visits don't pollute the stats.
-function isNoTrack(){ try{ return localStorage.getItem('baji_notrack')==='1'; }catch(e){ return false; } }
+// Track the pageview — skipped on the admin's own browser (see isNoTrack, and
+// the analytics block at the top of this script). The visit id + device bucket
+// ride along so pageviews are the denominator for the behaviour funnels; both
+// are anonymous and stored nowhere on the device.
 if(!isNoTrack()){
   fetch('/api/pageview', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({path:'/', referrer: document.referrer || ''})
+    body:JSON.stringify({path:'/', referrer: document.referrer || '', visit: BP_VISIT, device: BP_DEVICE})
   }).catch(()=>{});
 }
 </script>

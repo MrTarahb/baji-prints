@@ -785,12 +785,32 @@ async function initDB() {
       referrer TEXT
     );
     ALTER TABLE pageviews ADD COLUMN IF NOT EXISTS referrer TEXT;
+    -- visit is a random, in-memory-only id the page generates per load — it is
+    -- NEVER stored on the visitor's device, so it needs no cookie consent; it
+    -- only lets behaviour be read as per-visit rates. device is a coarse
+    -- mobile/desktop bucket (one bit, not personal). Both are anonymous.
+    ALTER TABLE pageviews ADD COLUMN IF NOT EXISTS visit TEXT;
+    ALTER TABLE pageviews ADD COLUMN IF NOT EXISTS device TEXT;
 
     CREATE TABLE IF NOT EXISTS photo_views (
       id SERIAL PRIMARY KEY,
       print_id INTEGER REFERENCES prints(id) ON DELETE CASCADE,
       viewed_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Behavioural events, keyed to the same anonymous per-visit id as pageviews,
+    -- so funnels ("what fraction of visits opened the nav / read a story") are a
+    -- COUNT(DISTINCT visit). No PII: type is from a fixed allow-list, detail is a
+    -- short label (a category slug, 'story'/'plain', a scroll %), nothing else.
+    CREATE TABLE IF NOT EXISTS events (
+      id SERIAL PRIMARY KEY,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      visit TEXT,
+      type TEXT NOT NULL,
+      detail TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
 
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
@@ -3095,12 +3115,42 @@ const trackLimiter = rateLimit({
   message: { ok: false },
 });
 
+// A referrer is trimmed to its ORIGIN before storing — the source ("instagram.com")
+// is all the stats need, and dropping the path/query removes the one place a
+// referrer URL could carry personal data. Bad input just becomes NULL.
+function referrerOrigin(ref) {
+  if (!ref) return null;
+  try { return new URL(ref).origin; } catch (e) { return null; }
+}
+// The behaviour event types the page is allowed to send. Anything else is
+// dropped, so the table can never fill with arbitrary strings.
+const EVENT_TYPES = ['nav_open', 'filter', 'photo_open', 'story_read', 'scroll'];
+
 app.post('/api/pageview', trackLimiter, async (req, res) => {
   try {
-    const { path, referrer } = req.body;
+    const { path, referrer, visit, device } = req.body;
     await pool.query(
-      'INSERT INTO pageviews (path, referrer) VALUES ($1, $2)',
-      [path || '/', referrer || null]
+      'INSERT INTO pageviews (path, referrer, visit, device) VALUES ($1, $2, $3, $4)',
+      [
+        (path || '/').slice(0, 200),
+        referrerOrigin(referrer),
+        (visit || '').slice(0, 40) || null,
+        device === 'm' ? 'm' : (device === 'd' ? 'd' : null),
+      ]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+// One behavioural event. Fire-and-forget from the page; the type is validated
+// against the allow-list and detail is capped, so nothing unbounded lands here.
+app.post('/api/event', trackLimiter, async (req, res) => {
+  try {
+    const { visit, type, detail } = req.body;
+    if (EVENT_TYPES.indexOf(type) === -1) return res.json({ ok: false });
+    await pool.query(
+      'INSERT INTO events (visit, type, detail) VALUES ($1, $2, $3)',
+      [(visit || '').slice(0, 40) || null, type, detail ? String(detail).slice(0, 60) : null]
     );
     res.json({ ok: true });
   } catch(e) { res.json({ ok: false }); }
@@ -3147,6 +3197,37 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
       GROUP BY p.id, p.title, p.image_url
       ORDER BY views DESC LIMIT 5
     `);
+    // ── Behaviour funnels (last 30 days) ──────────────────────────────────────
+    // The denominator is VISITS (distinct anonymous visit ids in pageviews), so
+    // every number below reads as "how many visits did X". Only visits since the
+    // events feature shipped carry an id, so these start clean rather than being
+    // diluted by old, un-instrumented traffic.
+    const vis = await pool.query(`
+      SELECT COUNT(DISTINCT visit) AS visits,
+        COUNT(DISTINCT visit) FILTER (WHERE device = 'm') AS mobile,
+        COUNT(DISTINCT visit) FILTER (WHERE device = 'd') AS desktop
+      FROM pageviews
+      WHERE visited_at > NOW() - INTERVAL '30 days' AND visit IS NOT NULL
+    `);
+    const ev = await pool.query(`
+      SELECT
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'scroll' AND detail = '50') AS scroll50,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'scroll' AND detail = '90') AS scroll90,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'nav_open') AS nav_open,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'filter') AS filtered,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'photo_open') AS photo_open,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'photo_open' AND detail = 'story') AS story_available,
+        COUNT(DISTINCT visit) FILTER (WHERE type = 'story_read') AS story_read
+      FROM events
+      WHERE created_at > NOW() - INTERVAL '30 days' AND visit IS NOT NULL
+    `);
+    const topCats = await pool.query(`
+      SELECT detail AS category, COUNT(DISTINCT visit) AS visits
+      FROM events
+      WHERE type = 'filter' AND detail IS NOT NULL AND created_at > NOW() - INTERVAL '30 days'
+      GROUP BY detail ORDER BY visits DESC LIMIT 8
+    `);
+    const n = (r, k) => parseInt(r.rows[0][k] || 0, 10);
     res.json({
       total:     parseInt(total.rows[0].count),
       today:     parseInt(today.rows[0].count),
@@ -3155,6 +3236,19 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
       daily:     daily.rows,
       referrers: referrers.rows,
       topPhotos: topPhotos.rows,
+      behavior: {
+        visits:          n(vis, 'visits'),
+        mobile:          n(vis, 'mobile'),
+        desktop:         n(vis, 'desktop'),
+        scroll50:        n(ev, 'scroll50'),
+        scroll90:        n(ev, 'scroll90'),
+        navOpen:         n(ev, 'nav_open'),
+        filtered:        n(ev, 'filtered'),
+        photoOpen:       n(ev, 'photo_open'),
+        storyAvailable:  n(ev, 'story_available'),
+        storyRead:       n(ev, 'story_read'),
+        topCategories:   topCats.rows,
+      },
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3165,6 +3259,7 @@ app.post('/api/admin/stats/reset', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM pageviews');
     await pool.query('DELETE FROM photo_views');
+    await pool.query('DELETE FROM events');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

@@ -396,6 +396,19 @@ to 48px over anything actionable; `public/client/index.html` and
 **Never hardcode a category slug in the frontend** — derive it from the live category list, or
 an admin rename breaks the site.
 
+**Analytics is privacy-first by design, and must stay that way — no cookie-consent banner, no
+personal data (a hard requirement from the owner).** Traffic is `pageviews`; behaviour is the
+`events` table (types `nav_open` / `filter` / `photo_open` / `story_read` / `scroll`, from a
+server allow-list). Both key off **`BP_VISIT`, a random id generated in memory per page load and
+NEVER written to a cookie or localStorage** — it only groups a visit's events server-side so
+funnels are `COUNT(DISTINCT visit)`, and it is gone on reload. Do **not** persist it, and do
+**not** store IP / user-agent / fingerprint / a full referrer (the pageview route trims referrer
+to its origin for exactly this reason). `BP_DEVICE` is a coarse `m`/`d` bucket, not personal.
+The admin's own browser is excluded via the `baji_notrack` localStorage opt-OUT flag (`isNoTrack`)
+— that flag is the one allowed piece of client storage, and it is opt-out, not tracking. The
+admin **Visits** panel renders the funnels; `/api/admin/stats/reset` wipes all three tables. The
+full rationale and the discoverability ideas these measure live in `DISCOVERABILITY.md`.
+
 **Auth** is a single admin password: `bcrypt.compare` against `ADMIN_PASSWORD_HASH`, with a
 constant-time `safeEqual()` fallback to plaintext `ADMIN_PASSWORD` (deleted in production).
 Fails closed if neither is set. All `/api/admin/*` routes sit behind `requireAuth`.

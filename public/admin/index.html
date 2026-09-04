@@ -435,6 +435,13 @@ textarea.field-input{resize:vertical;min-height:70px}
             <div id="top-photos-list"></div>
           </div>
         </div>
+        <div class="chart-wrap" style="margin-top:.65rem">
+          <span class="chart-title">Behaviour — last 30 days</span>
+          <p class="panel-sub" style="margin:.15rem 0 .6rem">Each number is how many <strong>visits</strong> did the thing (anonymous — no cookies, no personal data). Only visits since this feature shipped are counted, so it starts from zero.</p>
+          <div id="behavior-summary" style="font-size:.72rem;color:var(--text-l);margin-bottom:.55rem"></div>
+          <div id="behavior-funnel"></div>
+          <div id="behavior-cats" style="margin-top:.7rem"></div>
+        </div>
       </div>
 
       <!-- MESSAGES -->
@@ -2161,7 +2168,57 @@ async function loadStats(){
         topList.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">No photo views recorded yet.</p>';
       }
     }
+    renderBehavior(d.behavior);
   }catch(e){}
+}
+
+// Behaviour funnels: each row reads as "N visits (P% of all visits) did X", with
+// a bar for P. The denominator is total visits with a (anonymous) visit id.
+function renderBehavior(b){
+  const summary=document.getElementById('behavior-summary');
+  const funnel=document.getElementById('behavior-funnel');
+  const cats=document.getElementById('behavior-cats');
+  if(!summary||!funnel) return;
+  if(!b || !b.visits){
+    summary.textContent='';
+    funnel.innerHTML='<p style="font-size:.72rem;color:var(--text-l)">No visits recorded yet — this fills in once the site gets traffic after deploy.</p>';
+    if(cats) cats.innerHTML='';
+    return;
+  }
+  const pct=n=>b.visits?Math.round((n/b.visits)*100):0;
+  summary.innerHTML=`<strong style="color:var(--text)">${b.visits.toLocaleString()}</strong> visits `
+    +`· ${b.mobile.toLocaleString()} mobile / ${b.desktop.toLocaleString()} desktop`;
+  const row=(label,n,extra)=>`
+    <div class="referrer-row">
+      <span class="referrer-name" title="${esc(label)}">${esc(label)}</span>
+      <div class="referrer-bar-wrap"><div class="referrer-bar" style="width:${Math.max(2,pct(n))}%"></div></div>
+      <span class="referrer-count">${pct(n)}%${extra?` <span style="color:var(--text-l)">(${esc(extra)})</span>`:''}</span>
+    </div>`;
+  // Story-read rate among visits that opened a photo that HAD a story — the
+  // sharper number for "do people discover the stories".
+  const storyOfAvail=b.storyAvailable?Math.round((b.storyRead/b.storyAvailable)*100):0;
+  funnel.innerHTML=
+    row('Scrolled into the feed', b.scroll50)+
+    row('Scrolled most of the feed', b.scroll90)+
+    row('Opened the menu (mobile)', b.navOpen)+
+    row('Used a category filter', b.filtered)+
+    row('Opened a photo', b.photoOpen)+
+    row('Read a story', b.storyRead, b.storyAvailable?`${storyOfAvail}% of those who opened a photo with one`:'')+
+    `<p class="panel-sub" style="margin:.5rem 0 0">Behaviour goals: raise “used a category filter” (portfolio discovery) and “read a story”. ${b.photoOpen} visits opened a photo, ${b.storyAvailable} of those had a story to read.</p>`;
+  if(cats){
+    if(b.topCategories&&b.topCategories.length){
+      const maxC=Math.max(...b.topCategories.map(c=>parseInt(c.visits)),1);
+      cats.innerHTML='<span class="chart-title" style="display:block;margin-bottom:.4rem">Most-used category filters</span>'
+        +b.topCategories.map(c=>`
+          <div class="referrer-row">
+            <span class="referrer-name" title="${esc(c.category)}">${esc(c.category)}</span>
+            <div class="referrer-bar-wrap"><div class="referrer-bar" style="width:${Math.max(3,Math.round((parseInt(c.visits)/maxC)*100))}%"></div></div>
+            <span class="referrer-count">${c.visits}</span>
+          </div>`).join('');
+    } else {
+      cats.innerHTML='';
+    }
+  }
 }
 
 // Exclude this browser from public-site visit tracking. One admin visit per
