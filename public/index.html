@@ -1311,24 +1311,33 @@ body.shop-detail-open .shop-detail-close {
 
 /* Mobile nav — collapses to hamburger below 640px */
 .nav-hamburger {
-  display: none;
-  flex-direction: column;
-  gap: 4px;
+  display: none;               /* -> flex on mobile (see the max-width:640px block) */
+  flex-direction: row;
+  align-items: center;
+  gap: .5rem;
   background: none;
   border: none;
   padding: .4rem;
   cursor: none;
 }
-.nav-hamburger span {
+.nav-hamburger .menu-bars { display: flex; flex-direction: column; gap: 4px; }
+.nav-hamburger .menu-word {
+  font-family: var(--fm); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: rgba(250,250,248,.85); transition: color .2s;
+}
+.nav-hamburger .menu-bars span {
   display: block;
   width: 20px;
   height: 1.5px;
   background: rgba(250,250,248,.8);
   transition: background .2s;
 }
-nav.on-light .nav-hamburger span,
-[data-theme="light"] .nav-hamburger span,
-:root:not([data-theme="dark"]) .nav-hamburger span { background: rgba(17,17,16,.75); }
+nav.on-light .nav-hamburger .menu-bars span,
+[data-theme="light"] .nav-hamburger .menu-bars span,
+:root:not([data-theme="dark"]) .nav-hamburger .menu-bars span { background: rgba(17,17,16,.75); }
+nav.on-light .nav-hamburger .menu-word,
+[data-theme="light"] .nav-hamburger .menu-word,
+:root:not([data-theme="dark"]) .nav-hamburger .menu-word { color: rgba(17,17,16,.8); }
 
 /* Persistent menu button — shown on the homepage hero (desktop + mobile) even
    while the full nav bar is still hidden, so first-time visitors always have a
@@ -1340,8 +1349,12 @@ nav.on-light .nav-hamburger span,
   top: calc(1.4rem + env(safe-area-inset-top, 0px));
   z-index: 501;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  /* Row now, so the "Menu" word can sit beside the bars — a labelled control
+     reads as a menu where three bars alone read as decoration. The fade-in is
+     untouched (opacity transition below). */
+  flex-direction: row;
+  align-items: center;
+  gap: .5rem;
   background: none;
   border: none;
   padding: .4rem;
@@ -1351,15 +1364,19 @@ nav.on-light .nav-hamburger span,
   pointer-events: none;
 }
 .hero-menu-btn.visible { opacity: 1; pointer-events: all; }
-.hero-menu-btn span {
+.hero-menu-btn .menu-bars { display: flex; flex-direction: column; gap: 4px; }
+.hero-menu-btn .menu-word {
+  font-family: var(--fm); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: #fff;
+  /* Same drop-shadow reasoning as the bars — legible over any part of the hero
+     without mix-blend-mode (which breaks position:fixed on Android Chrome). */
+  text-shadow: 0 0 3px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.45);
+}
+.hero-menu-btn .menu-bars span {
   display: block;
   width: 22px;
   height: 1.5px;
   background: #fff;
-  /* Solid white bars with a dark drop-shadow rather than mix-blend-mode —
-     blend mode inside this position:fixed button broke pinning on Android
-     Chrome (see nav-blend note). The shadow keeps them visible over light
-     areas of the hero. */
   box-shadow: 0 0 3px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.4);
   transition: opacity .2s;
 }
@@ -1689,7 +1706,8 @@ nav.on-light .nav-hamburger span,
       </svg>
     </button>
     <button class="nav-hamburger" id="nav-hamburger" onclick="openMobileNav()" aria-label="Open menu">
-      <span></span><span></span><span></span>
+      <span class="menu-word">Menu</span>
+      <span class="menu-bars"><span></span><span></span><span></span></span>
     </button>
   </div>
 </nav>
@@ -1698,7 +1716,8 @@ nav.on-light .nav-hamburger span,
      JS toggles .visible so it only appears on the homepage while the full nav
      bar is hidden (i.e. before scroll), then hands over to the real nav. -->
 <button class="hero-menu-btn" id="hero-menu-btn" onclick="heroMenuClick()" aria-label="Open menu">
-  <span></span><span></span><span></span>
+  <span class="menu-word">Menu</span>
+  <span class="menu-bars"><span></span><span></span><span></span></span>
 </button>
 
 <!-- MOBILE NAV MENU -->
@@ -2168,9 +2187,11 @@ function initScrollAnimation() {
     const nav = document.getElementById('nav');
     if (nav && nav.classList.contains('on-light')) {
       const nowDark = !dark; // theme just flipped
-      nav.querySelectorAll('.nav-hamburger span').forEach(s => {
+      nav.querySelectorAll('.nav-hamburger .menu-bars span').forEach(s => {
         s.style.background = nowDark ? 'rgba(250,250,248,.8)' : 'rgba(17,17,16,.75)';
       });
+      const word = nav.querySelector('.nav-hamburger .menu-word');
+      if (word) word.style.color = nowDark ? 'rgba(250,250,248,.85)' : 'rgba(17,17,16,.8)';
     }
   };
 
@@ -2440,18 +2461,24 @@ function showPage(name){
   // the top right after a page switch (e.g. returning from the shop), then
   // hand off to the normal scroll-driven behaviour.
   const nav = document.getElementById('nav');
-  const hamburgerSpans = nav.querySelectorAll('.nav-hamburger span');
+  // Only the BARS get an inline background here — scoped to .menu-bars span so
+  // the "Menu" label and the bar wrapper aren't painted with a colour box. The
+  // label follows with its own colour.
+  const hamburgerBars = nav.querySelectorAll('.nav-hamburger .menu-bars span');
+  const hamburgerWord = nav.querySelector('.nav-hamburger .menu-word');
   const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' ||
     (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (name !== 'main') {
     nav.classList.add('visible', 'on-light');
     nav.classList.remove('scrolled');
-    // Use dark bars on light backgrounds, light bars on dark backgrounds
-    hamburgerSpans.forEach(s => s.style.background = isDarkMode ? 'rgba(250,250,248,.8)' : 'rgba(17,17,16,.75)');
+    // Use dark bars/label on light backgrounds, light on dark backgrounds
+    hamburgerBars.forEach(s => s.style.background = isDarkMode ? 'rgba(250,250,248,.8)' : 'rgba(17,17,16,.75)');
+    if (hamburgerWord) hamburgerWord.style.color = isDarkMode ? 'rgba(250,250,248,.85)' : 'rgba(17,17,16,.8)';
   } else {
     nav.classList.remove('on-light');
     nav.classList.add('visible');
-    hamburgerSpans.forEach(s => s.style.background = '');
+    hamburgerBars.forEach(s => s.style.background = '');
+    if (hamburgerWord) hamburgerWord.style.color = '';
     setTimeout(() => { nav.classList.toggle('visible', window.scrollY > 40); if (window.updateHeroMenuBtn) window.updateHeroMenuBtn(); }, 50);
   }
   // Sync the persistent hero menu button to the new page
