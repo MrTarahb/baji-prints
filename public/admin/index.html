@@ -421,13 +421,22 @@ textarea.field-input{resize:vertical;min-height:70px}
           <div class="stat-card"><div class="stat-value" id="stat-week">—</div><div class="stat-label">Last 7 days</div></div>
           <div class="stat-card"><div class="stat-value" id="stat-month">—</div><div class="stat-label">Last 30 days</div></div>
         </div>
+        <!-- Range selector: controls the chart, referrers, behaviour and top
+             photos below (the four cards above stay fixed as a standard glance). -->
+        <div class="msg-filters" id="stats-range" style="margin:.9rem 0 .3rem">
+          <button data-range="7" onclick="setStatsRange('7',this)">7 days</button>
+          <button class="active" data-range="30" onclick="setStatsRange('30',this)">30 days</button>
+          <button data-range="90" onclick="setStatsRange('90',this)">90 days</button>
+          <button data-range="365" onclick="setStatsRange('365',this)">1 year</button>
+          <button data-range="all" onclick="setStatsRange('all',this)">All time</button>
+        </div>
         <div class="chart-wrap">
-          <span class="chart-title">Daily visits — last 30 days</span>
+          <span class="chart-title" id="chart-title">Daily visits — last 30 days</span>
           <div class="chart-bars" id="chart-bars"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.65rem">
           <div class="chart-wrap">
-            <span class="chart-title">Where visitors come from (30 days)</span>
+            <span class="chart-title" id="ref-title">Where visitors come from (30 days)</span>
             <div id="referrer-list"></div>
           </div>
           <div class="chart-wrap">
@@ -436,7 +445,7 @@ textarea.field-input{resize:vertical;min-height:70px}
           </div>
         </div>
         <div class="chart-wrap" style="margin-top:.65rem">
-          <span class="chart-title">Behaviour — last 30 days</span>
+          <span class="chart-title" id="beh-title">Behaviour — last 30 days</span>
           <p class="panel-sub" style="margin:.15rem 0 .6rem">Each number is how many <strong>visits</strong> did the thing (anonymous — no cookies, no personal data). Only visits since this feature shipped are counted, so it starts from zero.</p>
           <div id="behavior-summary" style="font-size:.72rem;color:var(--text-l);margin-bottom:.55rem"></div>
           <div id="behavior-funnel"></div>
@@ -2112,32 +2121,35 @@ function renderMarginReference() {
     </p>`;
 }
 
+// The window the chart/referrers/behaviour/top-photos follow. The four summary
+// cards above stay fixed. '30' by default; 'all' means no time limit.
+let statsRange = '30';
+function setStatsRange(r, btn){
+  statsRange = r;
+  document.querySelectorAll('#stats-range button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  loadStats();
+}
+function rangeLabel(r){
+  if(r==='all'||r===0) return 'all time';
+  const nrm=parseInt(r,10);
+  if(nrm===365) return 'last year';
+  return 'last '+nrm+' days';
+}
 async function loadStats(){
   try{
-    const d=await fetch('/api/admin/stats',{credentials:'include'}).then(r=>r.json());
+    const d=await fetch('/api/admin/stats?range='+encodeURIComponent(statsRange),{credentials:'include'}).then(r=>r.json());
     document.getElementById('stat-total').textContent=d.total.toLocaleString();
     document.getElementById('stat-today').textContent=d.today.toLocaleString();
     document.getElementById('stat-week').textContent=d.week.toLocaleString();
     document.getElementById('stat-month').textContent=d.month.toLocaleString();
-    // Draw bar chart
-    const bars=document.getElementById('chart-bars');
-    bars.innerHTML='';
-    if(d.daily&&d.daily.length){
-      const max=Math.max(...d.daily.map(r=>parseInt(r.count)),1);
-      // Fill in missing days
-      const days=[];
-      for(let i=29;i>=0;i--){const dt=new Date();dt.setDate(dt.getDate()-i);days.push(dt.toISOString().slice(0,10));}
-      days.forEach(day=>{
-        const row=d.daily.find(r=>r.day.slice(0,10)===day);
-        const count=row?parseInt(row.count):0;
-        const bar=document.createElement('div');
-        bar.className='chart-bar';
-        bar.style.height=Math.max(2,(count/max)*80)+'px';
-        bar.setAttribute('data-count',count);
-        bar.title=day+': '+count;
-        bars.appendChild(bar);
-      });
-    }
+    // Section titles follow the selected range.
+    const lbl=rangeLabel(d.range);
+    const setTitle=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
+    setTitle('chart-title','Visits — '+lbl);
+    setTitle('ref-title','Where visitors come from — '+lbl);
+    setTitle('beh-title','Behaviour — '+lbl);
+    renderChart(d.daily, d.range);
     // Referrer breakdown — the API has returned this all along; it was never rendered
     const refList=document.getElementById('referrer-list');
     if(refList){
@@ -2174,6 +2186,44 @@ async function loadStats(){
 
 // Behaviour funnels: each row reads as "N visits (P% of all visits) did X", with
 // a bar for P. The denominator is total visits with a (anonymous) visit id.
+// Draw the visits bar chart over the selected range. Bars stay readable at any
+// range by widening the bucket: daily up to ~3 months, then weekly, then monthly.
+// Gaps are filled with zero-height bars so the timeline isn't misleading.
+function renderChart(daily, range){
+  const bars=document.getElementById('chart-bars');
+  if(!bars) return;
+  bars.innerHTML='';
+  if(!daily || !daily.length) return;
+  const byDay={}; daily.forEach(r=>{ byDay[r.day.slice(0,10)]=parseInt(r.count,10); });
+  const today=new Date(); today.setHours(0,0,0,0);
+  let start;
+  if(range==='all'){ start=new Date(daily[0].day.slice(0,10)); }
+  else { start=new Date(today); start.setDate(start.getDate()-(parseInt(range,10)-1)); }
+  const spanDays=Math.round((today-start)/86400000)+1;
+  const gran = spanDays>400 ? 'month' : (spanDays>92 ? 'week' : 'day');
+  const mondayOf=d=>{ const w=new Date(d); w.setDate(w.getDate()-((w.getDay()+6)%7)); return w; };
+  const keyFor=d=> gran==='day' ? d.toISOString().slice(0,10)
+    : gran==='week' ? 'W'+mondayOf(d).toISOString().slice(0,10)
+    : d.toISOString().slice(0,7);
+  const labelFor=d=> gran==='day' ? d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})
+    : gran==='week' ? 'wk '+mondayOf(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'})
+    : d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+  const buckets=[]; const idx={};
+  for(let d=new Date(start); d<=today; d.setDate(d.getDate()+1)){
+    const k=keyFor(d);
+    if(idx[k]==null){ idx[k]=buckets.length; buckets.push({label:labelFor(d),count:0}); }
+    buckets[idx[k]].count += (byDay[d.toISOString().slice(0,10)]||0);
+  }
+  const max=Math.max(...buckets.map(b=>b.count),1);
+  buckets.forEach(b=>{
+    const bar=document.createElement('div');
+    bar.className='chart-bar';
+    bar.style.height=Math.max(2,(b.count/max)*80)+'px';
+    bar.setAttribute('data-count',b.count);
+    bar.title=b.label+': '+b.count+(gran==='day'?'':' ('+gran+')');
+    bars.appendChild(bar);
+  });
+}
 function renderBehavior(b){
   const summary=document.getElementById('behavior-summary');
   const funnel=document.getElementById('behavior-funnel');

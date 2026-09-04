@@ -3167,13 +3167,21 @@ app.post('/api/photoview', trackLimiter, async (req, res) => {
 
 app.get('/api/admin/stats', requireAuth, async (req, res) => {
   try {
+    // The four summary cards stay fixed (all-time / today / 7d / 30d — a standard
+    // glance). Everything else — the chart, referrers, behaviour, top photos —
+    // follows ?range: a day count, or 'all' for no time limit. days is parsed and
+    // clamped to an integer, so inlining it in an INTERVAL literal is injection-safe.
+    const raw = String(req.query.range || '30');
+    const days = raw === 'all' ? null : Math.min(3650, Math.max(1, parseInt(raw, 10) || 30));
+    const win = (col) => days === null ? 'TRUE' : `${col} > NOW() - INTERVAL '${days} days'`;
+
     const total  = await pool.query('SELECT COUNT(*) FROM pageviews');
     const today  = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '1 day'");
     const week   = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '7 days'");
     const month  = await pool.query("SELECT COUNT(*) FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'");
     const daily  = await pool.query(`
       SELECT DATE(visited_at) as day, COUNT(*) as count
-      FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'
+      FROM pageviews WHERE ${win('visited_at')}
       GROUP BY DATE(visited_at) ORDER BY day ASC
     `);
     const referrers = await pool.query(
@@ -3187,17 +3195,17 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
       " WHEN referrer ILIKE '%whatsapp%' THEN 'WhatsApp'" +
       " ELSE regexp_replace(referrer, '^https?://([^/]+).*', " + "'\\1')" +
       " END as source, COUNT(*) as count" +
-      " FROM pageviews WHERE visited_at > NOW() - INTERVAL '30 days'" +
+      " FROM pageviews WHERE " + win('visited_at') +
       " GROUP BY source ORDER BY count DESC LIMIT 8"
     );
     const topPhotos = await pool.query(`
       SELECT p.id, p.title, p.image_url, COUNT(pv.id) as views
       FROM prints p
-      LEFT JOIN photo_views pv ON pv.print_id = p.id
+      LEFT JOIN photo_views pv ON pv.print_id = p.id AND ${win('pv.viewed_at')}
       GROUP BY p.id, p.title, p.image_url
       ORDER BY views DESC LIMIT 5
     `);
-    // ── Behaviour funnels (last 30 days) ──────────────────────────────────────
+    // ── Behaviour funnels ─────────────────────────────────────────────────────
     // The denominator is VISITS (distinct anonymous visit ids in pageviews), so
     // every number below reads as "how many visits did X". Only visits since the
     // events feature shipped carry an id, so these start clean rather than being
@@ -3207,7 +3215,7 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
         COUNT(DISTINCT visit) FILTER (WHERE device = 'm') AS mobile,
         COUNT(DISTINCT visit) FILTER (WHERE device = 'd') AS desktop
       FROM pageviews
-      WHERE visited_at > NOW() - INTERVAL '30 days' AND visit IS NOT NULL
+      WHERE ${win('visited_at')} AND visit IS NOT NULL
     `);
     const ev = await pool.query(`
       SELECT
@@ -3219,12 +3227,12 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
         COUNT(DISTINCT visit) FILTER (WHERE type = 'photo_open' AND detail = 'story') AS story_available,
         COUNT(DISTINCT visit) FILTER (WHERE type = 'story_read') AS story_read
       FROM events
-      WHERE created_at > NOW() - INTERVAL '30 days' AND visit IS NOT NULL
+      WHERE ${win('created_at')} AND visit IS NOT NULL
     `);
     const topCats = await pool.query(`
       SELECT detail AS category, COUNT(DISTINCT visit) AS visits
       FROM events
-      WHERE type = 'filter' AND detail IS NOT NULL AND created_at > NOW() - INTERVAL '30 days'
+      WHERE type = 'filter' AND detail IS NOT NULL AND ${win('created_at')}
       GROUP BY detail ORDER BY visits DESC LIMIT 8
     `);
     const n = (r, k) => parseInt(r.rows[0][k] || 0, 10);
@@ -3233,6 +3241,7 @@ app.get('/api/admin/stats', requireAuth, async (req, res) => {
       today:     parseInt(today.rows[0].count),
       week:      parseInt(week.rows[0].count),
       month:     parseInt(month.rows[0].count),
+      range:     days === null ? 'all' : days,
       daily:     daily.rows,
       referrers: referrers.rows,
       topPhotos: topPhotos.rows,
@@ -4210,7 +4219,16 @@ app.get('/client/:slug', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'client', 'index.html'));
 });
 
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
+// no-cache like every other HTML route here — `res.sendFile`'s default is
+// `public, max-age=0`, which a shared cache (Cloudflare) can still serve stale,
+// so a freshly deployed admin panel kept showing the old one. This is the same
+// header the /client and project/workshop routes already set.
+app.get('/admin', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
+});
 app.get('/api/coming-soon', (req, res) => res.json({ active: process.env.COMING_SOON === 'true' }));
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
