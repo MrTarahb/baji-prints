@@ -1345,8 +1345,16 @@ nav.on-light .nav-hamburger .menu-word,
    lives outside <nav> so nav's opacity:0 on load doesn't hide it too. */
 .hero-menu-btn {
   position: fixed;
-  top: 1.4rem; right: 2rem;
-  top: calc(1.4rem + env(safe-area-inset-top, 0px));
+  /* The 2px is a measured offset, not padding taste. The nav content row is
+     centred on the theme toggle (22px icon + .4rem padding = 28.4px tall) and
+     its text lands at cap-mid 37.4; this button is centred on its own 13px
+     label and landed at 35.3, so the "Menu" word read ~2px ABOVE the nav links
+     during the scroll crossfade, when both are on screen at once. Re-measure
+     the two cap-mids before changing the nav font sizes or the toggle icon.
+     Mobile overrides both `top` values below and needs no offset: there the
+     nav's own hamburger is this button's twin, so the row already matches. */
+  top: calc(1.4rem + 2px); right: 2rem;
+  top: calc(1.4rem + 2px + env(safe-area-inset-top, 0px));
   z-index: 501;
   display: flex;
   /* Row now, so the "Menu" word can sit beside the bars — a labelled control
