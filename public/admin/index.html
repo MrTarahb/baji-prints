@@ -2250,10 +2250,12 @@ function renderBehavior(b){
     +`· ${b.mobile.toLocaleString()} mobile / ${b.desktop.toLocaleString()} desktop`;
   // Stacked row: the label gets its own full-width line (no truncation), the
   // value sits at the right of that line, and the bar spans the width below.
+  // 0 -> an empty bar; a real but tiny value keeps a 2% minimum so it stays
+  // visible. (Flooring everything to 2% made 0% look non-zero.)
   const behRow=(label,barPct,valueText,extra)=>`
     <div class="beh-row">
       <div class="beh-top"><span class="beh-label">${esc(label)}</span><span class="beh-val">${esc(valueText)}</span></div>
-      <div class="beh-bar-wrap"><div class="beh-bar" style="width:${Math.max(2,barPct)}%"></div></div>
+      <div class="beh-bar-wrap"><div class="beh-bar" style="width:${barPct<=0?0:Math.max(2,barPct)}%"></div></div>
       ${extra?`<div class="beh-extra">${esc(extra)}</div>`:''}
     </div>`;
   const frow=(label,n,extra)=>behRow(label, pct(n), pct(n)+'%', extra);
