@@ -3309,7 +3309,17 @@ app.get('/sitemap.xml', async (req, res) => {
     );
     workshopUrls = rows.map(r => ({ loc: `/workshops/${r.slug}`, freq: 'monthly', pri: '0.6' }));
   } catch (e) { /* fall back without workshops */ }
-  const all = [...staticUrls, ...workshopUrls, ...productUrls];
+  // Each published project page (stage 2). Like workshops, an unpublished
+  // project is noindex, so publishing is what puts it here. Served at
+  // /projects/<slug>; the slug, not the folder, is the public URL.
+  let projectUrls = [];
+  try {
+    const { rows } = await pool.query(
+      'SELECT slug FROM projects WHERE published = true ORDER BY sort_order, id'
+    );
+    projectUrls = rows.map(r => ({ loc: `/projects/${r.slug}`, freq: 'monthly', pri: '0.6' }));
+  } catch (e) { /* fall back without projects */ }
+  const all = [...staticUrls, ...workshopUrls, ...projectUrls, ...productUrls];
   const body = all.map(u =>
     `  <url><loc>${base}${u.loc}</loc><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
   ).join('\n');
