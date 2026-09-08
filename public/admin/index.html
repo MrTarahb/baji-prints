@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<!-- Same Markdown renderer the public site uses, for the live preview under
+     Markdown-enabled fields (data-md). Shared so preview == what visitors see. -->
+<script src="/shared/md.js?v=1"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--ink:#1A1814;--text-m:rgba(26,24,20,.6);--text-l:rgba(26,24,20,.38);--pink:#C8907A;--border:rgba(26,24,20,.1);--bg:#F8F8F6;--surface:#fff}
@@ -287,6 +290,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);font
 .field-input{width:100%;padding:.55rem .78rem;border:1px solid var(--border);border-radius:1px;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--ink);outline:none;transition:border-color .18s;background:var(--bg)}
 .field-input:focus{border-color:var(--ink)}
 textarea.field-input{resize:vertical;min-height:70px}
+/* Live Markdown preview, created as a sibling after any textarea[data-md]. */
+.md-preview{margin-top:.45rem;padding:.55rem .75rem;border:1px dashed var(--border);border-radius:2px;background:var(--bg);font-family:'DM Sans',sans-serif;font-size:.82rem;line-height:1.65;color:var(--ink)}
+.md-preview::before{content:"Preview";display:block;font-family:'DM Mono',monospace;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-l);margin-bottom:.35rem}
+.md-preview p{margin:0}
+.md-preview p+p{margin-top:.5em}
+.md-preview ul,.md-preview ol{margin:.3em 0;padding-left:1.2em}
+.md-preview li{margin:.1em 0}
+.md-preview a{color:var(--pink)}
+.md-preview code{font-family:'DM Mono',monospace;font-size:.9em;background:rgba(26,24,20,.06);padding:.05em .3em;border-radius:2px}
+.md-preview blockquote{margin:.3em 0;padding-left:.7em;border-left:2px solid var(--border);color:var(--text-m)}
+.md-preview-empty{color:var(--text-l);font-style:italic}
 .field-footer{display:flex;align-items:center;gap:.6rem;margin-top:.6rem}
 .btn-save{background:var(--ink);color:white;border:none;padding:.38rem .95rem;font-family:'DM Sans',sans-serif;font-size:.68rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:1px;cursor:pointer;transition:background .18s}
 .btn-save:hover{background:#333}
@@ -569,7 +583,7 @@ textarea.field-input{resize:vertical;min-height:70px}
         <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
           <p class="field-label" style="margin-bottom:.6rem">Add new paper</p>
           <input class="field-input" id="new-paper-name" placeholder="e.g. Hahnemühle Photo Rag Satin" style="margin-bottom:.5rem">
-          <textarea class="field-input" id="new-paper-desc" rows="3" placeholder="Description shown to customers in the shop…" style="resize:vertical;margin-bottom:.5rem"></textarea>
+          <textarea class="field-input" id="new-paper-desc" data-md="inline" rows="3" placeholder="Description shown to customers in the shop…" style="resize:vertical;margin-bottom:.5rem"></textarea>
           <input class="field-input" id="new-paper-weight" type="number" placeholder="Weight in g/m² (e.g. 310) — internal, not shown to customers" style="margin-bottom:.5rem">
           <button class="btn-order-action" onclick="addPaper()">Add paper</button>
           <span id="new-paper-msg" style="font-size:.75rem;margin-left:.5rem;color:var(--text-l)"></span>
@@ -667,7 +681,7 @@ textarea.field-input{resize:vertical;min-height:70px}
           <div style="font-size:.8rem;font-weight:600;margin-bottom:.6rem">Add a new question</div>
           <input class="field-input" id="new-faq-section" placeholder="Section (e.g. Workshops, Prints & paper)" style="margin-bottom:.4rem">
           <input class="field-input" id="new-faq-question" placeholder="Question" style="margin-bottom:.4rem">
-          <textarea class="field-input" id="new-faq-answer" rows="3" placeholder="Answer" style="margin-bottom:.5rem"></textarea>
+          <textarea class="field-input" id="new-faq-answer" data-md="block" rows="3" placeholder="Answer" style="margin-bottom:.5rem"></textarea>
           <button class="btn-save-print" onclick="createFaq(this)">Add question</button>
           <span id="new-faq-msg" style="font-size:.7rem;color:var(--text-l);margin-left:.5rem"></span>
         </div>
@@ -729,6 +743,33 @@ textarea.field-input{resize:vertical;min-height:70px}
 
 <script>
 let allContent={}, allMessages=[], currentFilter='all';
+
+// Content keys that render as Markdown on the public site (must match the
+// MD_INLINE_KEYS set in public/index.html). Used to give the matching content
+// textareas a live preview.
+const MD_INLINE_KEYS = new Set([
+  'hero_name','hero_sub','about_heading','about_p1','about_p2','about_p3','about_p4',
+  'atelier_spec','contact_title','shop_heading','shop_intro','shop_p2','shop_p3',
+  'shop_cart_heading','shop_success_heading','impressum_disclaimer'
+]);
+
+// Live Markdown preview for any textarea marked data-md="inline|block". The
+// preview is created lazily as a sibling and refreshed on focus and on input,
+// so it shows the field's current value the moment you click in and tracks what
+// you type. Rendering is the shared md.js, so it matches the public site exactly.
+function mdPreview(ta){
+  if(!ta || ta.tagName!=='TEXTAREA' || !ta.dataset || !ta.dataset.md) return;
+  let pv = ta.nextElementSibling;
+  if(!pv || !pv.classList || !pv.classList.contains('md-preview')){
+    pv = document.createElement('div'); pv.className='md-preview';
+    ta.insertAdjacentElement('afterend', pv);
+  }
+  pv.innerHTML = ta.value.trim()
+    ? (ta.dataset.md==='block' ? mdBlock : mdInline)(ta.value)
+    : '<span class="md-preview-empty">Preview appears here as you type.</span>';
+}
+document.addEventListener('input', e => mdPreview(e.target));
+document.addEventListener('focusin', e => mdPreview(e.target));
 
 // AUTH
 async function login(){
@@ -808,7 +849,10 @@ function makeField(key,label,value,multi,options){
     // #f-<key> id + saveField path as text fields.
     control = `<select class="field-input" id="f-${key}">${options.map(([v,l])=>`<option value="${esc(v)}" ${value===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   } else if (multi) {
-    control = `<textarea class="field-input" id="f-${key}" rows="3">${esc(value)}</textarea>`;
+    // Prose/title content keys get inline Markdown + a live preview; other
+    // multi-line fields stay plain. Same key set as the public site's loader.
+    const md = MD_INLINE_KEYS.has(key) ? ' data-md="inline"' : '';
+    control = `<textarea class="field-input" id="f-${key}"${md} rows="3">${esc(value)}</textarea>`;
   } else {
     control = `<input class="field-input" id="f-${key}" value="${esc(value)}">`;
   }
@@ -946,7 +990,7 @@ function renderFaqList() {
           <input type="checkbox" id="faq-enabled-${f.id}" ${f.enabled ? 'checked' : ''} onchange="toggleFaqItem(${f.id},this)" style="cursor:pointer"> Visible
         </label>
       </div>
-      <textarea class="field-input" id="faq-answer-${f.id}" rows="3" style="resize:vertical;font-size:.78rem;line-height:1.5;margin-bottom:.4rem">${esc(f.answer)}</textarea>
+      <textarea class="field-input" id="faq-answer-${f.id}" data-md="block" rows="3" style="resize:vertical;font-size:.78rem;line-height:1.5;margin-bottom:.4rem">${esc(f.answer)}</textarea>
       <button class="btn-save-print" onclick="saveFaqItem(${f.id},this)" style="font-size:.65rem">Save changes</button>
       <button class="btn-del-print" onclick="deleteFaqItem(${f.id},this)" style="font-size:.65rem">Delete</button>
       <span id="faq-msg-${f.id}" style="font-size:.7rem;color:var(--text-l);margin-left:.4rem"></span>
@@ -1081,7 +1125,7 @@ async function loadCategoriesAdmin() {
         </div>
         <div style="margin-top:.5rem;margin-left:2.25rem">
           <label class="field-label" style="font-size:.68rem">Description shown on the site while browsing this category (optional — leave blank to show nothing)</label>
-          <textarea class="field-input" id="catdesc-${c.id}" rows="2" style="resize:vertical;font-family:inherit;line-height:1.5">${esc(c.description || '')}</textarea>
+          <textarea class="field-input" id="catdesc-${c.id}" data-md="inline" rows="2" style="resize:vertical;font-family:inherit;line-height:1.5">${esc(c.description || '')}</textarea>
         </div>
         <div class="save-print-msg" id="catmsg-${c.id}"></div>
       </div>
@@ -1203,7 +1247,7 @@ async function loadPrints(){
           ${esc(label)}
         </label>`
       ).join('');
-      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Alt text <span style="font-weight:400;color:var(--text-l)">(image description for screen readers &amp; image search — leave blank for no alt text)</span></label><input class="field-input" id="pa-${p.id}" value="${esc(p.alt_text||'')}" placeholder="e.g. Streetlight glowing through fog at night, abstract black and white"></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="phc-${p.id}" ${excludedFromCatHero} style="cursor:pointer"><label for="phc-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from category hero (still eligible for the main-page hero — just won't be picked as the hero when someone browses its category)</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-replace-print" onclick="document.getElementById('pr-${p.id}').click()">Replace image</button><input type="file" id="pr-${p.id}" accept="image/*" style="display:none" onchange="replacePrintImage(${p.id},this)"><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
+      card.innerHTML=`<div class="print-order-badge">${i+1}</div><div class="drag-handle" title="Drag to reorder">⠿</div><img src="${cld(p.image_url, 400)}" alt="${esc(p.title)}"><div class="print-card-body"><div class="print-edit-row"><label class="field-label">Title</label><input class="field-input" id="pt-${p.id}" value="${esc(p.title)}"></div><div class="print-edit-row"><label class="field-label">Description (the story behind the photo — shown in the lightbox)</label><textarea class="field-input" id="pd-${p.id}" data-md="block" rows="5" style="resize:vertical;line-height:1.6;font-family:inherit;font-size:.85rem">${esc(p.description||'')}</textarea></div><div class="print-edit-row"><label class="field-label">Alt text <span style="font-weight:400;color:var(--text-l)">(image description for screen readers &amp; image search — leave blank for no alt text)</span></label><input class="field-input" id="pa-${p.id}" value="${esc(p.alt_text||'')}" placeholder="e.g. Streetlight glowing through fog at night, abstract black and white"></div><div class="print-edit-row"><label class="field-label">Categories</label><div style="display:flex;flex-wrap:wrap;gap:.3rem .1rem;margin-top:.25rem">${catChecks}</div></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="ph-${p.id}" ${excluded} style="cursor:pointer"><label for="ph-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from hero</label></div><div class="print-edit-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem"><input type="checkbox" id="phc-${p.id}" ${excludedFromCatHero} style="cursor:pointer"><label for="phc-${p.id}" class="field-label" style="margin:0;cursor:pointer">Exclude from category hero (still eligible for the main-page hero — just won't be picked as the hero when someone browses its category)</label></div><div class="print-card-actions"><button class="btn-save-print" onclick="savePrint(${p.id},this)">Save</button><button class="btn-replace-print" onclick="document.getElementById('pr-${p.id}').click()">Replace image</button><input type="file" id="pr-${p.id}" accept="image/*" style="display:none" onchange="replacePrintImage(${p.id},this)"><button class="btn-del-print" onclick="deletePrint(${p.id},this)">Delete</button></div><span class="save-print-msg" id="pm-${p.id}"></span></div>`;
       grid.appendChild(card);
     });
 
@@ -1318,7 +1362,7 @@ async function loadPapers() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
           <div style="flex:1">
             <input class="field-input" id="pname-${p.id}" value="${esc(p.name)}" style="margin-bottom:.4rem">
-            <textarea class="field-input" id="pdesc-${p.id}" rows="2" style="resize:vertical;font-size:.78rem;margin-bottom:.4rem">${esc(p.description)}</textarea>
+            <textarea class="field-input" id="pdesc-${p.id}" data-md="inline" rows="2" style="resize:vertical;font-size:.78rem;margin-bottom:.4rem">${esc(p.description)}</textarea>
             <input class="field-input" id="pweight-${p.id}" type="number" value="${p.weight_gsm || ''}" placeholder="Weight g/m² (internal)" style="font-size:.78rem">
           </div>
           <div style="display:flex;flex-direction:column;gap:.4rem;flex-shrink:0">

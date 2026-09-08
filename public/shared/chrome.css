@@ -314,6 +314,12 @@
    the fountain map is the entire layout. */
 @media (hover: hover) and (pointer: fine) {
   body, button, input, textarea, select, a, label, [contenteditable] { cursor: none !important; }
+  /* Text-editable fields hand back the OS I-beam; the dot is hidden over them
+     by .on-text (chrome.js). Only free-text controls, so checkbox/radio/select/
+     date/file keep the dot. */
+  textarea, [contenteditable]:not([contenteditable="false"]), input:not([type]),
+  input[type="text"], input[type="email"], input[type="password"], input[type="search"],
+  input[type="url"], input[type="tel"], input[type="number"] { cursor: text !important; }
   #cur {
     position: fixed; left: -60px; top: -60px;
     width: 10px; height: 10px;
@@ -324,4 +330,5 @@
     mix-blend-mode: difference;
   }
   #cur.big { width: 48px; height: 48px; }
+  #cur.on-text { opacity: 0; }
 }

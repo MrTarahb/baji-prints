@@ -97,6 +97,10 @@ var Chrome = (function () {
   // nothing is created and no listener is bound, which is also what keeps a
   // mix-blend-mode element off a layout Android Chrome would detach.
   var CUR_TARGETS_BASE = 'a,button,select';
+  // Text-editable controls hide the dot and show the OS I-beam (see the
+  // cursor:text rule in chrome.css). Toggled on mouseover, which fires on every
+  // boundary crossing, so it is self-correcting and needs no mouseout branch.
+  var CUR_TEXT = 'textarea,[contenteditable]:not([contenteditable="false"]),input:not([type]),input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="url"],input[type="tel"],input[type="number"]';
 
   function initCursor(extraTargets) {
     if (!window.matchMedia || !window.matchMedia('(hover:hover) and (pointer:fine)').matches) return;
@@ -116,6 +120,7 @@ var Chrome = (function () {
     // flickering as the pointer crosses children inside the same target.
     var hover = null;
     document.addEventListener('mouseover', function (e) {
+      if (e.target.closest) cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT));
       var m = e.target.closest && e.target.closest(targets);
       if (!m || m === hover) return;
       hover = m;

@@ -44,11 +44,15 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
    modes detach position:fixed on Android Chrome. */
 @media (hover:hover) and (pointer:fine){
   body,button,input,textarea,select,a,label,[contenteditable]{cursor:none !important}
+  /* text-editable fields show the OS I-beam; the dot is hidden over them by
+     .on-text (initCursor). checkbox/radio/select/date/file keep the dot. */
+  textarea,[contenteditable]:not([contenteditable="false"]),input:not([type]),input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="url"],input[type="tel"],input[type="number"]{cursor:text !important}
   .card,.chip,.fname{cursor:none !important}
   #cur{position:fixed;left:-60px;top:-60px;width:10px;height:10px;background:#fff;
     border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);
     transition:width .2s,height .2s;mix-blend-mode:difference}
   #cur.big{width:48px;height:48px}
+  #cur.on-text{opacity:0}
 }
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
 .eyebrow{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
@@ -466,6 +470,9 @@ function toast(msg) {
 // nothing is created and no listener is bound — which is also what keeps a
 // mix-blend-mode element off a layout Android Chrome would detach.
 var CUR_TARGETS = 'a,button,select,.card,.fname,#lb';
+// Text-editable controls show the OS I-beam and hide the dot (.on-text, toggled
+// on mouseover — self-correcting, no mouseout branch needed).
+var CUR_TEXT = 'textarea,[contenteditable]:not([contenteditable="false"]),input:not([type]),input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="url"],input[type="tel"],input[type="number"]';
 
 // Held so the fullscreen handler can move the dot into the fullscreen element;
 // null on a touch device, where no dot is ever built.
@@ -489,6 +496,7 @@ function initCursor() {
   // crosses children inside the same target.
   var hover = null;
   document.addEventListener('mouseover', function (e) {
+    if (e.target.closest) cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT));
     var m = e.target.closest && e.target.closest(CUR_TARGETS);
     if (!m || m === hover) return;
     hover = m;
