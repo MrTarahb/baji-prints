@@ -2924,9 +2924,20 @@ function updateCategoryDescription() {
 function pickHeroForFilter(filter) {
   if (!allPrints.length) return;
 
+  // The exclusion that applies to THIS hero context: the main-page hero
+  // respects exclude_from_hero, a specific category respects
+  // exclude_from_category_hero. Every pool we might fall back to on the way
+  // down — category, main, or the whole portfolio when orientation forces a
+  // widen below — must keep honouring it, or an excluded image reappears as a
+  // hero. (The orientation widen used to drop it, which is how a photo marked
+  // "exclude from category hero" still surfaced as a category's hero.)
+  const isExcluded = categorySelected
+    ? (p => p.exclude_from_category_hero)
+    : (p => p.exclude_from_hero);
+
   let pool;
   if (!categorySelected) {
-    const eligible = allPrints.filter(p => !p.exclude_from_hero);
+    const eligible = allPrints.filter(p => !isExcluded(p));
     pool = eligible.length ? eligible : allPrints;
   } else {
     const catPool = allPrints.filter(p => {
@@ -2937,28 +2948,32 @@ function pickHeroForFilter(filter) {
     });
     // Separate from exclude_from_hero (main-page only) — some photos read
     // fine in the feed but don't work blown up full-bleed as a category
-    // hero specifically, hence its own flag. Same graceful-fallback pattern
-    // as the main pool: only apply the exclusion if it doesn't empty things out.
-    const eligible = catPool.filter(p => !p.exclude_from_category_hero);
-    pool = eligible.length ? eligible : catPool;
-    if (!pool.length) pool = allPrints; // defensive — dropdown shouldn't offer an empty category
+    // hero specifically, hence its own flag. Unlike the main pool this is a
+    // HARD rule: a photo the admin excluded is never shown as this category's
+    // hero, even if that leaves the category with nothing eligible. In that
+    // case the orientation step below widens to the whole portfolio's eligible
+    // images rather than reinstate an excluded one (the old graceful fallback
+    // to catPool did reinstate it — that's how an excluded photo, or a whole
+    // category with none enabled, still surfaced as the category hero).
+    pool = catPool.filter(p => !isExcluded(p));
   }
 
   const isMobilePortrait = window.matchMedia('(max-width: 768px) and (orientation: portrait)').matches;
   const requiredOrientation = isMobilePortrait ? 'portrait' : 'landscape';
+  const matchesOrientation = p => allOrientations[allPrints.indexOf(p)] === requiredOrientation;
 
   // Strict rule: desktop never shows a portrait hero, mobile-portrait never
-  // shows a landscape one. This used to fall back to "whatever's in the pool"
-  // when no matching-orientation image was found there, which could actually
-  // violate the rule (e.g. a category made up entirely of portrait shots
-  // would still have shown one on desktop). Now, if the current pool (a
-  // specific category, or the exclude_from_hero-aware main pool) has none of
-  // the required orientation, the search widens to the full portfolio before
-  // giving up — it only shows nothing (leaving whatever hero was already
-  // displayed) if literally no image of that orientation exists anywhere.
-  let heroPool = pool.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+  // shows a landscape one. If the current (exclusion-respecting) pool is empty
+  // or holds none of the required orientation, the search widens to the full
+  // portfolio — but still honouring this context's exclusion, so a photo the
+  // admin excluded never reappears as a hero. Only if applying the exclusion
+  // would leave no image of this orientation anywhere at all does it fall back
+  // to the raw portfolio; and it shows nothing (leaving whatever hero was
+  // already displayed) only if literally no image of that orientation exists.
+  let heroPool = pool.filter(matchesOrientation);
   if (!heroPool.length) {
-    heroPool = allPrints.filter(p => allOrientations[allPrints.indexOf(p)] === requiredOrientation);
+    const widened = allPrints.filter(p => !isExcluded(p) && matchesOrientation(p));
+    heroPool = widened.length ? widened : allPrints.filter(matchesOrientation);
   }
   if (!heroPool.length) return;
 
