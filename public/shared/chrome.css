@@ -320,6 +320,9 @@
   textarea, [contenteditable]:not([contenteditable="false"]), input:not([type]),
   input[type="text"], input[type="email"], input[type="password"], input[type="search"],
   input[type="url"], input[type="tel"], input[type="number"] { cursor: text !important; }
+  /* A native <select> shows the OS pointer and hides the dot (its dropdown is an
+     OS overlay that stops mousemove, freezing the dot at the menu edge). */
+  select { cursor: pointer !important; }
   #cur {
     position: fixed; left: -60px; top: -60px;
     width: 10px; height: 10px;

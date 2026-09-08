@@ -90,12 +90,17 @@ body {
 input, textarea, select, button, a, label, [contenteditable] { cursor: none !important; }
 /* …but a text-editable field hands back the OS I-beam. You are typing there, not
    pointing, and the 10px blend-dot sits over the caret and hides the selection.
-   Only genuinely free-text controls — not checkbox/radio/select/date/file — so
+   Only genuinely free-text controls — not checkbox/radio/date/file — so
    everything else still shows the dot. The dot itself is hidden over these by
    the on-text class (set in the mouseover delegation below). */
 textarea, [contenteditable]:not([contenteditable="false"]), input:not([type]),
 input[type="text"], input[type="email"], input[type="password"], input[type="search"],
 input[type="url"], input[type="tel"], input[type="number"] { cursor: text !important; }
+/* A native <select> shows the OS pointer and hides the dot too. Its dropdown is
+   an OS overlay that stops the page receiving mousemove, so a visible dot would
+   freeze at the menu's edge until it closed — the on-text toggle below covers
+   select for exactly that reason. */
+select { cursor: pointer !important; }
 
 /* CURSOR */
 #cur {
@@ -2328,7 +2333,7 @@ const CUR_TARGETS = 'a,button,.img-wrap,#lightbox';
 const CUR_TEXT = 'textarea,[contenteditable]:not([contenteditable="false"]),input:not([type]),input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="url"],input[type="tel"],input[type="number"]';
 let curHoverEl = null;
 document.addEventListener('mouseover', e => {
-  cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT));
+  cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT + ',select'));
   const match = e.target.closest(CUR_TARGETS);
   if (!match || match === curHoverEl) return;
   if (match.closest('nav') && !document.querySelector('nav').classList.contains('visible')) return;

@@ -25,10 +25,12 @@ plan, including schema and the decisions behind it, is at
   asking for `lockTheme`, an old `chrome.js` that had never heard of it, near-white text back on
   the near-white scrim. `express.static`'s `setHeaders` now sends `no-cache` (revalidate, ETag →
   304) for anything under `public/shared/`, and the tags carry `?v=`. Bump it when a chrome
-  change must land inside the hour for people already holding a copy — `?v=4` is the current
-  one, bumped for the text-field I-beam cursor (the `on-text` class chrome.js toggles and the
-  `cursor:text` rule in chrome.css must ship together, or a text field shows the dot and the
-  I-beam at once); `?v=3` was the `ch:theme` event.
+  change must land inside the hour for people already holding a copy — `?v=5` is the current
+  one, bumped when a native `<select>` was added to the dot-hiding set (its OS dropdown stops
+  the page getting mousemove, so a visible dot froze at the menu edge). `?v=4` was the
+  text-field I-beam cursor (the `on-text` class chrome.js toggles and the `cursor:text` rule in
+  chrome.css must ship together, or a text field shows the dot and the I-beam at once); `?v=3`
+  was the `ch:theme` event.
 
 **The "nav doesn't look right" bug is fixed** — it was never the width alignment the earlier
 note suspected. Three separate things, all now closed:

@@ -96,7 +96,9 @@ var Chrome = (function () {
   // Built only where there is a real pointer to replace. On a touch device
   // nothing is created and no listener is bound, which is also what keeps a
   // mix-blend-mode element off a layout Android Chrome would detach.
-  var CUR_TARGETS_BASE = 'a,button,select';
+  // select is NOT here: it now hides the dot (see the on-text toggle) rather
+  // than swelling it, because its OS dropdown freezes a visible dot at the edge.
+  var CUR_TARGETS_BASE = 'a,button';
   // Text-editable controls hide the dot and show the OS I-beam (see the
   // cursor:text rule in chrome.css). Toggled on mouseover, which fires on every
   // boundary crossing, so it is self-correcting and needs no mouseout branch.
@@ -120,7 +122,7 @@ var Chrome = (function () {
     // flickering as the pointer crosses children inside the same target.
     var hover = null;
     document.addEventListener('mouseover', function (e) {
-      if (e.target.closest) cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT));
+      if (e.target.closest) cur.classList.toggle('on-text', !!e.target.closest(CUR_TEXT + ',select'));
       var m = e.target.closest && e.target.closest(targets);
       if (!m || m === hover) return;
       hover = m;
