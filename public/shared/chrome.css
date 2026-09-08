@@ -168,11 +168,19 @@
 .ch-burger span { display: block; width: 20px; height: 1.5px; background: var(--ch-fg-m); }
 
 /* ── FLOATING MODE ───────────────────────────────────────────────────────────
-   For a page where the content IS the page — the fountain map is
-   position:fixed;inset:0 and is panned by dragging it. The nav becomes a scrim
-   over that content instead of a bar above it, and takes NO pointer events, so
-   the map can be dragged straight through it. Only the controls take them back.
-   That is the same rule #topstack already follows on the map page. */
+   The nav becomes a scrim over the content instead of a bar above it. Two kinds
+   of page want this, for two reasons:
+   - The fountain map, where the content IS the page (position:fixed;inset:0,
+     panned by dragging it). The scrim takes NO pointer events so the map can be
+     dragged straight through it; only the controls take them back. That is the
+     same rule #topstack already follows there.
+   - An ordinary scrolling page — the workshop — that simply wants to look like
+     the rest of the site. The main site's nav has no bottom border on any view,
+     hero or sub-page, so a page mounting the default .ch-nav is the one place a
+     rule appears under the header. Floating is how it doesn't.
+   The gradient runs from --ch-bg, which every host page here uses as its own
+   background, so scrolled content fades out under the nav rather than meeting
+   an edge. */
 .ch-nav.floating {
   background: linear-gradient(to bottom, var(--ch-bg) 0%, var(--ch-bg) 45%, transparent 100%);
   border-bottom: 0;

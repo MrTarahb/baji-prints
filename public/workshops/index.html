@@ -392,13 +392,19 @@ function ask(title, desc, fields, cb, wide) {
   document.getElementById('modal').classList.add('on');
   var first = document.getElementById('mf-0');
   if (first && first.focus) { first.focus(); if (first.select) first.select(); }
+  // Save CLOSES the dialog, the same as the fountain map's ask(). It shipped
+  // without this and every edit needed a Save and then a Cancel, which reads as
+  // the save not having taken. The one escape hatch is a callback returning
+  // FALSE, which means 'I am taking responsibility for the dialog' — either it
+  // opened the next one (editCopy chains into editField) or it rejected the
+  // input and wants the typed values left on screen (editDate's missing date).
   document.getElementById('m-ok').onclick = function () {
     var out = {};
     fields.forEach(function (f, i) {
       var el = document.getElementById('mf-' + i);
       out[f.key] = f.multiline ? el.value : el.value.trim();
     });
-    cb(out);
+    if (cb(out) !== false) closeModal();
   };
 }
 document.addEventListener('keydown', function (e) {
@@ -435,7 +441,9 @@ function editCopy() {
       included: 'Included', bring: 'To bring', weather: 'Weather', min: 'Minimum',
       price_note: 'Price note', cta: 'Button label', banner_text: 'Banner' };
     var multi = { schedule: 1, included: 1, bring: 1, intro: 1, sub: 1, weather: 1, min: 1, banner_text: 1 };
+    // false: editField opens the next dialog, so ask() must not close it.
     editField(v.which, labels[v.which] || v.which, !!multi[v.which]);
+    return false;
   });
 }
 function saveCopy(key, value) {
@@ -487,7 +495,8 @@ function editDate(id) {
         { value: 'closed', label: 'closed' }, { value: 'past', label: 'past' }
       ] }
     ], function (v) {
-      if (!v.date) return toast('A date is required');
+      // false keeps the dialog open so the capacity/price already typed survive.
+      if (!v.date) { toast('A date is required'); return false; }
       var body = {
         date: v.date,
         capacity: parseInt(v.capacity, 10) || 6,
@@ -551,7 +560,12 @@ function reloadAll() {
 }
 
 // ── BOOT ─────────────────────────────────────────────────────────────────────
-Chrome.mount({ cursor: '.ws-shot img, .edit-tab, #adminbar button, .ws-shot .del' });
+// floating:true, so the nav is a scrim that fades into the page rather than a bar
+// with a rule under it. The main site's nav carries no bottom border on any view —
+// hero or sub-page — and the default .ch-nav does, which made this the one page
+// whose header read as a separate strip. The gradient runs from --ch-bg, the same
+// colour as this page's --bg, so the content scrolls up and fades out under it.
+Chrome.mount({ floating: true, cursor: '.ws-shot img, .edit-tab, #adminbar button, .ws-shot .del' });
 
 if (!SLUG) {
   document.getElementById('ws-content').innerHTML =
