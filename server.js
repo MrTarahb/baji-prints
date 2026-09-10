@@ -906,6 +906,10 @@ async function initDB() {
     -- Candidate photos. status/comment are the client's own reaction, written
     -- straight onto the row — one client per board means no separate feedback
     -- table is needed. reacted_at drives the "new feedback" badge for admin.
+    -- status is also settable by the admin (PUT …/client-photos/:id/status), to
+    -- mark a candidate the client rejected by email rather than through the
+    -- board: declined is declined whoever set it, and the board hides it behind
+    -- the „Abgelehnt“ filter either way.
     CREATE TABLE IF NOT EXISTS client_photos (
       id SERIAL PRIMARY KEY,
       spot_id INTEGER REFERENCES client_spots(id) ON DELETE CASCADE,
@@ -3921,6 +3925,74 @@ app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
+});
+
+// The admin's own decline. status is normally the client's reaction, but a
+// candidate he rejected in an email (rather than through the board) can be
+// marked declined here — the same value his „Eher nicht“ writes, so it lands in
+// the identical reject pile and „Abgelehnt“ filter. Toggling back sets pending,
+// which un-declines it. Deliberately does NOT touch reacted_at/seen_by_admin:
+// this is your categorisation, not a client response, so it raises no badge.
+app.put('/api/admin/client-photos/:id/status', requireAuth, async (req, res) => {
+  const status = req.body.status === 'declined' ? 'declined' : 'pending';
+  try {
+    const { rows } = await pool.query(
+      'UPDATE client_photos SET status=$1 WHERE id=$2 RETURNING id, status', [status, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Move a photo to another room or spot — the alternative to deleting it and
+// re-uploading the same file elsewhere. The destination is either an existing
+// spot (spot_id) or a whole room (room_id), the latter filed into that room's
+// unnamed spot via roomDefaultSpot, exactly as a room-level upload is. Both are
+// checked to be on the SAME board as the photo, so a move can never carry it
+// across clients. It lands at the end of the destination, like a fresh upload,
+// and keeps everything on the row — note, series, reaction, filename.
+app.put('/api/admin/client-photos/:id/move', requireAuth, async (req, res) => {
+  try {
+    const { rows: cur } = await pool.query(
+      `SELECT r.client_id FROM client_photos p
+         JOIN client_spots s ON s.id = p.spot_id
+         JOIN client_rooms r ON r.id = s.room_id
+        WHERE p.id = $1`, [req.params.id]
+    );
+    if (!cur[0]) return res.status(404).json({ error: 'Not found' });
+    const clientId = cur[0].client_id;
+
+    let spotId;
+    if (req.body.spot_id != null) {
+      const { rows } = await pool.query(
+        `SELECT s.id FROM client_spots s JOIN client_rooms r ON r.id = s.room_id
+          WHERE s.id = $1 AND r.client_id = $2`, [req.body.spot_id, clientId]
+      );
+      if (!rows[0]) return res.status(400).json({ error: 'That spot is not on this board' });
+      spotId = rows[0].id;
+    } else if (req.body.room_id != null) {
+      const { rows } = await pool.query(
+        'SELECT id FROM client_rooms WHERE id = $1 AND client_id = $2', [req.body.room_id, clientId]
+      );
+      if (!rows[0]) return res.status(400).json({ error: 'That room is not on this board' });
+      spotId = await roomDefaultSpot(req.body.room_id);
+    } else {
+      return res.status(400).json({ error: 'A destination room or spot is required' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE client_photos
+          SET spot_id = $1,
+              sort_order = (SELECT COALESCE(MAX(sort_order),0)+1 FROM client_photos WHERE spot_id=$1)
+        WHERE id = $2 RETURNING id, spot_id`, [spotId, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (e) {
+    console.error('Photo move error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
