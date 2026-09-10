@@ -1152,6 +1152,7 @@ function paintLb() {
   if (isAdmin) {
     var btns = ' · <button onclick="toggleDeclined(' + p.id + ')" style="padding:2px 8px;font-size:11px">' +
                  (isDeclined(p) ? '↩ Restore' : '✕ Decline') + '</button>' +
+               ' <button onclick="movePhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Move</button>' +
                ' <button onclick="editPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Edit</button>' +
                ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Delete photo</button>';
     av.innerHTML = fnameHtml(p, 'full') + (p.reacted_at
@@ -1531,6 +1532,43 @@ function editPhoto(id) {
           paintLb(); render(); toast('Saved');
         }).catch(function (e) { toast(e.message); });
     });
+}
+
+// Every place this photo could go instead — a flat list of the board's spots,
+// labelled by room (and by spot too where a room has more than one). A room's
+// unnamed solo spot shows as just the room name; an empty room offers itself and
+// its unnamed spot is created on arrival. The photo's current spot is left out.
+function moveTargets(currentSpotId) {
+  var opts = [];
+  board.rooms.forEach(function (r) {
+    if (!r.spots.length) { opts.push({ value: 'room:' + r.id, label: r.name }); return; }
+    r.spots.forEach(function (s) {
+      if (s.id === currentSpotId) return;   // already here
+      opts.push({ value: 'spot:' + s.id, label: s.name ? r.name + ' · ' + s.name : r.name });
+    });
+  });
+  return opts;
+}
+
+// Move a photo to another room or spot instead of deleting and re-uploading it.
+// Everything on the row moves with it — comment, series, any reaction, filename —
+// so this is the safe way to correct a photo that landed in the wrong place.
+function movePhoto(id) {
+  var p = allPhotos().filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  var targets = moveTargets(p.spot_id);
+  if (!targets.length) return toast('Nowhere else to move it — add another room or spot first.');
+  ask('Move photo', 'Where should this photo go? Everything on it — comment, series, any reaction — moves with it.', [
+    { key: 'dest', label: 'Move to', value: targets[0].value, options: targets },
+  ], function (v) {
+    if (!v.dest) return;
+    var parts = v.dest.split(':');
+    var body = parts[0] === 'room' ? { room_id: +parts[1] } : { spot_id: +parts[1] };
+    api('/api/admin/client-photos/' + id + '/move', { method: 'PUT', body: body })
+      .then(function () { closeLb(); return loadBoard(); })
+      .then(function () { toast('Moved'); })
+      .catch(function (e) { toast(e.message); });
+  });
 }
 
 function delSpot(id) {
