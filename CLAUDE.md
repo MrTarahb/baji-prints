@@ -324,10 +324,11 @@ Deploy: push to `main` → Railway auto-deploys. Env vars live in Railway (see `
 
 ### `PROJECT_HANDOFF.md`
 
-A ~32KB technical handoff doc sits in the working tree but is **gitignored — never `git add`
-it**. It is the deepest reference for schema, routes, SEO, frontend internals, print-margin
-geometry, disaster recovery, and the to-do list. Read it when a task touches an area this file
-only summarizes.
+A technical handoff doc, **tracked in git** as of 2026-09-10 (previously kept out of the repo).
+It holds no secret values — only the *names* and purposes of the Railway env vars in its §2 —
+but treat everything in it as repo-visible. It is the deepest reference for schema, routes, SEO,
+frontend internals, print-margin geometry, and the to-do list. Read it when a task touches an
+area this file only summarizes.
 
 ## Conventions and traps specific to this codebase
 
