@@ -906,6 +906,10 @@ async function initDB() {
     -- Candidate photos. status/comment are the client's own reaction, written
     -- straight onto the row — one client per board means no separate feedback
     -- table is needed. reacted_at drives the "new feedback" badge for admin.
+    -- status is also settable by the admin (PUT …/client-photos/:id/status), to
+    -- mark a candidate the client rejected by email rather than through the
+    -- board: declined is declined whoever set it, and the board hides it behind
+    -- the „Abgelehnt“ filter either way.
     CREATE TABLE IF NOT EXISTS client_photos (
       id SERIAL PRIMARY KEY,
       spot_id INTEGER REFERENCES client_spots(id) ON DELETE CASCADE,
@@ -3921,6 +3925,25 @@ app.put('/api/admin/client-photos/:id', requireAuth, async (req, res) => {
   );
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   res.json(rows[0]);
+});
+
+// The admin's own decline. status is normally the client's reaction, but a
+// candidate he rejected in an email (rather than through the board) can be
+// marked declined here — the same value his „Eher nicht“ writes, so it lands in
+// the identical reject pile and „Abgelehnt“ filter. Toggling back sets pending,
+// which un-declines it. Deliberately does NOT touch reacted_at/seen_by_admin:
+// this is your categorisation, not a client response, so it raises no badge.
+app.put('/api/admin/client-photos/:id/status', requireAuth, async (req, res) => {
+  const status = req.body.status === 'declined' ? 'declined' : 'pending';
+  try {
+    const { rows } = await pool.query(
+      'UPDATE client_photos SET status=$1 WHERE id=$2 RETURNING id, status', [status, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete('/api/admin/client-photos/:id', requireAuth, async (req, res) => {

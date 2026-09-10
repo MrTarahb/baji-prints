@@ -95,6 +95,10 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .chip-note{align-self:center;font-size:11px;font-style:italic;color:var(--mute)}
 /* A series you are holding back — on the board for you, absent from his page. */
 .chip.held{opacity:.5;border-style:dashed}
+/* The reject-pile chip. Terracotta when active, so „looking at the declined
+   ones“ reads differently from picking a series. */
+.chip.decl.on{background:var(--no);border-color:var(--no);color:#fff}
+.chip-n{opacity:.6;font-size:10px;margin-left:1px}
 .m-checks{display:flex;flex-direction:column;gap:9px;margin-top:2px}
 .m-check{display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer}
 .m-check input{width:auto;flex:none;margin:0;accent-color:var(--ink)}
@@ -104,6 +108,14 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
   border-radius:10px;color:var(--mute);flex:none}
 .is-admin .serie-pick{display:inline-block}
 .serie-pick.set{color:var(--ink);border-color:#CFCBC2}
+/* Per-card decline toggle. Admin only, and English like the rest of the admin
+   surface. „Decline“ in a normal view (the card then moves to the reject pile);
+   „Restore“ under the „Abgelehnt“ filter (it moves back). */
+.declbtn{display:none;width:auto;flex:none;font-size:10.5px;padding:2px 8px;
+  border-radius:10px;color:var(--mute)}
+.is-admin .declbtn{display:inline-block}
+.declbtn:hover{color:var(--no);border-color:var(--no)}
+.declbtn.on{color:var(--no);border-color:#D8B0A6}
 /* The series a candidate belongs to, on the card and in the lightbox. */
 .serie{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);
   border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap;flex:none}
@@ -188,8 +200,9 @@ header h1{font-family:var(--fi);font-style:italic;font-weight:400;font-size:46px
 .card{position:relative;cursor:pointer;min-width:170px;transition:opacity .2s;
   flex:0 1 calc(var(--sar) * var(--cell));
   max-width:min(calc(var(--ar) * 68vh),100%)}
-.card.declined{opacity:.42}
-.card.declined:hover{opacity:.75}
+/* Declined candidates no longer dim in place — they are hidden from the normal
+   grid entirely and shown only under the „Abgelehnt“ filter, so there is no
+   mixed grid for them to recede within. */
 /* padding-bottom (not aspect-ratio) holds the ratio — an aspect-ratio box with
    auto width gets stretched by flex in this project's target browsers. */
 .card-img{position:relative;height:0;background:var(--bg2);overflow:hidden}
@@ -582,6 +595,15 @@ var seriesFilter = null;
 var chipVals = [null];
 var seriesList = [];    // recomputed once per render, read by cardHtml/paintLb
 
+// The reject pile. A declined photo — the client tapped „Eher nicht“, or you
+// marked it declined from his emailed notes — drops out of every normal view
+// and lives behind its own „Abgelehnt“ chip. DECLINED is a sentinel filter
+// value: an object, so it can never collide with a series name (free text) the
+// way a reserved string might.
+var DECLINED = { declined: true };
+function isDeclined(p) { return p.status === 'declined'; }
+function declinedVisible() { return allPhotos().some(isDeclined); }
+
 function boardSeries() {
   var seen = {}, out = [];
   allPhotos().forEach(function (p) {
@@ -594,9 +616,14 @@ function boardSeries() {
 
 // The photos of one spot under the current filter.
 function visible(photos) {
-  if (seriesFilter === null) return photos;
-  if (seriesFilter === '') return photos.filter(function (p) { return !p.series; });
-  return photos.filter(function (p) { return p.series === seriesFilter; });
+  // „Abgelehnt“ shows the reject pile and nothing else.
+  if (seriesFilter === DECLINED) return photos.filter(isDeclined);
+  // Every other view — Alle, a series, or untagged — means "still in
+  // consideration", so the declined ones are held out of all of them.
+  var live = photos.filter(function (p) { return !isDeclined(p); });
+  if (seriesFilter === null) return live;
+  if (seriesFilter === '') return live.filter(function (p) { return !p.series; });
+  return live.filter(function (p) { return p.series === seriesFilter; });
 }
 
 // Whether the series reach the client at all. You always see them — tagging and
@@ -607,13 +634,35 @@ function seriesShown() {
   return isAdmin || !!(board && board.client && board.client.series_visible);
 }
 
+function alleChip() {
+  return '<button class="chip' + (seriesFilter === null ? ' on' : '') +
+    '" onclick="setSeries(0)">Alle</button>';
+}
+
+// The reject-pile chip. Independent of the series row — it appears whenever
+// there is anything declined this viewer can reach, series or no series — and
+// is appended to chipVals so setSeries() can address it by index.
+function declineChipHtml() {
+  if (!declinedVisible()) return '';
+  chipVals.push(DECLINED);
+  var n = allPhotos().filter(isDeclined).length;
+  return '<button class="chip decl' + (seriesFilter === DECLINED ? ' on' : '') +
+    '" onclick="setSeries(' + (chipVals.length - 1) + ')">Abgelehnt' +
+    ' <span class="chip-n">' + n + '</span></button>';
+}
+
 function seriesChipsHtml(list) {
   chipVals = [null];                    // never leave a stale mapping behind
-  if (!seriesShown()) return '';
-  // One series (or none) is not a choice, so there is no filter to offer. Say so
-  // to the admin, though — otherwise "show me one series" just looks broken when
-  // the real answer is that nothing has been tagged yet.
-  if (list.length < 2) {
+  // The series row needs two series and permission to show them; the declined
+  // filter needs neither, so it can stand alone when there is no series row.
+  var showSeries = seriesShown() && list.length >= 2;
+  if (!showSeries) {
+    var decl = declineChipHtml();       // pushes DECLINED onto chipVals if any
+    if (decl) return alleChip() + decl;
+    // No reject pile either. One series (or none) is not a choice, so there is
+    // no series filter to offer — say so to the admin, though, otherwise "show
+    // me one series" just looks broken when nothing has been tagged yet.
+    if (!seriesShown()) return '';
     var untagged = allPhotos().filter(function (p) { return !p.series; }).length;
     if (!isAdmin || (!list.length && !untagged)) return '';
     return '<span class="chip-note">' + (list.length
@@ -624,8 +673,7 @@ function seriesChipsHtml(list) {
   // Series names are never interpolated into an attribute: chips address the
   // value by index, so a name containing a quote can't break out of the markup.
   chipVals = [null].concat(list);
-  var html = '<button class="chip' + (seriesFilter === null ? ' on' : '') +
-    '" onclick="setSeries(0)">Alle</button>';
+  var html = alleChip();
   list.forEach(function (name, i) {
     // A held-back series is dashed and dimmed for you — it is on the board but
     // its photos are not in the client's payload at all.
@@ -644,6 +692,7 @@ function seriesChipsHtml(list) {
       (heldU ? ' title="Held back — the client cannot see these photos"' : '') +
       ' onclick="setSeries(' + (chipVals.length - 1) + ')">Untagged</button>';
   }
+  html += declineChipHtml();            // the reject pile sits after the series
   // Said right where the chips are, not only up in the admin bar: this row is
   // the thing that looks like it is on the client's page but isn't.
   if (isAdmin && !board.client.series_visible) {
@@ -662,24 +711,35 @@ function setSeries(i) {
 
 function render() {
   var series = seriesList = boardSeries();
-  // A filter can outlive its series — the last photo tagged with it gets deleted
-  // or retagged. Falling back to "Alle" beats showing a board that is all gaps.
-  if (seriesFilter && series.indexOf(seriesFilter) < 0) seriesFilter = null;
+  // A filter can outlive what it points at — the last photo of a series gets
+  // deleted or retagged, or the reject pile is emptied. Falling back to "Alle"
+  // beats a board that is all gaps. The type guard matters: DECLINED is an
+  // object, so indexOf would never find it and would reset it every render.
+  if (typeof seriesFilter === 'string' && seriesFilter && series.indexOf(seriesFilter) < 0) seriesFilter = null;
   if (seriesFilter === '' && !isAdmin) seriesFilter = null;
+  if (seriesFilter === DECLINED && !declinedVisible()) seriesFilter = null;
   document.getElementById('b-series').innerHTML = seriesChipsHtml(series);
 
-  // The tally counts what is on screen: filtered to a series, it reads as that
-  // series' own score.
-  var photos = visible(allPhotos());
-  var yes = photos.filter(function (p) { return p.status === 'approved'; }).length;
-  var no = photos.filter(function (p) { return p.status === 'declined'; }).length;
-  var open = photos.length - yes - no;
-  document.getElementById('b-tally').innerHTML = photos.length
-    ? '<span><b>' + photos.length + '</b> Fotos</span>' +
-      '<span class="t-yes"><b>' + yes + '</b> zugesagt</span>' +
-      '<span class="t-no"><b>' + no + '</b> abgelehnt</span>' +
-      '<span><b>' + open + '</b> offen</span>'
-    : '';
+  // The tally counts what is on screen. Under „Abgelehnt“ it reads as the size
+  // of the reject pile; otherwise it scores the candidates still in play and
+  // names the pile separately, so the filter is discoverable even off-screen.
+  var all = allPhotos();
+  var shown = visible(all);
+  if (seriesFilter === DECLINED) {
+    document.getElementById('b-tally').innerHTML =
+      '<span class="t-no"><b>' + shown.length + '</b> abgelehnt</span>';
+  } else {
+    var yes = shown.filter(function (p) { return p.status === 'approved'; }).length;
+    var open = shown.length - yes;       // declined are already out of `shown`
+    var declinedN = all.filter(isDeclined).length;
+    var t = shown.length
+      ? '<span><b>' + shown.length + '</b> Fotos</span>' +
+        '<span class="t-yes"><b>' + yes + '</b> zugesagt</span>' +
+        '<span><b>' + open + '</b> offen</span>'
+      : '';
+    if (declinedN) t += '<span class="t-no"><b>' + declinedN + '</b> abgelehnt</span>';
+    document.getElementById('b-tally').innerHTML = t;
+  }
 
   syncRecoverBtn();
   syncSeriesBtn();
@@ -721,6 +781,10 @@ function gapHtml(scope) {
 
 function roomHtml(r, i) {
   var n = r.spots.reduce(function (t, s) { return t + visible(s.photos).length; }, 0);
+  // The reject-pile view is a focused list, not a structural review: a room with
+  // nothing declined steps aside rather than showing an empty-room gap line.
+  // (The index stays the real one, so the move buttons on shown rooms are right.)
+  if (seriesFilter === DECLINED && !n) return '';
   var solo = soloSpot(r);
   // A room the current series skips entirely: one line, not the same line
   // repeated under every spot.
@@ -774,6 +838,9 @@ function moveRoom(id, d) {
 }
 
 function spotHtml(s) {
+  // In the reject-pile view, a spot with nothing declined steps aside too (its
+  // room is only shown because some other spot has a reject).
+  if (seriesFilter === DECLINED && !visible(s.photos).length) return '';
   // An unnamed spot shows the client no header — its photos read as the room's
   // own. You still get the controls strip, so it can be named later or removed.
   var head = (s.name || isAdmin)
@@ -840,6 +907,19 @@ function seriePickHtml(p) {
     ' title="Series — only you can see this control">' + opts + '</select>';
 }
 
+// The decline toggle on a card. Admin only. „Decline“ in a normal view moves the
+// card to the reject pile (it then vanishes from here); „Restore“ under the
+// „Abgelehnt“ filter brings it back. stopPropagation because the whole card
+// opens the lightbox.
+function declineBtnHtml(p) {
+  var d = isDeclined(p);
+  return '<button class="declbtn' + (d ? ' on' : '') +
+    '" onclick="event.stopPropagation();toggleDeclined(' + p.id + ')"' +
+    ' title="' + (d ? 'Restore — put this back in consideration'
+                    : 'Decline — move this to the reject pile') + '">' +
+    (d ? '↩ Restore' : '✕ Decline') + '</button>';
+}
+
 function pickPhotoSeries(e, id) {
   e.stopPropagation();
   var v = e.target.value;
@@ -862,6 +942,24 @@ function savePhotoSeries(id, name) {
   api('/api/admin/client-photos/' + id, { method: 'PUT', body: { series: name } })
     .then(function (saved) { p.series = saved.series; toast(name ? 'Tagged “' + name + '”' : 'Series cleared'); })
     .catch(function (e) { p.series = prev; render(); toast(e.message); });
+}
+
+// Mark a candidate declined yourself — the ones the client rejected in an email
+// rather than through the board. It writes the same `status` his own „Eher
+// nicht“ writes, so it lands in the identical reject pile and filter. Optimistic
+// like the series picker: the card changes piles at once and only reverts if the
+// save fails. It never touches his reaction metadata, so it raises no badge.
+function toggleDeclined(id) {
+  var p = allPhotos().filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  var next = isDeclined(p) ? 'pending' : 'declined';
+  var prev = p.status;
+  p.status = next;
+  render();
+  if (document.getElementById('lb').classList.contains('on')) paintLb();
+  api('/api/admin/client-photos/' + id + '/status', { method: 'PUT', body: { status: next } })
+    .then(function (saved) { p.status = saved.status; toast(next === 'declined' ? 'Moved to the reject pile' : 'Restored'); })
+    .catch(function (e) { p.status = prev; render(); if (document.getElementById('lb').classList.contains('on')) paintLb(); toast(e.message); });
 }
 
 // The whole card opens the lightbox, so a click on the filename must not bubble.
@@ -951,6 +1049,7 @@ function cardHtml(p, s, box) {
       (isAdmin ? seriePickHtml(p)
         : (p.series && seriesFilter === null && seriesList.length > 1 && seriesShown()
           ? '<span class="serie">' + esc(p.series) + '</span>' : '')) +
+      (isAdmin ? declineBtnHtml(p) : '') +
       (mark ? '<span class="mark ' + esc(p.status) + '">' + mark + '</span>' : '') +
       (p.client_comment ? '<span class="card-note" title="' + esc(p.client_comment) + '">„' + esc(p.client_comment) + '“</span>' : '') +
       (isAdmin && p.reacted_at && !p.seen_by_admin ? '<span class="card-new" title="new response"></span>' : '') +
@@ -1051,12 +1150,15 @@ function paintLb() {
   // reaction can be cleared or corrected on the phone with the client present.
   var av = document.getElementById('lb-adminview');
   if (isAdmin) {
-    var btns = ' · <button onclick="editPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Edit</button>' +
+    var btns = ' · <button onclick="toggleDeclined(' + p.id + ')" style="padding:2px 8px;font-size:11px">' +
+                 (isDeclined(p) ? '↩ Restore' : '✕ Decline') + '</button>' +
+               ' <button onclick="editPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Edit</button>' +
                ' <button onclick="delPhoto(' + p.id + ')" style="padding:2px 8px;font-size:11px">Delete photo</button>';
     av.innerHTML = fnameHtml(p, 'full') + (p.reacted_at
       ? 'Responded ' + new Date(p.reacted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
         ': <b>' + (p.status === 'approved' ? 'approved' : p.status === 'declined' ? 'declined' : 'cleared') + '</b>' +
         (p.client_comment ? ' — “' + esc(p.client_comment) + '”' : '')
+      : isDeclined(p) ? '<b>Declined</b> — moved here by you'
       : 'No response yet.') + btns;
   } else {
     av.innerHTML = '';
