@@ -110,6 +110,16 @@ a { color: inherit; }
   padding: .55rem .9rem; background: var(--fg); color: var(--bg); border: none; border-radius: 2px; }
 .ws-book-btn[disabled] { opacity: .45; }
 .ws-no-dates { font-size: 11px; color: var(--fg-l); }
+.ws-contact { font-size: 12px; letter-spacing: .02em; color: var(--fg-m); line-height: 1.9; margin-top: 2rem; }
+.ws-contact a { color: var(--pink-d); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Post-checkout confirmation, shown on return from Stripe. */
+.ws-booked { position: relative; border: 1px solid rgba(200,144,122,.3); background: rgba(200,144,122,.1);
+  border-radius: 3px; padding: 1.1rem 2.4rem 1.1rem 1.2rem; margin-bottom: 2rem; }
+.ws-booked-title { font-family: var(--fi); font-style: italic; font-size: 18px; color: var(--fg); margin-bottom: .35rem; }
+.ws-booked-text { font-size: 11px; color: var(--fg-m); line-height: 1.7; }
+.ws-booked-x { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border: none; background: none;
+  color: var(--fg-l); font-size: 18px; line-height: 1; cursor: pointer; }
 @media(max-width:640px){
   .ws-wrap { padding: 6.5rem 1.5rem 4rem; }
   .ws-date-card { flex-direction: column; align-items: flex-start; }
@@ -188,7 +198,7 @@ button, input, textarea, select { font-family: var(--fm); }
 /* The shared cursor swells on links/buttons via chrome.css; name the page's own
    clickable non-anchors so the OS pointer stays hidden under the dot on them. */
 @media (hover:hover) and (pointer:fine) {
-  .ws-shot img, .edit-tab, .btn, #adminbar button, .ws-shot .del { cursor: none; }
+  .ws-shot img, .edit-tab, .btn, #adminbar button, .ws-shot .del, .ws-book-btn, .ws-booked-x { cursor: none; }
 }
 </style>
 </head>
@@ -330,6 +340,10 @@ function render() {
   h += '<div class="ws-divider"></div><h2 class="ws-section-title">Dates &amp; booking' + tab('price_note', 'Price note', false) + '</h2>';
   h += '<p style="margin-bottom:1.25rem">' + esc(c.price_note) + '</p>';
   h += '<div class="ws-dates">' + datesHtml() + '</div>';
+
+  // A nudge toward the contact form, pre-selecting the workshop enquiry option.
+  h += '<p class="ws-contact">Any questions? <a href="/contact?interest=' +
+    encodeURIComponent('Workshop related question') + '">Contact me</a>.</p>';
   h += '</div>';
 
   document.getElementById('ws-content').innerHTML = h;
@@ -342,14 +356,71 @@ function datesHtml() {
     var dt = new Date(d.date);
     var label = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var full = d.spots_left <= 0;
+    var ctaLabel = esc(copy.cta || 'Book your spot');
+    var btn = full
+      ? '<button class="ws-book-btn" disabled title="Fully booked">' + ctaLabel + '</button>'
+      : '<button class="ws-book-btn" onclick="book(' + d.id + ',this)">' + ctaLabel + '</button>';
     return '<div class="ws-date-card"><div>' +
       '<div class="ws-date-label">' + esc(label) + '</div>' +
       '<div class="ws-date-spots">' + (full ? 'Fully booked' : d.spots_left + ' of ' + d.capacity + ' spots left') + '</div>' +
       '</div><div class="ws-date-right">' +
       '<span class="ws-date-price">' + fmtCHF(d.price_chf_cents) + '</span>' +
-      '<button class="ws-book-btn" disabled title="Booking opens soon">' + esc(copy.cta || 'Booking opens soon') + '</button>' +
+      btn +
       '</div></div>';
   }).join('');
+}
+
+// ── BOOKING ──────────────────────────────────────────────────────────────────
+// Click → server validates the seat is still available and creates a Stripe
+// Checkout session → redirect. On any failure (including someone taking the
+// last seat first) the dates are reloaded so the page reflects the truth.
+function book(dateId, btn) {
+  var ctaLabel = copy.cta || 'Book your spot';
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  api('/api/workshops/' + encodeURIComponent(SLUG) + '/book', { method: 'POST', body: { date_id: dateId } })
+    .then(function (d) {
+      if (d && d.url) { location.href = d.url; }
+      else throw new Error('Could not start checkout');
+    })
+    .catch(function (e) {
+      toast(e.message);
+      if (btn) { btn.disabled = false; btn.textContent = ctaLabel; }
+      reloadDates();
+    });
+}
+
+// Returned from Stripe with ?booked=<ref>&session_id=… — show a confirmation
+// card and clean the query off the URL so a refresh doesn't re-trigger it.
+function checkBooked() {
+  var params = new URLSearchParams(location.search);
+  var ref = params.get('booked');
+  var sid = params.get('session_id');
+  if (!ref || !sid) return;
+  history.replaceState(null, '', location.pathname);
+
+  var card = document.createElement('div');
+  card.className = 'ws-booked';
+  card.innerHTML = '<button class="ws-booked-x" onclick="this.parentNode.remove()" aria-label="Dismiss">&times;</button>' +
+    '<div class="ws-booked-title">Thank you — your spot is booked.</div>' +
+    '<p class="ws-booked-text" id="ws-booked-text">A confirmation is on its way to your inbox.' +
+    (ref !== '1' ? ' Your booking reference is <strong>' + esc(ref) + '</strong>.' : '') + '</p>';
+  var inner = document.getElementById('ws-content');
+  inner.parentNode.insertBefore(card, inner);
+
+  // Enrich with the workshop date once the record is readable (also backfills
+  // the guest details server-side if the webhook is lagging).
+  api('/api/workshops/booking/' + encodeURIComponent(sid)).then(function (d) {
+    var b = d && d.booking;
+    if (!b) return;
+    var name = b.customer_name ? ', ' + esc(String(b.customer_name).split(' ')[0]) : '';
+    var dateLabel = b.date ? new Date(b.date).toLocaleDateString('en-GB',
+      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    document.querySelector('.ws-booked-title').innerHTML = 'Thank you' + name + ' — your spot is booked.';
+    var t = document.getElementById('ws-booked-text');
+    if (t) t.innerHTML = (dateLabel ? '<strong>' + esc(dateLabel) + '</strong>. ' : '') +
+      'A confirmation is on its way to your inbox.' +
+      (b.booking_ref ? ' Your booking reference is <strong>' + esc(b.booking_ref) + '</strong>.' : '');
+  }).catch(function () { /* the generic thank-you already stands */ });
 }
 
 // ── LIGHTBOX ─────────────────────────────────────────────────────────────────
@@ -583,6 +654,7 @@ if (!SLUG) {
       document.querySelector('.ws-wrap').classList.add('has-admin');
     }
     render();
+    checkBooked();
   }).catch(function (e) {
     document.getElementById('ws-content').innerHTML =
       '<h1 class="ws-heading">Workshop</h1><p class="ws-body">' + esc(e.message) + '</p>';

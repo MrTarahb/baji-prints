@@ -420,6 +420,100 @@ async function sendOrderConfirmationEmails(stripeSessionId) {
   }
 }
 
+// Sends the admin notification + customer confirmation for a paid workshop
+// booking — the booking equivalent of sendOrderConfirmationEmails. Called from
+// the webhook once the pending→paid transition has been claimed.
+async function sendWorkshopBookingEmails(stripeSessionId) {
+  if (!resend) return;
+  const { rows } = await pool.query(
+    `SELECT wb.booking_ref, wb.customer_name, wb.customer_email, wb.amount_chf_cents,
+            wd.date, w.title AS workshop_title
+     FROM workshop_bookings wb
+     JOIN workshop_dates wd ON wd.id = wb.workshop_date_id
+     LEFT JOIN workshops w ON w.id = wd.workshop_id
+     WHERE wb.stripe_session_id = $1`,
+    [stripeSessionId]
+  );
+  const b = rows[0];
+  if (!b) return;
+  const dateLabel = new Date(b.date).toLocaleDateString('en-GB',
+    { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const amount = ((b.amount_chf_cents || 0) / 100).toFixed(2);
+  const title = b.workshop_title || 'Workshop';
+
+  // Admin notification
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+      to: process.env.EMAIL_TO || 'bhartu.bhatia@gmail.com',
+      subject: `New workshop booking ${b.booking_ref || ''}: CHF ${amount}`,
+      html: emailShell(`
+        <h2 style="font-family:Georgia,serif;font-size:20px;margin:0 0 6px;color:#1A1714">New workshop booking</h2>
+        ${b.booking_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">${b.booking_ref}</p>` : ''}
+        <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Workshop:</strong> ${esc(title)}</p>
+        <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Date:</strong> ${esc(dateLabel)}</p>
+        <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>Guest:</strong> ${esc(b.customer_name) || 'Unknown'} (${esc(b.customer_email) || 'no email on file'})</p>
+        <p style="margin:0 0 18px;font-size:14px;color:#1A1714"><strong>Paid:</strong> CHF ${amount}</p>
+        <p style="font-size:13px;color:#8A8680;margin:0">See the date's bookings in the admin panel for the full guest list.</p>
+      `)
+    });
+  } catch (e) { console.error('Workshop admin email failed:', e); }
+
+  // Customer confirmation
+  if (b.customer_email) {
+    try {
+      await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+        to: b.customer_email,
+        reply_to: REPLY_TO_EMAIL,
+        subject: `Your workshop booking ${b.booking_ref || ''}: Bharat Bhatia`,
+        html: emailShell(`
+          <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${b.customer_name ? ', ' + esc(b.customer_name.split(' ')[0]) : ''}.</h2>
+          ${b.booking_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Booking reference: ${b.booking_ref}</p>` : ''}
+          <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your spot is booked and payment is confirmed. I'm looking forward to the day.</p>
+          <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>${esc(title)}</strong></p>
+          <p style="margin:0 0 6px;font-size:14px;color:#8A8680">${esc(dateLabel)}</p>
+          <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${amount}</p>
+          <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Nearer the date I'll be in touch with the meeting point and anything to prepare. If you need to change or cancel, just email ${REPLY_TO_EMAIL} — mention your booking reference.</p>
+        `), customerEmail: true
+      });
+    } catch (e) { console.error('Workshop customer confirmation email failed:', e); }
+  }
+}
+
+// Fulfil a paid workshop booking from a Checkout session. Same idempotency
+// shape as the print-order path: an atomic UPDATE ... WHERE status='pending'
+// claims the transition, so a webhook retry or duplicate delivery sees zero
+// rows and does no further work.
+async function fulfilWorkshopBooking(session) {
+  try {
+    const { rows: claimed } = await pool.query(
+      `UPDATE workshop_bookings SET status='paid', updated_at=NOW()
+       WHERE stripe_session_id=$1 AND status='pending'
+       RETURNING id`,
+      [session.id]
+    );
+    if (!claimed.length) {
+      console.log(`[webhook] duplicate/already-processed workshop booking for session ${session.id} — skipping`);
+      return;
+    }
+    // Populate the guest's name/email from the session before the emails read
+    // the row back (customer_details is present on a retrieved session by
+    // default — no expand needed).
+    try {
+      const full = await stripe.checkout.sessions.retrieve(session.id);
+      if (full.customer_details) {
+        await pool.query(
+          `UPDATE workshop_bookings SET customer_name=$1, customer_email=$2 WHERE stripe_session_id=$3`,
+          [full.customer_details.name, full.customer_details.email, session.id]
+        );
+      }
+    } catch (e) { console.error('Could not fetch customer details for workshop booking:', e.message); }
+
+    await sendWorkshopBookingEmails(session.id);
+  } catch (e) { console.error('Error fulfilling workshop booking:', e); }
+}
+
 // Support both /api/stripe-webhook (Stripe Workbench default) and /api/stripe/webhook
 const stripeWebhookHandler = async (req, res) => {
   if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
@@ -435,6 +529,12 @@ const stripeWebhookHandler = async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
+    // A workshop booking carries metadata.type='workshop' and has no matching
+    // orders row — route it to its own fulfilment path and acknowledge.
+    if (session.metadata && session.metadata.type === 'workshop') {
+      await fulfilWorkshopBooking(session);
+      return res.json({ received: true });
+    }
     try {
       // Idempotency guard — Stripe retries webhook deliveries, and without this
       // check a retry would double-increment edition counters and send duplicate
@@ -1106,6 +1206,10 @@ async function initDB() {
     ['contact_eyebrow', 'Contact'],
     ['contact_title', 'Say hello.'],
     ['contact_intro', 'Always happy to hear from people — about printing, photography, or just a conversation.'],
+    // Options in the contact form's "What's on your mind?" dropdown — one per
+    // line, editable from admin. The public form rebuilds the <select> from
+    // these (falling back to the built-in list in the markup if this is unset).
+    ['contact_interests', 'Printing my work\nWorkshop related question\nCollaboration\nJust saying hello\nSomething else'],
     ['footer_copy', '© 2025 · Zürich Wiedikon'],
     ['hero_image_url', ''],
     ['work_eyebrow', 'Work'],
@@ -1157,8 +1261,8 @@ async function initDB() {
     ['faq_personal_what_enabled','true'],['faq_personal_where_enabled','true'],['faq_personal_how_enabled','true'],
     ['faq_damaged_enabled','true'],['faq_returns_enabled','true'],['faq_framing_enabled','true'],
     // Workshop page — every visible text editable from admin
-    ['workshop_banner_enabled', 'true'],
-    ['workshop_banner_text', 'This page is a work in progress — dates and booking are not live yet.'],
+    ['workshop_banner_enabled', 'false'],
+    ['workshop_banner_text', ''],
     ['workshop_heading', 'Workshop.'],
     ['workshop_sub', 'Photo to print · A full day of abstract photography in Zürich, ending with your own A2 fine art print.'],
     ['workshop_intro', 'One day, six people, one photograph. We spend the morning shooting intentional camera movement and abstract work on a planned route through Zürich, then bring the day into the atelier: culling, editing, proofing on paper, and printing your strongest frame on A2 museum-grade fine art paper. You don\'t leave with theory — you leave with a print.'],
@@ -2994,10 +3098,123 @@ async function workshopCopy(workshopId) {
   return out;
 }
 
+// Public: booking details after checkout, for the confirmation view the
+// /workshops/<slug> page shows on return from Stripe. Registered BEFORE the
+// /:slug route — a literal path must precede a param (route-order convention).
+// The two-segment path can't collide with the single-segment :slug, but keep it
+// here regardless.
+app.get('/api/workshops/booking/:sessionId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT wb.booking_ref, wb.status, wb.customer_name, wb.customer_email, wb.amount_chf_cents,
+              wd.date, w.title AS workshop_title, w.slug
+       FROM workshop_bookings wb
+       JOIN workshop_dates wd ON wd.id = wb.workshop_date_id
+       LEFT JOIN workshops w ON w.id = wd.workshop_id
+       WHERE wb.stripe_session_id = $1`,
+      [req.params.sessionId]
+    );
+    const b = rows[0];
+    if (!b) return res.status(404).json({ error: 'Booking not found' });
+    // Backfill the guest details from Stripe if the webhook hasn't run yet, so
+    // the confirmation can greet them by name even on a fast return.
+    if (stripe && !b.customer_email) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
+        if (session.customer_details) {
+          await pool.query(
+            `UPDATE workshop_bookings SET customer_name=COALESCE(customer_name,$1), customer_email=COALESCE(customer_email,$2)
+             WHERE stripe_session_id=$3`,
+            [session.customer_details.name, session.customer_details.email, req.params.sessionId]
+          );
+          b.customer_name = b.customer_name || session.customer_details.name;
+          b.customer_email = b.customer_email || session.customer_details.email;
+        }
+      } catch (e) { /* non-fatal — show what we have */ }
+    }
+    res.json({ booking: b });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public: create a Stripe Checkout session for one workshop seat. Mirrors the
+// shop checkout — availability is recomputed server-side from authoritative DB
+// state (a seat is held by a paid booking or a pending one younger than 35
+// minutes) so two people can't both buy the last spot, and the price comes from
+// the date row, never the client. The pending booking row is created after the
+// session; the webhook (metadata.type='workshop') claims pending→paid.
+app.post('/api/workshops/:slug/book', async (req, res) => {
+  if (!stripe) return res.status(500).json({ error: 'Booking is not configured yet' });
+  const dateId = parseInt(req.body.date_id, 10);
+  if (!Number.isInteger(dateId)) return res.status(400).json({ error: 'A date is required' });
+  try {
+    const { rows: wrows } = await pool.query(
+      'SELECT id, slug, title FROM workshops WHERE slug = $1', [req.params.slug]
+    );
+    const w = wrows[0];
+    if (!w) return res.status(404).json({ error: 'Workshop not found' });
+
+    const { rows: drows } = await pool.query(`
+      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.status, wd.workshop_id,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
+        COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
+      FROM workshop_dates wd
+      LEFT JOIN workshop_bookings wb ON wb.workshop_date_id = wd.id
+      WHERE wd.id = $1 GROUP BY wd.id
+    `, [dateId]);
+    const d = drows[0];
+    if (!d || d.workshop_id !== w.id) return res.status(404).json({ error: 'Date not found' });
+    if (d.status !== 'open' || new Date(d.date) < new Date(new Date().toDateString())) {
+      return res.status(400).json({ error: 'This date is not open for booking.' });
+    }
+    const spotsLeft = d.capacity - parseInt(d.paid_count) - parseInt(d.pending_count);
+    if (spotsLeft <= 0) return res.status(400).json({ error: 'This date is fully booked.' });
+
+    const dateLabel = new Date(d.date).toLocaleDateString('en-GB',
+      { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const origin = req.headers.origin || `https://${req.headers.host}`;
+
+    // Unique human-readable reference (WSH-xxxxxx), retried on the rare collision.
+    let bookingRef;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = generateWorkshopRef();
+      const { rows: existing } = await pool.query('SELECT 1 FROM workshop_bookings WHERE booking_ref=$1', [candidate]);
+      if (!existing.length) { bookingRef = candidate; break; }
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'twint'],
+      line_items: [{
+        price_data: {
+          currency: 'chf',
+          product_data: { name: `${w.title || 'Workshop'} — ${dateLabel}` },
+          unit_amount: d.price_chf_cents,
+        },
+        quantity: 1,
+      }],
+      customer_creation: 'always',
+      invoice_creation: { enabled: true },
+      metadata: { type: 'workshop', booking_ref: bookingRef || '', workshop_date_id: String(d.id), slug: w.slug },
+      success_url: `${origin}/workshops/${w.slug}?booked=${bookingRef || 1}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/workshops/${w.slug}`,
+    });
+
+    await pool.query(
+      `INSERT INTO workshop_bookings (booking_ref, workshop_date_id, stripe_session_id, status, amount_chf_cents)
+       VALUES ($1, $2, $3, 'pending', $4)`,
+      [bookingRef, d.id, session.id, d.price_chf_cents]
+    );
+
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Workshop booking error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Public: everything the standalone /workshops/<slug> page needs in one request
 // — merged copy, this workshop's upcoming open dates (with spots_left), its
-// photos, and whether the viewer is the admin. Booking is disabled in the UI,
-// but spots_left still reflects any historical paid rows.
+// photos, and whether the viewer is the admin.
 app.get('/api/workshops/:slug', async (req, res) => {
   try {
     const { rows: wrows } = await pool.query(

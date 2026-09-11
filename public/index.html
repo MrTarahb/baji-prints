@@ -1854,9 +1854,12 @@ nav.on-light .nav-hamburger .menu-word,
   </div>
   <div class="form-group">
     <label>What's on your mind?</label>
+    <!-- Options are rebuilt from the admin-editable contact_interests content
+         key in loadContent(); these are the fallback if that fetch fails. -->
     <select id="f-interest">
       <option value="">Select...</option>
       <option>Printing my work</option>
+      <option>Workshop related question</option>
       <option>Collaboration</option>
       <option>Just saying hello</option>
       <option>Something else</option>
@@ -2452,6 +2455,39 @@ async function loadContent() {
         const handle = d.footer_ig.replace('@','').trim();
         igEl.href = 'https://instagram.com/' + handle;
         igEl.textContent = '@' + handle;
+      }
+    }
+
+    // Contact form dropdown — rebuilt from the admin-editable contact_interests
+    // key (one item per line). If it's unset we leave the fallback markup as-is.
+    const interestSel = document.getElementById('f-interest');
+    if (interestSel && d.contact_interests) {
+      const items = d.contact_interests.split('\n').map(s => s.trim()).filter(Boolean);
+      if (items.length) {
+        interestSel.innerHTML = '';
+        const first = document.createElement('option');
+        first.value = ''; first.textContent = 'Select...';
+        interestSel.appendChild(first);
+        // textContent (never innerHTML) so an option label can't inject markup;
+        // an option with no value attribute reports its text as .value, matching
+        // the original markup and what the form submit reads.
+        items.forEach(label => {
+          const op = document.createElement('option');
+          op.textContent = label;
+          interestSel.appendChild(op);
+        });
+      }
+    }
+    // Deep link: /contact?interest=… preselects the matching option. Exact
+    // (case-insensitive) first, then a "workshop" contains-match so the workshop
+    // page's link survives the admin renaming that item.
+    if (interestSel) {
+      const want = new URLSearchParams(location.search).get('interest');
+      if (want) {
+        const opts = Array.prototype.slice.call(interestSel.options);
+        let match = opts.find(o => o.value && o.value.toLowerCase() === want.toLowerCase());
+        if (!match && /workshop/i.test(want)) match = opts.find(o => /workshop/i.test(o.value));
+        if (match) interestSel.value = match.value;
       }
     }
   } catch(e) {}
