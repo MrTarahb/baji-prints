@@ -3194,6 +3194,11 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
       }],
       customer_creation: 'always',
       invoice_creation: { enabled: true },
+      // Nothing ships for a workshop, so there's no shipping form to carry a
+      // name the way the print checkout does — require a billing address so
+      // Checkout asks for the guest's name (populating customer_details.name,
+      // which the webhook and confirmation emails read) and the invoice is proper.
+      billing_address_collection: 'required',
       metadata: { type: 'workshop', booking_ref: bookingRef || '', workshop_date_id: String(d.id), slug: w.slug },
       success_url: `${origin}/workshops/${w.slug}?booked=${bookingRef || 1}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/workshops/${w.slug}`,
