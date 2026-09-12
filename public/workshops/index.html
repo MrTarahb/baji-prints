@@ -505,13 +505,19 @@ function editCopy() {
       { value: 'included', label: "What's included" }, { value: 'bring', label: 'What to bring' },
       { value: 'weather', label: 'Weather note' }, { value: 'min', label: 'Minimum note' },
       { value: 'price_note', label: 'Price note' }, { value: 'cta', label: 'Booking button label' },
-      { value: 'banner_text', label: 'Banner text' }
+      { value: 'banner_text', label: 'Banner text' },
+      { value: 'email_subject', label: 'Confirmation email · subject' },
+      { value: 'email_intro', label: 'Confirmation email · opening' },
+      { value: 'email_outro', label: 'Confirmation email · closing' }
     ] }
   ], function (v) {
     var labels = { heading: 'Heading', sub: 'Subtitle', intro: 'Intro', schedule: 'Schedule',
       included: 'Included', bring: 'To bring', weather: 'Weather', min: 'Minimum',
-      price_note: 'Price note', cta: 'Button label', banner_text: 'Banner' };
-    var multi = { schedule: 1, included: 1, bring: 1, intro: 1, sub: 1, weather: 1, min: 1, banner_text: 1 };
+      price_note: 'Price note', cta: 'Button label', banner_text: 'Banner',
+      email_subject: 'Confirmation email subject', email_intro: 'Confirmation email opening',
+      email_outro: 'Confirmation email closing' };
+    var multi = { schedule: 1, included: 1, bring: 1, intro: 1, sub: 1, weather: 1, min: 1, banner_text: 1,
+      email_intro: 1, email_outro: 1 };
     // false: editField opens the next dialog, so ask() must not close it.
     editField(v.which, labels[v.which] || v.which, !!multi[v.which]);
     return false;
@@ -525,8 +531,9 @@ function saveCopy(key, value) {
 
 // ── ADMIN: DATES ─────────────────────────────────────────────────────────────
 // A modal listing every date for this workshop (all statuses, admin-only) with
-// edit/delete, plus an add action. Booking stays disabled site-wide; this only
-// manages the schedule of offered dates.
+// edit/delete, plus an add action. A date set to "open" is live and bookable on
+// the public page (Stripe checkout); "draft"/"closed" dates are hidden or shown
+// as closed. This modal only manages the schedule of offered dates.
 function openDates() {
   api('/api/admin/workshop-dates?workshop_id=' + wsId).then(function (rows) {
     var card = document.getElementById('modal-card');
@@ -543,7 +550,8 @@ function openDates() {
         '<button class="btn" onclick="delDate(' + d.id + ',' + booked + ')">Delete</button></div>';
     }).join('') : '<p class="ws-no-dates" style="padding:.6rem 0">No dates yet.</p>';
     card.innerHTML = '<h4>Dates</h4><p>Add and manage the dates offered for this workshop. ' +
-      'Only a date with status “open” shows on the public page. Booking is disabled site-wide for now.</p>' +
+      'A date set to “open” is live and bookable on the public page (guests pay via Stripe and ' +
+      'get a confirmation email). “draft” and “closed” dates are hidden or shown as full.</p>' +
       list +
       '<div class="modal-row"><button class="btn" onclick="closeModal()">Close</button>' +
       '<button class="btn btn-primary" onclick="editDate(0)">+ Add date</button></div>';

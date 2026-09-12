@@ -43,6 +43,14 @@ const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || 'bhartu.bhatia@gmail.com';
 // EMAIL_TO — that one is the personal address order notifications land in.
 const CLIENT_NOTIFY_EMAIL = process.env.CLIENT_NOTIFY_EMAIL || 'support@bharatbhatia.photography';
 
+// The customer-facing workshop booking confirmation is sent from contact@ rather
+// than the noreply@ order emails use, so a booked guest sees a real, branded
+// address. It's a sending identity on the (Resend-verified) bharatbhatia.photography
+// domain — the same domain noreply@ already sends from, so no extra verification is
+// needed. Replies still land in REPLY_TO_EMAIL (a real inbox), since contact@ may
+// not receive mail; override WORKSHOP_EMAIL_FROM in the environment to change it.
+const WORKSHOP_EMAIL_FROM = process.env.WORKSHOP_EMAIL_FROM || 'contact@bharatbhatia.photography';
+
 // EU country codes (CH and LI handled separately as domestic)
 const EU_COUNTRIES = new Set([
   'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU',
@@ -427,7 +435,7 @@ async function sendWorkshopBookingEmails(stripeSessionId) {
   if (!resend) return;
   const { rows } = await pool.query(
     `SELECT wb.booking_ref, wb.customer_name, wb.customer_email, wb.amount_chf_cents,
-            wd.date, w.title AS workshop_title
+            wd.date, w.title AS workshop_title, w.id AS workshop_id
      FROM workshop_bookings wb
      JOIN workshop_dates wd ON wd.id = wb.workshop_date_id
      LEFT JOIN workshops w ON w.id = wd.workshop_id
@@ -459,22 +467,29 @@ async function sendWorkshopBookingEmails(stripeSessionId) {
     });
   } catch (e) { console.error('Workshop admin email failed:', e); }
 
-  // Customer confirmation
+  // Customer confirmation. The subject and the opening/closing paragraphs are
+  // editable per workshop from the page's copy editor (workshopCopy merges the
+  // content defaults with any overrides); the booking facts — name, reference,
+  // title, date, amount — are always rendered here so they can't drift or be
+  // broken by an edit. Editable text is escaped and its newlines become <br>.
   if (b.customer_email) {
+    const copy = await workshopCopy(b.workshop_id);
+    const para = (s) => esc(s || '').replace(/\n/g, '<br>');
+    const subject = copy.email_subject || `Your workshop booking ${b.booking_ref || ''}: Bharat Bhatia`;
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+        from: WORKSHOP_EMAIL_FROM,
         to: b.customer_email,
         reply_to: REPLY_TO_EMAIL,
-        subject: `Your workshop booking ${b.booking_ref || ''}: Bharat Bhatia`,
+        subject,
         html: emailShell(`
           <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${b.customer_name ? ', ' + esc(b.customer_name.split(' ')[0]) : ''}.</h2>
           ${b.booking_ref ? `<p style="font-family:monospace;font-size:12px;color:#8A8680;margin:0 0 18px">Booking reference: ${b.booking_ref}</p>` : ''}
-          <p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">Your spot is booked and payment is confirmed. I'm looking forward to the day.</p>
+          ${copy.email_intro ? `<p style="font-size:14px;color:#3D3731;line-height:1.7;margin:0 0 22px">${para(copy.email_intro)}</p>` : ''}
           <p style="margin:0 0 6px;font-size:14px;color:#1A1714"><strong>${esc(title)}</strong></p>
           <p style="margin:0 0 6px;font-size:14px;color:#8A8680">${esc(dateLabel)}</p>
           <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${amount}</p>
-          <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Nearer the date I'll be in touch with the meeting point and anything to prepare. If you need to change or cancel, just email ${REPLY_TO_EMAIL} — mention your booking reference.</p>
+          ${copy.email_outro ? `<p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">${para(copy.email_outro)}</p>` : ''}
         `), customerEmail: true
       });
     } catch (e) { console.error('Workshop customer confirmation email failed:', e); }
@@ -1273,6 +1288,13 @@ async function initDB() {
     ['workshop_min', 'The workshop runs with a minimum of 4 participants. If a date doesn\'t reach the minimum, you\'ll be offered the next date or a full refund.'],
     ['workshop_price_note', 'CHF 300 per person — everything included.'],
     ['workshop_cta', 'Book your spot'],
+    // The booking confirmation email a guest receives after paying. Only the
+    // subject and these two paragraphs are editable — the booking facts (name,
+    // reference, workshop, date, amount) are always rendered by the server. Edited
+    // per workshop from the page's "Edit copy" → "Confirmation email" fields.
+    ['workshop_email_subject', 'Your workshop booking — Bharat Bhatia'],
+    ['workshop_email_intro', 'Your spot is booked and payment is confirmed. I\'m looking forward to the day.'],
+    ['workshop_email_outro', 'A formal receipt has been sent separately by Stripe. Nearer the date I\'ll be in touch with the meeting point and anything to prepare. If you need to change or cancel, just reply to this email — mention your booking reference.'],
   ];
 
   for (const [key, value] of defaults) {
@@ -3075,7 +3097,10 @@ app.put('/api/admin/workshop-photos/reorder', requireAuth, async (req, res) => {
 // content.workshop_<key> is the site-wide default (never overwritten);
 // workshop_overrides(workshop_id, key) overrides it per workshop.
 const WORKSHOP_COPY_KEYS = ['banner_text', 'banner_enabled', 'heading', 'sub', 'intro',
-  'schedule', 'included', 'bring', 'weather', 'min', 'price_note', 'cta'];
+  'schedule', 'included', 'bring', 'weather', 'min', 'price_note', 'cta',
+  // Booking confirmation email — subject + the editable opening/closing
+  // paragraphs. sendWorkshopBookingEmails() reads these via workshopCopy().
+  'email_subject', 'email_intro', 'email_outro'];
 
 // Merge one workshop's overrides over the content defaults. Every copy key is
 // present in the result: the content default unless the workshop overrides it,
