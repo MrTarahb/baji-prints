@@ -429,15 +429,35 @@ commands, never runs them).
 ## 10. TO-DO LIST
 
 ### High priority
-- **Workshop "Photo to Print" — step 4: Stripe booking flow.** ⏸️ *Paused by
-  choice* (wants first print sales first; idea not dead). Steps 1–3 done (DB
-  tables `workshop_dates` / `workshop_bookings` [ref `WSH-XXXXXX`] /
-  `workshop_photos`, public `/workshops` page, admin panel, gallery).
-  Step 4 = date selection → optional frame → dietary/notes → Stripe Checkout with
-  `metadata.type='workshop'` → webhook branch (mirror print idempotency) →
-  capacity re-check → confirmation email → enable the disabled "Book your spot"
-  button. **Validate demand before building** (post to FK/VSETH; 4 warm yeses).
-  Concept: CHF 300pp, full day, max 6 / min 4, all-inclusive, A2 shipped after.
+- **Workshop "Photo to Print" — Stripe booking flow.** ✅ *Done & deployed
+  (2026-09-12).* The full flow is live: `/workshops/<slug>` "Book your spot" →
+  `POST /api/workshops/:slug/book` → Stripe Checkout (`metadata.type='workshop'`,
+  server-side capacity re-check, price read from the date row) → webhook branch
+  `fulfilWorkshopBooking` (mirrors print idempotency) → admin notification + guest
+  confirmation email (from `contact@`; subject/opening/closing editable per workshop
+  via the page's "Booking email" button) + Stripe PDF invoice. The only gate now is
+  a `workshop_dates` row being set to `open`. Concept as built: CHF 300pp, full day,
+  max 6 / min 4, all-inclusive, A2 shipped after.
+- **Check the workshop FAQ is up to date now that booking is live.** The Q&A
+  "What's included, and what does it cost?" (`server.js`, Workshops FAQ seed +
+  `faq_*` content keys) still says *"…get in touch if you'd like to be notified of
+  upcoming dates"* — with direct booking live, that should point people to book on
+  the workshop page instead. Review the other Workshops FAQ entries in the same pass.
+- **Workshop co-teacher — Tuule Müürsepp.** She co-teaches the workshop; add her to
+  the workshop page: a short bio/credit, a link to her website (URL TBD — get it from
+  Bharat), and cross-promotion ("advertise for her"). Copy is per-workshop, so this can
+  live in the workshop copy/overrides rather than being hard-coded.
+- **Workshop student discount.** Offer a reduced student rate. Owner wants to choose
+  either (a) a discount off the normal price (amount or %), or (b) a separate student
+  price — admin-settable. At booking the participant self-selects "I'm a student" to get
+  it. Price MUST stay server-authoritative like the normal flow (which reads
+  `price_chf_cents` from the `workshop_dates` row): add e.g. `student_price_chf_cents`
+  (or a discount field) + a booking flag the server validates — never trust a
+  client-sent price. Decide whether any student proof is required (likely honour system).
+- **Workshop terms of sale.** Draft workshop-specific terms (cancellation/refund window,
+  the min-4-participants reschedule/refund clause, what's included) — separate from the
+  general shop terms — and require acceptance at booking (a checkbox on the workshop page,
+  or Stripe Checkout `consent_collection.terms_of_service` pointing at a hosted terms URL).
 
 ### Content & shop
 - **Write alt text for every print** (admin → Manage prints → Alt text). Owner is
