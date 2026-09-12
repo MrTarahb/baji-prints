@@ -140,9 +140,18 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
     `place_other` (hamlets and neighbourhoods, which positron does not label).
   - *Light hides* the three road-shield layers — the white lozenges stamping "3", "17", "A3W" —
     `water_name_point_label`, and the `airport` label (dark has no aerodrome layer at all).
-  - *Dark holds `highway_name_other` to z15* and gets a **cloned** major-road name layer for
-    z12.2–15, which is positron's arrangement: 548 street names against positron's 67 at the
-    zoom where the whole city is on screen was the largest single difference between the two.
+  - *Dark hides its single `highway_name_other`* and re-adds positron's three street-name layers
+    as clones — major (`primary/secondary/tertiary/trunk`, z12.2), minor (`minor/service/track`,
+    z15) and path (z15.5) — each pinned to positron's interpolated **12–13px** text-size through
+    `cloneLayer`'s new `layout` override. Dark ships one unrestricted layer at a flat 10px, and
+    that labelled *different* streets from positron in two compounding ways: it took every
+    non-motorway name the moment the tile loaded (548 against positron's 67 with the whole city on
+    screen), **and** — the part an earlier zoom-only fix missed — the smaller text let MapLibre's
+    label collision keep a different set even where both drew the same roads. Mirroring positron's
+    class split, zoom floors *and* size is what makes the same streets win in both themes. The
+    class whitelists also drop ferry routes for free (ferry is in none of them), which is what the
+    old `highway_name_other` ferry filter was there to do. The clones are added in positron's own
+    order (path, minor, then major on top) so the collision order matches too.
   - *Light caps its place labels* where dark caps them (suburbs z15, cities z14) and is filtered
     to suburbs only — `label_other` is "not a city/town/village/state/country", which over
     Zürich means twelve suburbs *and* fourteen quarters.
@@ -189,6 +198,18 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
   `applyTheme()`.
 - Still deliberate: the scrim is much heavier than the main site's (`.97` against the hero nav's
   `rgba(17,17,16,.35)`) — a dial worth turning if asked, not a bug.
+- **The theme flip cross-fades over `.4s`, the way the main site's `body` does.** The shared
+  chrome eased its own colours, but this page mounts the nav in-stack, so only the nav name
+  picked it up while the page snapped — clunky on desktop, where the toggle is the visible sun
+  button (on a phone the toggle sits inside the burger overlay, so the flip happens behind it and
+  the split was never seen). The page's own theme surfaces now ease: `body`; the `#topstack`
+  scrim, moved onto a **masked `::before`** because a gradient is a background-image and can't be
+  transitioned (the fade *shape* is a theme-independent mask, the *colour* an easable
+  `background-color` — the same trick `shared/chrome.css` uses for the floating nav); the title /
+  tally / halo text; the admin bar; the Locate button. The vector basemap already eases in place
+  (positron⇄dark share the same `sources`/`sprite`/`glyphs`, so `setStyle` diffs rather than
+  reloads — "no blink"), and the Kreis outline + accuracy ring, which are Leaflet SVG paths,
+  ease via a `stroke`/`fill` transition on `.leaflet-overlay-pane path`.
 
 **Stage 2 (projects) — built, in the working tree** (first slice; not yet its own deploy):
 - **`projects` table** — one row per `/projects/<slug>` page: `slug` (unique), `type`, `title`,

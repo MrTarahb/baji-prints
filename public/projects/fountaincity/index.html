@@ -291,6 +291,13 @@ header .eyebrow,header h1,.intro,#count,#near,#count b,#near b,
 .leaflet-bar a,.leaflet-bar a:hover{background:var(--bg);color:var(--ink);border-bottom-color:var(--line)}
 .leaflet-bar a:hover{background:var(--bg2)}
 .leaflet-bar a.leaflet-disabled{background:var(--bg2);color:var(--mute)}
+/* The Kreis 1 outline and the accuracy ring are Leaflet SVG paths whose colour
+   applyTheme() pushes as an attribute — which snaps while the rest of the page
+   eases. A transition on the presentation properties fades them in step on a
+   theme flip. Only stroke/fill flip; the ring's radius updates are geometry and
+   so are untouched. The vector basemap is a <canvas>, not a path, so this never
+   touches it. */
+.leaflet-overlay-pane path{transition:stroke .4s ease,fill .4s ease,stroke-opacity .4s ease,fill-opacity .4s ease}
 /* The zoom control, Locate, and the attribution the tiles' licence requires all
    live down here, so they ride above the admin bar when it is on. --abh is
    measured rather than assumed: the bar's controls wrap onto a second line on a
@@ -867,6 +874,17 @@ var DARK_TUNE = {
 // steps depend on it: `add` clones a layer AFTER paint, so a clone inherits the
 // tuned colours, and BEFORE hide, so cloning off a layer that is about to be
 // hidden still yields a visible one.
+
+// Positron labels every street name at 12-13px (interpolated by zoom); dark
+// ships them at a flat 10px. That size gap alone made the two themes label
+// DIFFERENT streets — MapLibre's label collision keeps whatever fits, and
+// smaller labels let more, and a different set, survive. Dark's street-name
+// clones below are given this exact size, so the same labels win in both.
+// The two stops are positron's own: z13 -> 12px, z14 -> 13px (clamped either
+// side). Keep it in step with the three highway-name-* layers if positron ever
+// retunes them.
+var HW_NAME_SIZE = ['interpolate', ['linear'], ['zoom'], 13, 12, 14, 13];
+
 var DARK_PLAN = {
   paint: DARK_TUNE,
 
@@ -880,39 +898,46 @@ var DARK_PLAN = {
     // stamps it into a shield — the same driver's furniture in two costumes,
     // so both go (the shields are in LIGHT_PLAN).
     'highway_name_motorway',
+    // Dark's single, unrestricted street-name layer. It labels every non-motorway
+    // name at a flat 10px from the moment the tile loads; positron splits the same
+    // names across major/minor/path layers at 12.2/15/15.5 and sizes them 12-13px.
+    // Rather than bend this one layer to match, it is hidden and re-added as three
+    // clones (see `add`) that mirror positron's split and size exactly, so both
+    // themes label the same streets. Cloned in `add` BEFORE this hide runs — the
+    // plan's fixed paint->filter->zoom->add->hide order guarantees it still exists.
+    'highway_name_other',
     // Hamlets, neighbourhoods and isolated dwellings. Positron's label_other is
     // filtered down to suburbs below, so these would be dark's alone.
     'place_other'
   ],
 
-  zoom: {
-    // Positron holds minor street names back to z15 and path names to z15.5,
-    // showing only major roads before that. Dark's one layer took every
-    // non-motorway name the moment the tile loaded: 548 labels against
-    // positron's 67 at the zoom where the whole city is on screen. The majors
-    // come back as a clone below.
-    'highway_name_other': [15, 24]
-  },
-
-  // Wrapped onto upstream's own filter, never replacing it — its geometry and
-  // class tests are still needed.
-  filter: {
-    // transportation_name carries ferry routes under class "ferry", and this
-    // layer takes everything that is not a motorway, so lifting street labels
-    // to 11.45:1 lifted the lake's ferry routes across the water with them.
-    // Positron files ferries under none of its name layers.
-    'highway_name_other': ['!=', ['get', 'class'], 'ferry']
-  },
+  // No zoom/filter overrides on highway_name_other any more: it is hidden (above)
+  // and rebuilt as the three clones below. They reproduce positron's major/minor/
+  // path split, its zoom floors (12.2 / 15 / 15.5) and its 12-13px text-size
+  // verbatim, so MapLibre's label collision keeps the same streets in both themes.
+  // The class whitelists also exclude ferry routes for free (ferry is in none of
+  // them) — what the old highway_name_other ferry filter was there to do.
 
   add: [
-    // Major roads keep their names from z12.2, the way positron does it, now
-    // that the layer above starts at z15. Capped AT 15 so the two never label
-    // the same road twice and fight each other for the space.
-    { id: 'bp_highway_name_major', from: 'highway_name_other',
-      before: 'highway_name_other', minzoom: 12.2, maxzoom: 15,
+    // Positron's three street-name layers, mirrored onto dark so both themes
+    // label the SAME streets. Each is cloned off dark's own highway_name_other
+    // (after paint, so it keeps the tuned dark ink/halo); only the class filter,
+    // the zoom floor and — through cloneLayer's layout override — positron's
+    // text-size are pinned. Filters and minzooms are copied verbatim from
+    // positron's highway-name-{path,minor,major}. Added in positron's own order
+    // (path, minor, then major on top) and each before the now-hidden original,
+    // so the layer stacking, and therefore the collision order, match too.
+    { id: 'bp_highway_name_path', from: 'highway_name_other',
+      before: 'highway_name_other', minzoom: 15.5, layout: { 'text-size': HW_NAME_SIZE },
+      filter: ['==', ['get', 'class'], 'path'] },
+    { id: 'bp_highway_name_minor', from: 'highway_name_other',
+      before: 'highway_name_other', minzoom: 15, layout: { 'text-size': HW_NAME_SIZE },
       filter: ['all',
-        ['match', ['get', 'class'], ['primary', 'secondary', 'tertiary', 'trunk'], true, false],
-        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false]] },
+        ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
+        ['match', ['get', 'class'], ['minor', 'service', 'track'], true, false]] },
+    { id: 'bp_highway_name_major', from: 'highway_name_other',
+      before: 'highway_name_other', minzoom: 12.2, layout: { 'text-size': HW_NAME_SIZE },
+      filter: ['match', ['get', 'class'], ['primary', 'secondary', 'tertiary', 'trunk'], true, false] },
     // Positron names the rivers; dark has no waterway label layer at all, so
     // the Limmat, the Sihl and the Schanzengraben ran through it unnamed — and
     // in Zürich the water is how you know where you are. Cloned off water_name,
@@ -1059,6 +1084,12 @@ function cloneLayer(glMap, spec) {
   if (spec.minzoom === undefined) delete out.minzoom; else out.minzoom = spec.minzoom;
   if (spec.maxzoom === undefined) delete out.maxzoom; else out.maxzoom = spec.maxzoom;
   if (out.layout) delete out.layout.visibility;
+  // A layout override (e.g. text-size) lets a clone match the OTHER theme's
+  // arrangement rather than only inheriting this one's — the cloned text-field,
+  // fonts and placement still come from upstream. This is what lets dark's
+  // street-name clones carry positron's 12-13px size so both themes label the
+  // same streets (see DARK_PLAN's bp_highway_name_* below).
+  if (spec.layout) { out.layout = out.layout || {}; for (var k in spec.layout) out.layout[k] = spec.layout[k]; }
   // A `before` upstream has renamed would throw the whole layer away, so the
   // fallback appends it rather than losing it.
   try { glMap.addLayer(out, spec.before); }
