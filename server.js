@@ -43,13 +43,13 @@ const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || 'bhartu.bhatia@gmail.com';
 // EMAIL_TO — that one is the personal address order notifications land in.
 const CLIENT_NOTIFY_EMAIL = process.env.CLIENT_NOTIFY_EMAIL || 'support@bharatbhatia.photography';
 
-// The customer-facing workshop booking confirmation is sent from contact@ rather
-// than the noreply@ order emails use, so a booked guest sees a real, branded
-// address. It's a sending identity on the (Resend-verified) bharatbhatia.photography
-// domain — the same domain noreply@ already sends from, so no extra verification is
-// needed. Replies still land in REPLY_TO_EMAIL (a real inbox), since contact@ may
-// not receive mail; override WORKSHOP_EMAIL_FROM in the environment to change it.
-const WORKSHOP_EMAIL_FROM = process.env.WORKSHOP_EMAIL_FROM || 'contact@bharatbhatia.photography';
+// Customer-facing confirmations — both print orders AND workshop bookings — are
+// sent from, and reply to, contact@: a monitored inbox on the Resend-verified
+// bharatbhatia.photography domain (the same domain noreply@ sends from, so no extra
+// verification), so a customer sees a branded address and a reply reaches it. Only
+// the INTERNAL admin notifications stay on noreply@ (they go to EMAIL_TO, never
+// replied to). Override CUSTOMER_EMAIL_FROM in the environment to change it.
+const CUSTOMER_EMAIL_FROM = process.env.CUSTOMER_EMAIL_FROM || 'contact@bharatbhatia.photography';
 
 // EU country codes (CH and LI handled separately as domestic)
 const EU_COUNTRIES = new Set([
@@ -409,9 +409,9 @@ async function sendOrderConfirmationEmails(stripeSessionId) {
 
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+        from: CUSTOMER_EMAIL_FROM,
         to: order.customer_email,
-        reply_to: REPLY_TO_EMAIL,
+        reply_to: CUSTOMER_EMAIL_FROM,
         subject: `Your order ${order.order_ref || ''}: Bharat Bhatia`,
         html: emailShell(`
           <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${order.customer_name ? ', ' + order.customer_name.split(' ')[0] : ''}.</h2>
@@ -421,7 +421,7 @@ async function sendOrderConfirmationEmails(stripeSessionId) {
           <p style="margin:0 0 6px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
           ${addressHtml}
           <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Total paid:</strong> CHF ${(order.total_chf/100).toFixed(2)}</p>
-          <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Please check the details above, especially the shipping address, and email ${REPLY_TO_EMAIL} right away if anything needs correcting. Mention your order reference if you can.</p>
+          <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">A formal receipt has been sent separately by Stripe. Please check the details above, especially the shipping address, and reply to this email right away if anything needs correcting. Mention your order reference if you can.</p>
         `), customerEmail: true
       });
     } catch (e) { console.error('Customer confirmation email failed:', e); }
@@ -478,9 +478,9 @@ async function sendWorkshopBookingEmails(stripeSessionId) {
     const subject = copy.email_subject || `Your workshop booking ${b.booking_ref || ''}: Bharat Bhatia`;
     try {
       await resend.emails.send({
-        from: WORKSHOP_EMAIL_FROM,
+        from: CUSTOMER_EMAIL_FROM,
         to: b.customer_email,
-        reply_to: REPLY_TO_EMAIL,
+        reply_to: CUSTOMER_EMAIL_FROM,
         subject,
         html: emailShell(`
           <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">Thank you${b.customer_name ? ', ' + esc(b.customer_name.split(' ')[0]) : ''}.</h2>

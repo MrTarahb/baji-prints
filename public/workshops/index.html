@@ -211,6 +211,7 @@ button, input, textarea, select { font-family: var(--fm); }
   <div class="ab-in">
     <span class="ab-label">Admin view</span>
     <button onclick="editCopy()">Edit copy</button>
+    <button onclick="editEmail()">Booking email</button>
     <button onclick="openDates()">Dates</button>
     <button onclick="addPhoto()">+ Photo</button>
   </div>
@@ -505,20 +506,37 @@ function editCopy() {
       { value: 'included', label: "What's included" }, { value: 'bring', label: 'What to bring' },
       { value: 'weather', label: 'Weather note' }, { value: 'min', label: 'Minimum note' },
       { value: 'price_note', label: 'Price note' }, { value: 'cta', label: 'Booking button label' },
-      { value: 'banner_text', label: 'Banner text' },
-      { value: 'email_subject', label: 'Confirmation email · subject' },
-      { value: 'email_intro', label: 'Confirmation email · opening' },
-      { value: 'email_outro', label: 'Confirmation email · closing' }
+      { value: 'banner_text', label: 'Banner text' }
     ] }
   ], function (v) {
     var labels = { heading: 'Heading', sub: 'Subtitle', intro: 'Intro', schedule: 'Schedule',
       included: 'Included', bring: 'To bring', weather: 'Weather', min: 'Minimum',
-      price_note: 'Price note', cta: 'Button label', banner_text: 'Banner',
-      email_subject: 'Confirmation email subject', email_intro: 'Confirmation email opening',
-      email_outro: 'Confirmation email closing' };
-    var multi = { schedule: 1, included: 1, bring: 1, intro: 1, sub: 1, weather: 1, min: 1, banner_text: 1,
-      email_intro: 1, email_outro: 1 };
+      price_note: 'Price note', cta: 'Button label', banner_text: 'Banner' };
+    var multi = { schedule: 1, included: 1, bring: 1, intro: 1, sub: 1, weather: 1, min: 1, banner_text: 1 };
     // false: editField opens the next dialog, so ask() must not close it.
+    editField(v.which, labels[v.which] || v.which, !!multi[v.which]);
+    return false;
+  });
+}
+
+// The booking confirmation email gets its own admin-bar button — it's not page
+// copy, so hunting for it in "Edit copy" was confusing. Only the subject and the
+// two prose paragraphs are editable; the booking facts (guest name, date,
+// reference, amount) are always filled in by the server. Same chain-into-editField
+// pattern as editCopy(), scoped to the three email_* keys.
+function editEmail() {
+  ask('Booking confirmation email',
+    'The email a guest receives after they pay. Pick a part to edit — the booking details ' +
+    '(name, date, reference, amount) are always added automatically. It is sent from ' +
+    'contact@bharatbhatia.photography.', [
+    { key: 'which', label: 'Part', type: 'select', options: [
+      { value: 'email_subject', label: 'Subject line' },
+      { value: 'email_intro', label: 'Opening paragraph' },
+      { value: 'email_outro', label: 'Closing paragraph' }
+    ] }
+  ], function (v) {
+    var labels = { email_subject: 'Email subject', email_intro: 'Email opening', email_outro: 'Email closing' };
+    var multi = { email_intro: 1, email_outro: 1 };
     editField(v.which, labels[v.which] || v.which, !!multi[v.which]);
     return false;
   });

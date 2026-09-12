@@ -294,17 +294,22 @@ workshop is its own page now, `public/workshops/index.html`, not a section of th
   a `workshop_dates` row must be `open` (and not past) to appear on the page and pass the booking
   route's check; `draft`/`closed` dates are hidden or shown as full. Nothing disables booking
   site-wide.
-- **The guest confirmation is editable and sent from `contact@`.** It goes out `from`
-  `WORKSHOP_EMAIL_FROM` (defaults to `contact@bharatbhatia.photography`, same Resend-verified domain
-  as `noreply@`), `reply_to` `REPLY_TO_EMAIL` (a real inbox, since `contact@` may not receive).
-  Its **subject + opening + closing** are per-workshop copy — `content.workshop_email_{subject,intro,outro}`
-  defaults (seeded, `ON CONFLICT DO NOTHING`, never overwritten), overridable via `workshop_overrides`
-  through the three `email_*` keys added to `WORKSHOP_COPY_KEYS`, edited from the page's admin bar →
-  "Edit copy" → the *Confirmation email* fields. `sendWorkshopBookingEmails` reads them with
+- **The guest confirmation is editable and sent from `contact@`.** Both `from` and `reply_to` are
+  `CUSTOMER_EMAIL_FROM` (defaults to `contact@bharatbhatia.photography`, a monitored inbox on the
+  same Resend-verified domain as `noreply@`), so a reply reaches it. **This is the shared
+  customer-facing sender** — `sendOrderConfirmationEmails` (print orders) uses the same constant for
+  its customer confirmation; only the INTERNAL admin notifications stay on `noreply@`
+  (`EMAIL_FROM`, to `EMAIL_TO`, never replied to). The confirmation's **subject + opening + closing**
+  are per-workshop copy — `content.workshop_email_{subject,intro,outro}` defaults (seeded,
+  `ON CONFLICT DO NOTHING`, never overwritten), overridable via `workshop_overrides` through the three
+  `email_*` keys added to `WORKSHOP_COPY_KEYS`, edited from the page's admin bar → its own
+  **"Booking email"** button (`editEmail()`; deliberately NOT under "Edit copy" — it isn't page copy,
+  and hunting for it there was confusing). `sendWorkshopBookingEmails` reads them with
   `workshopCopy(workshop_id)`; the **booking facts** (name, reference, title, date, amount) stay
   server-rendered so an edit can't drift or break them, and edited text is `esc()`'d with `\n`→`<br>`.
-  Verified by lifting `sendWorkshopBookingEmails`+`workshopCopy` into a `node:vm` sandbox against a
-  stub pool/resend (edited subject/intro win, un-edited outro falls back, `from` is `contact@`, facts render).
+  Verified by lifting `sendWorkshopBookingEmails`+`workshopCopy` (and `sendOrderConfirmationEmails`)
+  into a `node:vm` sandbox against a stub pool/resend (edited subject/intro win, un-edited outro falls
+  back, both customer emails' `from`+`reply_to` are `contact@`, facts render).
 - **Stripe also emails a PDF invoice** — the checkout sets `invoice_creation:{enabled:true}` +
   `customer_creation:'always'`, the same as the shop, so a paying guest gets a formal invoice from
   Stripe independent of our own Resend confirmation (live mode only; Stripe sends nothing in test mode).
