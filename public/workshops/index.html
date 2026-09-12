@@ -604,12 +604,12 @@ function openDates() {
   }).catch(function (e) { toast(e.message); });
 }
 
-// The guest list for one date: who has booked (confirmed) plus anyone actively
-// checking out right now. Stale `pending` rows (abandoned Stripe checkouts, which
-// stay in the table forever) are filtered out by the same 35-min hold window the
-// booking route uses, so the list stays the real guest list rather than a graveyard
-// of half-finished checkouts. Read-only for now — refund/cancel, CSV export and an
-// attended flag are noted follow-ups. bookingsHtml is split out so it can be tested.
+// The guest list for one date: confirmed (paid) guests, anyone actively checking
+// out (<35 min), and any cancelled/refunded rows (kept visible but dimmed, so a
+// mistaken void can be seen and undone). Only stale abandoned-checkout `pending`
+// rows are dropped, using the same 35-min hold window the booking route uses — so
+// the list is the real guest list, not a graveyard of half-finished checkouts.
+// Each row can be edited or deleted by hand (bookingsHtml is split out to be tested).
 function bookingsHtml(rows, label) {
   var head = '<h4>Bookings — ' + esc(label) + '</h4>';
   var buttons = '<div class="modal-row"><button class="btn" onclick="openDates()">‹ Dates</button>' +
@@ -618,14 +618,17 @@ function bookingsHtml(rows, label) {
   var isActivePending = function (b) {
     return b.status === 'pending' && b.created_at && (now - new Date(b.created_at).getTime()) < HOLD;
   };
-  var shown = rows.filter(function (b) { return b.status === 'paid' || isActivePending(b); });
+  var isVoid = function (b) { return b.status === 'cancelled' || b.status === 'refunded'; };
+  var shown = rows.filter(function (b) { return b.status === 'paid' || isVoid(b) || isActivePending(b); });
   if (!shown.length) {
     return head + '<p class="ws-no-dates" style="padding:.6rem 0">No bookings yet.</p>' + buttons;
   }
-  shown.sort(function (a, b) { return (a.status === 'paid' ? 0 : 1) - (b.status === 'paid' ? 0 : 1); });
+  // paid first, then active-pending, then voided (cancelled/refunded) at the bottom.
+  var weight = function (b) { return b.status === 'paid' ? 0 : (isVoid(b) ? 2 : 1); };
+  shown.sort(function (a, b) { return weight(a) - weight(b); });
   var paid = shown.filter(function (b) { return b.status === 'paid'; });
   var revenue = paid.reduce(function (s, b) { return s + (b.amount_chf_cents || 0); }, 0);
-  var pendingCount = shown.length - paid.length;
+  var pendingCount = shown.filter(function (b) { return b.status === 'pending'; }).length;
   var summary = '<p class="bk-sum">' + paid.length + ' confirmed' +
     (pendingCount ? ' · ' + pendingCount + ' checking out' : '') +
     ' · ' + fmtCHF(revenue) + ' collected</p>';
@@ -639,25 +642,66 @@ function bookingsHtml(rows, label) {
     if (b.notes) meta.push('notes: ' + esc(b.notes));
     var email = b.customer_email
       ? ' · <a href="mailto:' + esc(b.customer_email) + '">' + esc(b.customer_email) + '</a>' : '';
-    return '<div class="date-row"><span class="grow">' +
+    return '<div class="date-row"' + (isVoid(b) ? ' style="opacity:.5"' : '') + '><span class="grow">' +
       '<strong style="color:var(--fg)">' + esc(b.customer_name || '—') + '</strong>' + email +
       '<div class="bk-meta">' + meta.join(' · ') + '</div></span>' +
-      '<span class="date-pill">' + esc(b.status) + '</span></div>';
+      '<span class="date-pill">' + esc(b.status) + '</span>' +
+      '<button class="btn" onclick="editBooking(' + b.id + ')">Edit</button>' +
+      '<button class="btn" onclick="delBooking(' + b.id + ')">Delete</button></div>';
   }).join('');
   return head + summary + list + buttons;
 }
+
+// The date whose bookings are open, kept so an edit/delete can refresh the list.
+var bkState = { rows: [], dateId: null, iso: null };
 
 // Opens the guest list for a date. iso is the date's YYYY-MM-DD (safe to inline in
 // the onclick) — turned into a readable label here.
 function viewBookings(dateId, iso) {
   api('/api/admin/workshop-bookings?date_id=' + dateId).then(function (rows) {
+    bkState = { rows: rows || [], dateId: dateId, iso: iso };
     var card = document.getElementById('modal-card');
     card.className = 'modal-card wide';
     var label = new Date(iso).toLocaleDateString('en-GB',
       { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-    card.innerHTML = bookingsHtml(rows || [], label);
+    card.innerHTML = bookingsHtml(bkState.rows, label);
     document.getElementById('modal').classList.add('on');
   }).catch(function (e) { toast(e.message); });
+}
+
+// Edit one booking by hand — status + contact/dietary/notes. Values come from the
+// rows viewBookings last loaded (no re-fetch). Setting status to refunded/cancelled
+// drops it from the confirmed count and frees the seat; it does NOT issue a Stripe
+// refund — do that in Stripe first. Saving refreshes the list and the public dates.
+function editBooking(id) {
+  var b = bkState.rows.filter(function (r) { return r.id === id; })[0];
+  if (!b) return;
+  ask('Edit booking', (b.booking_ref ? b.booking_ref + ' · ' : '') +
+    'A refund is issued in Stripe; set the status here to record it.', [
+    { key: 'customer_name', label: 'Name', value: b.customer_name || '' },
+    { key: 'customer_email', label: 'Email', value: b.customer_email || '' },
+    { key: 'status', label: 'Status', type: 'select', value: b.status || 'paid', options: [
+      { value: 'paid', label: 'paid (confirmed)' },
+      { value: 'refunded', label: 'refunded' },
+      { value: 'cancelled', label: 'cancelled' },
+      { value: 'pending', label: 'pending' }
+    ] },
+    { key: 'dietary', label: 'Dietary', value: b.dietary || '' },
+    { key: 'notes', label: 'Notes', value: b.notes || '', multiline: true }
+  ], function (v) {
+    api('/api/admin/workshop-bookings/' + id, { method: 'PUT', body: v })
+      .then(function () { toast('Saved'); viewBookings(bkState.dateId, bkState.iso); reloadDates(); })
+      .catch(function (e) { toast(e.message); });
+  });
+}
+
+// Delete a booking outright — for a bogus/test row. A real refunded booking is
+// better kept with status 'refunded'. Frees the seat.
+function delBooking(id) {
+  if (!confirm('Delete this booking permanently? This cannot be undone. For a real refund, set the status to "refunded" instead.')) return;
+  api('/api/admin/workshop-bookings/' + id, { method: 'DELETE' })
+    .then(function () { toast('Deleted'); viewBookings(bkState.dateId, bkState.iso); reloadDates(); })
+    .catch(function (e) { toast(e.message); });
 }
 
 function editDate(id) {

@@ -3063,6 +3063,51 @@ app.get('/api/admin/workshop-bookings', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Admin: edit one booking by hand — status (a refund done in Stripe is recorded
+// here by setting status='refunded'/'cancelled', which drops it from the paid count
+// and frees the seat) plus contact/dietary/notes corrections. Only body keys that
+// are present are written, from a fixed allow-list (never the request's own keys),
+// and the placeholders are built as $1,$2,… by counting — the $${n} trap this repo
+// documents. This route does NOT touch Stripe; refunds are issued in Stripe itself.
+app.put('/api/admin/workshop-bookings/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad booking id' });
+  const ALLOWED = ['status', 'customer_name', 'customer_email', 'dietary', 'notes'];
+  const VALID_STATUS = ['pending', 'paid', 'cancelled', 'refunded'];
+  const sets = [], vals = [];
+  for (const k of ALLOWED) {
+    if (!Object.prototype.hasOwnProperty.call(req.body, k)) continue;
+    if (k === 'status' && !VALID_STATUS.includes(req.body.status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    vals.push(req.body[k]);
+    sets.push(k + '=$' + vals.length);   // $1, $2, … — count, don't interpolate a bare {n}
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(id);
+  try {
+    const { rows } = await pool.query(
+      'UPDATE workshop_bookings SET ' + sets.join(', ') + ', updated_at=NOW() WHERE id=$' + vals.length + ' RETURNING *',
+      vals
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: delete a booking outright — for a bogus/test row. A real refunded booking
+// is better kept with status='refunded' (above) for the record; this is the escape
+// hatch for junk. Does not touch Stripe.
+app.delete('/api/admin/workshop-bookings/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Bad booking id' });
+  try {
+    const { rowCount } = await pool.query('DELETE FROM workshop_bookings WHERE id=$1', [id]);
+    if (!rowCount) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Admin: gallery management
 app.post('/api/admin/workshop-photos', requireAuth, workshopUpload.single('photo'), async (req, res) => {
   try {
