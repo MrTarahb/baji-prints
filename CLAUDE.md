@@ -152,16 +152,24 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
     class whitelists also drop ferry routes for free (ferry is in none of them), which is what the
     old `highway_name_other` ferry filter was there to do. The clones are added in positron's own
     order (path, minor, then major on top) so the collision order matches too.
-  - *Dark matches positron's label TYPOGRAPHY*, via a new `layout` step in the plan (`text-font` /
-    `text-size`, the way `paint` handles colour). The two styles disagreed on more than which
-    streets: positron sets **water and neighbourhood names in italic** (`Noto Sans Italic`) and
-    **scales place labels by zoom**, while dark shipped every label upright `Noto Sans Regular` at a
-    flat size — so the same label came out a different font *and* size between themes. `DARK_PLAN.
-    layout` retypes dark's `water_name` (→ italic 14, and `bp_waterway_name` inherits it since
-    layout runs before `add`), `place_suburb` (→ italic + positron's size ramp) and the
-    city/village/town place labels (→ positron's size ramps; those are already `Regular`). Street
-    names were already `Regular` in both and are sized on the clones, so they need nothing here.
+  - *Dark matches positron's label TYPOGRAPHY in full*, via a `layout` step in the plan (the
+    typographic analogue of `paint`). It is not just font and size: matching those alone still
+    left every label a different SHAPE and PLACE, because the two styles also disagree on **case,
+    tracking, wrap width and anchor/offset**. Positron sets water + neighbourhood names in italic
+    (`Noto Sans Italic`) and, crucially, leaves streets/city/village/town **mixed case**, where
+    dark `text-transform: uppercase`d *everything* — the biggest "font differs" tell, since street
+    names are the most numerous label ("BAHNHOFSTRASSE" vs "Bahnhofstrasse"). Positron also sits a
+    place name centred (suburb) or above its dot (city/town), where dark offset it 0.5em to the
+    side — the visible position shift. So: the three **street clones** carry `HW_NAME_LAYOUT`
+    (positron's size ramp + `text-transform:none` + `text-max-angle:45` + `symbol-spacing:250`,
+    overriding what they inherit from dark's uppercase `highway_name_other`); `DARK_PLAN.layout`
+    retypes `water_name` (→ italic 14, tracking .2, spacing 350; `bp_waterway_name` inherits it,
+    since layout runs before `add`), `place_suburb` (→ italic, centred, tracked) and the
+    city/village/town labels (→ mixed case, anchored above the dot, positron's size ramps). The dot
+    ICON stays dark's own (a themed light dot, not positron's black one); only the TEXT is matched.
     Colours stay per-theme — this is typography only, the same "same city, own palette" rule.
+    Verified by lifting `applyPlan` against the real style JSON and asserting dark's every label
+    layer equals positron's across the whole text/symbol layout property set.
   - *Light caps its place labels* where dark caps them (suburbs z15, cities z14) and is filtered
     to suburbs only — `label_other` is "not a city/town/village/state/country", which over
     Zürich means twelve suburbs *and* fourteen quarters.

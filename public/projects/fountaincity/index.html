@@ -886,25 +886,55 @@ var DARK_TUNE = {
 // retunes them.
 var HW_NAME_SIZE = ['interpolate', ['linear'], ['zoom'], 13, 12, 14, 13];
 
+// The full layout the three street-name clones carry, so they render byte-for-
+// byte like positron's highway-name-* — not just the size. The clones are cloned
+// off dark's highway_name_other, which sets `text-transform: uppercase` and
+// `text-max-angle: 30`; positron does neither, so left alone dark's streets came
+// out UPPERCASE and wrapped tighter round corners — a different-looking, and
+// differently placed, label at the same zoom. Reset to positron's own values
+// (mixed case, the default 45° max angle). This is the biggest of the "font
+// still differs" cases because street names are the most numerous label.
+var HW_NAME_LAYOUT = { 'text-size': HW_NAME_SIZE, 'text-transform': 'none',
+  'text-max-angle': 45, 'symbol-spacing': 250 };
+
 var DARK_PLAN = {
   paint: DARK_TUNE,
 
-  // Typography parity with positron. Positron sets water and neighbourhood names
-  // in ITALIC and scales place labels by zoom; dark ships every label upright at
-  // a flat size, so the same label came out a different font AND size between the
-  // two themes. These values are positron's own (water/waterway 14 italic, its
-  // place-label size ramps), applied to dark's matching layers. Street names are
-  // already `Noto Sans Regular` in both and sized on the clones, so they are not
-  // here. `water_name` is retyped BEFORE the clones are added (see applyPlan), so
-  // `bp_waterway_name` inherits italic-14 and the rivers match positron for free.
+  // Full typographic parity with positron — font, size AND the rest of the layout
+  // (case, tracking, wrap width, anchor/offset), because matching only font+size
+  // still left the same label a different SHAPE and PLACE between the themes. Dark
+  // upright where positron is italic; dark UPPERCASE where positron is mixed case;
+  // dark offset to one side of its dot where positron sits above it. Every value
+  // below is positron's own, copied off its matching layer (water_name_line_label,
+  // label_other, label_city, label_village, label_town). Colours stay per-theme —
+  // this is typography only. `water_name` is retyped BEFORE the clones are added
+  // (see applyPlan), so `bp_waterway_name` inherits it and the rivers match too.
+  // The dot ICON on the place labels is left as dark's own — it is a themed glyph
+  // (a light dot vs positron's black one); only the TEXT is brought into step.
   layout: {
-    water_name:       { 'text-font': ['Noto Sans Italic'], 'text-size': 14 },
-    place_suburb:     { 'text-font': ['Noto Sans Italic'],
-                        'text-size': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 10] },
-    place_village:    { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 10, 11, 12] },
-    place_town:       { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 12, 11, 14] },
-    place_city:       { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18] },
-    place_city_large: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18] }
+    // Lake + rivers: italic 14, positron's tracking / wrap / repeat spacing.
+    water_name: { 'text-font': ['Noto Sans Italic'], 'text-size': 14,
+      'text-letter-spacing': 0.2, 'text-max-width': 5, 'symbol-spacing': 350 },
+    // Suburbs/quarters: italic, tracked, centred on the point (dark shoved it
+    // 0.5em to the side, which is the visible position shift).
+    place_suburb: { 'text-font': ['Noto Sans Italic'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 10],
+      'text-letter-spacing': 0.1, 'text-max-width': 9,
+      'text-anchor': 'center', 'text-justify': 'center', 'text-offset': [0, 0] },
+    // City / village / town: MIXED case (dark uppercased them), text set above
+    // the dot (anchor bottom) the way positron does, not off to its right.
+    place_village: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 10, 11, 12],
+      'text-transform': 'none', 'text-anchor': 'bottom', 'text-offset': [0, 0],
+      'text-justify': 'center', 'text-max-width': 8 },
+    place_town: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 12, 11, 14],
+      'text-transform': 'none', 'text-anchor': 'bottom', 'text-offset': [0, 0],
+      'text-justify': 'center', 'text-max-width': 8 },
+    place_city: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18],
+      'text-transform': 'none', 'text-anchor': 'bottom', 'text-offset': [0, -0.1],
+      'text-justify': 'center', 'text-max-width': 8 },
+    place_city_large: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18],
+      'text-transform': 'none', 'text-anchor': 'bottom', 'text-offset': [0, -0.1],
+      'text-justify': 'center', 'text-max-width': 8 }
   },
 
   hide: [
@@ -947,15 +977,15 @@ var DARK_PLAN = {
     // (path, minor, then major on top) and each before the now-hidden original,
     // so the layer stacking, and therefore the collision order, match too.
     { id: 'bp_highway_name_path', from: 'highway_name_other',
-      before: 'highway_name_other', minzoom: 15.5, layout: { 'text-size': HW_NAME_SIZE },
+      before: 'highway_name_other', minzoom: 15.5, layout: HW_NAME_LAYOUT,
       filter: ['==', ['get', 'class'], 'path'] },
     { id: 'bp_highway_name_minor', from: 'highway_name_other',
-      before: 'highway_name_other', minzoom: 15, layout: { 'text-size': HW_NAME_SIZE },
+      before: 'highway_name_other', minzoom: 15, layout: HW_NAME_LAYOUT,
       filter: ['all',
         ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
         ['match', ['get', 'class'], ['minor', 'service', 'track'], true, false]] },
     { id: 'bp_highway_name_major', from: 'highway_name_other',
-      before: 'highway_name_other', minzoom: 12.2, layout: { 'text-size': HW_NAME_SIZE },
+      before: 'highway_name_other', minzoom: 12.2, layout: HW_NAME_LAYOUT,
       filter: ['match', ['get', 'class'], ['primary', 'secondary', 'tertiary', 'trunk'], true, false] },
     // Positron names the rivers; dark has no waterway label layer at all, so
     // the Limmat, the Sihl and the Schanzengraben ran through it unnamed — and
