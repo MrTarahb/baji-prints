@@ -1778,6 +1778,12 @@ app.post('/api/shop/checkout', async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Force English on Stripe's receipt/invoice emails + PDFs. At the default
+      // 'auto', Stripe stamps the buyer's browser locale onto the Customer it
+      // creates here, and a language on the Customer overrides the account's
+      // default email language — so a Japanese-set browser got a Japanese
+      // receipt despite the English account setting. Pin it instead.
+      locale: 'en',
       payment_method_types: ['card', 'twint'],
       line_items: lineItems,
       shipping_address_collection: {
@@ -3208,6 +3214,12 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Force English on Stripe's receipt/invoice emails + PDFs. At the default
+      // 'auto', Stripe stamps the buyer's browser locale onto the Customer it
+      // creates here, and a language on the Customer overrides the account's
+      // default email language — so a Japanese-set browser got a Japanese
+      // receipt despite the English account setting. Pin it instead.
+      locale: 'en',
       payment_method_types: ['card', 'twint'],
       line_items: [{
         price_data: {
