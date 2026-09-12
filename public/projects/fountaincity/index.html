@@ -870,10 +870,11 @@ var DARK_TUNE = {
 // Those counts are what the plans below are tuned against — measure a tile
 // again rather than re-reading the style JSON if this ever looks wrong.
 //
-// A plan is applied in a fixed order — paint, filter, zoom, add, hide — and two
-// steps depend on it: `add` clones a layer AFTER paint, so a clone inherits the
-// tuned colours, and BEFORE hide, so cloning off a layer that is about to be
-// hidden still yields a visible one.
+// A plan is applied in a fixed order — paint, filter, zoom, layout, add, hide —
+// and `add` depends on it: a clone is created AFTER paint and layout, so it
+// inherits both the tuned colour and the retyped font/size (bp_waterway_name
+// comes out the lake's italic-14 for free), and BEFORE hide, so cloning off a
+// layer about to be hidden still yields a visible one.
 
 // Positron labels every street name at 12-13px (interpolated by zoom); dark
 // ships them at a flat 10px. That size gap alone made the two themes label
@@ -887,6 +888,24 @@ var HW_NAME_SIZE = ['interpolate', ['linear'], ['zoom'], 13, 12, 14, 13];
 
 var DARK_PLAN = {
   paint: DARK_TUNE,
+
+  // Typography parity with positron. Positron sets water and neighbourhood names
+  // in ITALIC and scales place labels by zoom; dark ships every label upright at
+  // a flat size, so the same label came out a different font AND size between the
+  // two themes. These values are positron's own (water/waterway 14 italic, its
+  // place-label size ramps), applied to dark's matching layers. Street names are
+  // already `Noto Sans Regular` in both and sized on the clones, so they are not
+  // here. `water_name` is retyped BEFORE the clones are added (see applyPlan), so
+  // `bp_waterway_name` inherits italic-14 and the rivers match positron for free.
+  layout: {
+    water_name:       { 'text-font': ['Noto Sans Italic'], 'text-size': 14 },
+    place_suburb:     { 'text-font': ['Noto Sans Italic'],
+                        'text-size': ['interpolate', ['linear'], ['zoom'], 8, 9, 12, 10] },
+    place_village:    { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 10, 11, 12] },
+    place_town:       { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 7, 12, 11, 14] },
+    place_city:       { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18] },
+    place_city_large: { 'text-size': ['interpolate', ['exponential', 1.2], ['zoom'], 4, 11, 7, 13, 11, 18] }
+  },
 
   hide: [
     // Positron draws no one-way arrows; the dark style stamps one every 200px
@@ -904,7 +923,7 @@ var DARK_PLAN = {
     // Rather than bend this one layer to match, it is hidden and re-added as three
     // clones (see `add`) that mirror positron's split and size exactly, so both
     // themes label the same streets. Cloned in `add` BEFORE this hide runs — the
-    // plan's fixed paint->filter->zoom->add->hide order guarantees it still exists.
+    // plan's fixed paint->filter->zoom->layout->add->hide order guarantees it exists.
     'highway_name_other',
     // Hamlets, neighbourhoods and isolated dwellings. Positron's label_other is
     // filtered down to suburbs below, so these would be dark's alone.
@@ -1057,6 +1076,16 @@ function applyPlan(glMap, plan) {
   each(plan.zoom, function (id, range) {
     if (!glMap.setLayerZoomRange) return;
     try { glMap.setLayerZoomRange(id, range[0], range[1]); } catch (e) {}
+  });
+  // Layout overrides (text-font, text-size) — how the two styles' TYPOGRAPHY is
+  // brought into step, the way `paint` does their colour. Runs BEFORE `add` for
+  // the same reason paint does: a clone (bp_waterway_name) then inherits the
+  // retyped source layer (water_name), so the rivers come out italic 14 for free.
+  each(plan.layout, function (id, props) {
+    if (!glMap.setLayoutProperty) return;
+    Object.keys(props).forEach(function (prop) {
+      try { glMap.setLayoutProperty(id, prop, props[prop]); } catch (e) {}
+    });
   });
   (plan.add || []).forEach(function (spec) { cloneLayer(glMap, spec); });
   (plan.hide || []).forEach(function (id) {

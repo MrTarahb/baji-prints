@@ -152,6 +152,16 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
     class whitelists also drop ferry routes for free (ferry is in none of them), which is what the
     old `highway_name_other` ferry filter was there to do. The clones are added in positron's own
     order (path, minor, then major on top) so the collision order matches too.
+  - *Dark matches positron's label TYPOGRAPHY*, via a new `layout` step in the plan (`text-font` /
+    `text-size`, the way `paint` handles colour). The two styles disagreed on more than which
+    streets: positron sets **water and neighbourhood names in italic** (`Noto Sans Italic`) and
+    **scales place labels by zoom**, while dark shipped every label upright `Noto Sans Regular` at a
+    flat size — so the same label came out a different font *and* size between themes. `DARK_PLAN.
+    layout` retypes dark's `water_name` (→ italic 14, and `bp_waterway_name` inherits it since
+    layout runs before `add`), `place_suburb` (→ italic + positron's size ramp) and the
+    city/village/town place labels (→ positron's size ramps; those are already `Regular`). Street
+    names were already `Regular` in both and are sized on the clones, so they need nothing here.
+    Colours stay per-theme — this is typography only, the same "same city, own palette" rule.
   - *Light caps its place labels* where dark caps them (suburbs z15, cities z14) and is filtered
     to suburbs only — `label_other` is "not a city/town/village/state/country", which over
     Zürich means twelve suburbs *and* fourteen quarters.
@@ -163,14 +173,17 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
   hundred (Geisterbrunnen, Münsterhofbrunnen, Zentralhofbrunnen) and saying nothing about the
   rest — which reads as those three mattering. „Zürichsee" is a **LineString** feature and is
   drawn by the line-label layer in both themes, so the lake keeps its name either way.
-- **A plan is applied in a fixed order — paint, filter, zoom, add, hide — and two steps depend
-  on it.** `add` clones AFTER paint, so a clone inherits the tuned colours (the river labels come
-  out the lake's blue for free), and BEFORE hide, so cloning off a layer that is about to be
-  hidden still yields a visible one.
+- **A plan is applied in a fixed order — paint, filter, zoom, layout, add, hide — and `add`
+  depends on it.** `add` clones AFTER paint and layout, so a clone inherits the tuned colours *and*
+  the retyped font/size (the river labels come out the lake's italic-14 blue for free), and BEFORE
+  hide, so cloning off a layer that is about to be hidden still yields a visible one. (`layout` is
+  the typography step — `text-font`/`text-size` — added when dark's labels were brought into step
+  with positron's; see the typography bullet above.)
 - **`cloneLayer()` is how a style gets content the other one has.** It copies a layer already in
-  the style and overrides only the source-layer, filter and zoom range, so the source, fonts and
-  `text-field` expression come from upstream and there is nothing here to keep in step with
-  them. Filters are **wrapped** in an `['all', …]`, never replaced, for the same reason.
+  the style and overrides only the source-layer, filter, zoom range and (optionally) a `layout`
+  props map (`text-size`/`text-font`), so the source and `text-field` expression come from
+  upstream and there is nothing else here to keep in step with them. The `filter` plan step, by
+  contrast, **wraps** upstream's filter in an `['all', …]` rather than replacing it.
 - **Differences deliberately left**, all of them outside z12–20 over one city: country and state
   labels, `boundary_disputed`, and positron's separate motorway tunnel/bridge layers (it draws
   those roads in their own layers and excludes them from the main one; dark draws all three in
