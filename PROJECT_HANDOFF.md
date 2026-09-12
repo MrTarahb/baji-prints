@@ -456,13 +456,14 @@ commands, never runs them).
   allow-list, placeholders counted not interpolated). Neither touches Stripe: a refund is issued
   in Stripe itself, then recorded here. **Deferred:** issuing the Stripe refund from the app,
   CSV export of a date's guest list, and a mark-attended flag.
-- **Workshop student discount.** Offer a reduced student rate. Owner wants to choose
-  either (a) a discount off the normal price (amount or %), or (b) a separate student
-  price — admin-settable. At booking the participant self-selects "I'm a student" to get
-  it. Price MUST stay server-authoritative like the normal flow (which reads
-  `price_chf_cents` from the `workshop_dates` row): add e.g. `student_price_chf_cents`
-  (or a discount field) + a booking flag the server validates — never trust a
-  client-sent price. Decide whether any student proof is required (likely honour system).
+- **Workshop student discount.** ✅ *Built & deployed (2026-09-12).* Shape (b): a per-date
+  **student price** (`workshop_dates.student_price_chf_cents`, NULL = none). The admin sets it
+  in the date dialog (blank / 0 / negative = no discount). On the public page a date that has one
+  shows an **"I'm a student · CHF X"** tick that updates the shown price; ticking it books at that
+  rate. Pricing is server-authoritative — `POST /api/workshops/:slug/book` re-reads the date row
+  and applies the student price only if the date offers one, so a spoofed `student` flag on a
+  date without one just pays full; the booking stores a `student` flag (shown as "(student)" in
+  the guest list) and the actual amount charged. Honour system, no proof required.
 - **Workshop terms of sale.** Draft workshop-specific terms (cancellation/refund window,
   the min-4-participants reschedule/refund clause, what's included) — separate from the
   general shop terms — and require acceptance at booking (a checkbox on the workshop page,

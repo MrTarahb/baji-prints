@@ -106,6 +106,9 @@ a { color: inherit; }
 .ws-date-spots { font-family: var(--fm); font-size: 9px; letter-spacing: .06em; color: var(--fg-l); margin-top: .25rem; }
 .ws-date-right { display: flex; align-items: center; gap: .9rem; flex-shrink: 0; }
 .ws-date-price { font-family: var(--fm); font-size: 11px; color: var(--fg); letter-spacing: .04em; }
+.ws-student { display: inline-flex; align-items: center; gap: .4rem; font-family: var(--fm); font-size: 9px;
+  letter-spacing: .06em; color: var(--fg-m); margin-top: .5rem; }
+.ws-student input { accent-color: var(--pink-d); margin: 0; }
 .ws-book-btn { font-family: var(--fm); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
   padding: .55rem .9rem; background: var(--fg); color: var(--bg); border: none; border-radius: 2px; }
 .ws-book-btn[disabled] { opacity: .45; }
@@ -203,7 +206,8 @@ button, input, textarea, select { font-family: var(--fm); }
 /* The shared cursor swells on links/buttons via chrome.css; name the page's own
    clickable non-anchors so the OS pointer stays hidden under the dot on them. */
 @media (hover:hover) and (pointer:fine) {
-  .ws-shot img, .edit-tab, .btn, #adminbar button, .ws-shot .del, .ws-book-btn, .ws-booked-x { cursor: none; }
+  .ws-shot img, .edit-tab, .btn, #adminbar button, .ws-shot .del, .ws-book-btn, .ws-booked-x,
+  .ws-student, .ws-student input { cursor: none; }
 }
 </style>
 </head>
@@ -384,17 +388,34 @@ function datesHtml() {
     var label = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     var full = d.spots_left <= 0;
     var ctaLabel = esc(copy.cta || 'Book your spot');
+    // A student rate shows only when the date carries one. Ticking it sends
+    // student:true to the booking route, which re-checks the price server-side.
+    var hasStudent = d.student_price_chf_cents != null;
+    var studentRow = (hasStudent && !full)
+      ? '<label class="ws-student"><input type="checkbox" id="ws-student-' + d.id +
+        '" onchange="onStudentToggle(' + d.id + ',' + d.price_chf_cents + ',' + d.student_price_chf_cents + ')"> ' +
+        'I’m a student · ' + fmtCHF(d.student_price_chf_cents) + '</label>'
+      : '';
     var btn = full
       ? '<button class="ws-book-btn" disabled title="Fully booked">' + ctaLabel + '</button>'
       : '<button class="ws-book-btn" onclick="book(' + d.id + ',this)">' + ctaLabel + '</button>';
     return '<div class="ws-date-card"><div>' +
       '<div class="ws-date-label">' + esc(label) + '</div>' +
       '<div class="ws-date-spots">' + (full ? 'Fully booked' : d.spots_left + ' of ' + d.capacity + ' spots left') + '</div>' +
+      studentRow +
       '</div><div class="ws-date-right">' +
-      '<span class="ws-date-price">' + fmtCHF(d.price_chf_cents) + '</span>' +
+      '<span class="ws-date-price" id="ws-price-' + d.id + '">' + fmtCHF(d.price_chf_cents) + '</span>' +
       btn +
       '</div></div>';
   }).join('');
+}
+
+// Reflect the chosen rate in the date's price line. The charge is still computed
+// server-side from the date row at booking — this is display only.
+function onStudentToggle(id, stdCents, stuCents) {
+  var el = document.getElementById('ws-price-' + id);
+  var box = document.getElementById('ws-student-' + id);
+  if (el) el.textContent = fmtCHF(box && box.checked ? stuCents : stdCents);
 }
 
 // ── BOOKING ──────────────────────────────────────────────────────────────────
@@ -403,8 +424,10 @@ function datesHtml() {
 // last seat first) the dates are reloaded so the page reflects the truth.
 function book(dateId, btn) {
   var ctaLabel = copy.cta || 'Book your spot';
+  var sb = document.getElementById('ws-student-' + dateId);
+  var isStudent = !!(sb && sb.checked);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  api('/api/workshops/' + encodeURIComponent(SLUG) + '/book', { method: 'POST', body: { date_id: dateId } })
+  api('/api/workshops/' + encodeURIComponent(SLUG) + '/book', { method: 'POST', body: { date_id: dateId, student: isStudent } })
     .then(function (d) {
       if (d && d.url) { location.href = d.url; }
       else throw new Error('Could not start checkout');
@@ -636,7 +659,7 @@ function bookingsHtml(rows, label) {
     var when = b.created_at ? new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
     var meta = [];
     if (b.booking_ref) meta.push(esc(b.booking_ref));
-    meta.push(fmtCHF(b.amount_chf_cents || 0));
+    meta.push(fmtCHF(b.amount_chf_cents || 0) + (b.student ? ' (student)' : ''));
     if (when) meta.push('booked ' + esc(when));
     if (b.dietary) meta.push('dietary: ' + esc(b.dietary));
     if (b.notes) meta.push('notes: ' + esc(b.notes));
@@ -714,17 +737,23 @@ function editDate(id) {
       { key: 'capacity', label: 'Capacity', inputType: 'number', value: d ? d.capacity : 6 },
       { key: 'price', label: 'Price (CHF)', inputType: 'number', value: d ? (d.price_chf_cents / 100) : 300,
         hint: 'In francs — stored as cents.' },
-      { key: 'status', label: 'Status', type: 'select', options: [
+      { key: 'student_price', label: 'Student price (CHF)', inputType: 'number',
+        value: d && d.student_price_chf_cents != null ? (d.student_price_chf_cents / 100) : '',
+        hint: 'Optional — leave blank for no student discount.' },
+      { key: 'status', label: 'Status', type: 'select', value: d ? d.status : 'draft', options: [
         { value: 'draft', label: 'draft (hidden)' }, { value: 'open', label: 'open (shown)' },
         { value: 'closed', label: 'closed' }, { value: 'past', label: 'past' }
       ] }
     ], function (v) {
       // false keeps the dialog open so the capacity/price already typed survive.
       if (!v.date) { toast('A date is required'); return false; }
+      var sp = parseFloat(v.student_price);
       var body = {
         date: v.date,
         capacity: parseInt(v.capacity, 10) || 6,
         price_chf_cents: Math.round((parseFloat(v.price) || 0) * 100),
+        // blank / 0 / negative → no student discount (NULL)
+        student_price_chf_cents: (v.student_price === '' || !(sp > 0)) ? null : Math.round(sp * 100),
         status: v.status || 'draft'
       };
       var req = id
@@ -733,8 +762,6 @@ function editDate(id) {
       req.then(function () { toast('Saved'); reloadDates(); openDates(); })
         .catch(function (e) { toast(e.message); });
     });
-    // Set the status <select> to the row's current value (ask() can't preselect).
-    if (d) { var s = document.getElementById('mf-3'); if (s) s.value = d.status; }
   }).catch(function (e) { toast(e.message); });
 }
 
@@ -789,7 +816,7 @@ function reloadAll() {
 // hero or sub-page — and the default .ch-nav does, which made this the one page
 // whose header read as a separate strip. The gradient runs from --ch-bg, the same
 // colour as this page's --bg, so the content scrolls up and fades out under it.
-Chrome.mount({ floating: true, cursor: '.ws-shot img, .edit-tab, #adminbar button, .ws-shot .del' });
+Chrome.mount({ floating: true, cursor: '.ws-shot img, .edit-tab, #adminbar button, .ws-shot .del, .ws-student' });
 
 if (!SLUG) {
   document.getElementById('ws-content').innerHTML =

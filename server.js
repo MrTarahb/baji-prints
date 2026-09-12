@@ -943,6 +943,7 @@ async function initDB() {
       capacity INTEGER NOT NULL DEFAULT 6,
       price_chf_cents INTEGER NOT NULL DEFAULT 30000,
       frame_price_chf_cents INTEGER, -- optional add-on, NULL = not offered yet
+      student_price_chf_cents INTEGER, -- optional reduced rate; NULL = no student discount offered
       status TEXT NOT NULL DEFAULT 'draft', -- draft | open | closed | past
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -956,6 +957,7 @@ async function initDB() {
       customer_name TEXT,
       customer_email TEXT,
       frame BOOLEAN DEFAULT FALSE,
+      student BOOLEAN DEFAULT FALSE, -- booked at the reduced student rate
       dietary TEXT,
       notes TEXT,
       amount_chf_cents INTEGER,
@@ -1184,6 +1186,11 @@ async function initDB() {
   // paid-booking history down with it (workshop_bookings hangs off dates).
   await pool.query(`ALTER TABLE workshop_dates ADD COLUMN IF NOT EXISTS workshop_id INTEGER REFERENCES workshops(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE workshop_photos ADD COLUMN IF NOT EXISTS workshop_id INTEGER REFERENCES workshops(id) ON DELETE CASCADE`);
+  // Optional reduced student rate per date (NULL = none), and a flag on a booking
+  // recording it was taken at that rate. A column added only inside CREATE TABLE
+  // never reaches an existing DB, so both need an explicit ADD COLUMN here.
+  await pool.query(`ALTER TABLE workshop_dates ADD COLUMN IF NOT EXISTS student_price_chf_cents INTEGER`);
+  await pool.query(`ALTER TABLE workshop_bookings ADD COLUMN IF NOT EXISTS student BOOLEAN DEFAULT FALSE`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_workshop_dates_ws ON workshop_dates(workshop_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_workshop_photos_ws ON workshop_photos(workshop_id)`);
 
@@ -3003,15 +3010,15 @@ app.get('/api/admin/workshop-dates', requireAuth, async (req, res) => {
 
 app.post('/api/admin/workshop-dates', requireAuth, async (req, res) => {
   try {
-    const { date, capacity, price_chf_cents, frame_price_chf_cents, status } = req.body;
+    const { date, capacity, price_chf_cents, frame_price_chf_cents, student_price_chf_cents, status } = req.body;
     if (!date) return res.status(400).json({ error: 'Date is required' });
     // workshop_id ties the date to its workshop. Nullable for the legacy admin
     // panel, which manages the one seeded workshop's dates without passing it.
     const workshopId = req.body.workshop_id ? parseInt(req.body.workshop_id, 10) : null;
     const { rows } = await pool.query(
-      `INSERT INTO workshop_dates (date, capacity, price_chf_cents, frame_price_chf_cents, status, workshop_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [date, capacity || 6, price_chf_cents || 30000, frame_price_chf_cents || null, status || 'draft', workshopId]
+      `INSERT INTO workshop_dates (date, capacity, price_chf_cents, frame_price_chf_cents, student_price_chf_cents, status, workshop_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [date, capacity || 6, price_chf_cents || 30000, frame_price_chf_cents || null, student_price_chf_cents || null, status || 'draft', workshopId]
     );
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -3019,16 +3026,17 @@ app.post('/api/admin/workshop-dates', requireAuth, async (req, res) => {
 
 app.put('/api/admin/workshop-dates/:id', requireAuth, async (req, res) => {
   try {
-    const { date, capacity, price_chf_cents, frame_price_chf_cents, status } = req.body;
+    const { date, capacity, price_chf_cents, frame_price_chf_cents, student_price_chf_cents, status } = req.body;
     const { rows } = await pool.query(
       `UPDATE workshop_dates SET
          date = COALESCE($1, date),
          capacity = COALESCE($2, capacity),
          price_chf_cents = COALESCE($3, price_chf_cents),
          frame_price_chf_cents = $4,
-         status = COALESCE($5, status)
-       WHERE id = $6 RETURNING *`,
-      [date || null, capacity || null, price_chf_cents || null, frame_price_chf_cents ?? null, status || null, req.params.id]
+         student_price_chf_cents = $5,
+         status = COALESCE($6, status)
+       WHERE id = $7 RETURNING *`,
+      [date || null, capacity || null, price_chf_cents || null, frame_price_chf_cents ?? null, student_price_chf_cents ?? null, status || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
@@ -3238,7 +3246,7 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
     if (!w) return res.status(404).json({ error: 'Workshop not found' });
 
     const { rows: drows } = await pool.query(`
-      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.status, wd.workshop_id,
+      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.student_price_chf_cents, wd.status, wd.workshop_id,
         COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
         COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
       FROM workshop_dates wd
@@ -3252,6 +3260,12 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
     }
     const spotsLeft = d.capacity - parseInt(d.paid_count) - parseInt(d.pending_count);
     if (spotsLeft <= 0) return res.status(400).json({ error: 'This date is fully booked.' });
+
+    // Server-authoritative pricing: the student rate applies only if the client asked
+    // for it AND this date actually offers one. A spoofed student flag on a date with
+    // no student price simply pays full — the amount is never taken from the client.
+    const student = req.body.student === true && d.student_price_chf_cents != null;
+    const unitAmount = student ? d.student_price_chf_cents : d.price_chf_cents;
 
     const dateLabel = new Date(d.date).toLocaleDateString('en-GB',
       { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -3277,8 +3291,8 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'chf',
-          product_data: { name: `${w.title || 'Workshop'} — ${dateLabel}` },
-          unit_amount: d.price_chf_cents,
+          product_data: { name: `${w.title || 'Workshop'} — ${dateLabel}${student ? ' — Student rate' : ''}` },
+          unit_amount: unitAmount,
         },
         quantity: 1,
       }],
@@ -3295,9 +3309,9 @@ app.post('/api/workshops/:slug/book', async (req, res) => {
     });
 
     await pool.query(
-      `INSERT INTO workshop_bookings (booking_ref, workshop_date_id, stripe_session_id, status, amount_chf_cents)
-       VALUES ($1, $2, $3, 'pending', $4)`,
-      [bookingRef, d.id, session.id, d.price_chf_cents]
+      `INSERT INTO workshop_bookings (booking_ref, workshop_date_id, stripe_session_id, status, amount_chf_cents, student)
+       VALUES ($1, $2, $3, 'pending', $4, $5)`,
+      [bookingRef, d.id, session.id, unitAmount, student]
     );
 
     res.json({ url: session.url });
@@ -3319,7 +3333,7 @@ app.get('/api/workshops/:slug', async (req, res) => {
     if (!w) return res.status(404).json({ error: 'Workshop not found' });
     const copy = await workshopCopy(w.id);
     const { rows: dates } = await pool.query(`
-      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.frame_price_chf_cents,
+      SELECT wd.id, wd.date, wd.capacity, wd.price_chf_cents, wd.frame_price_chf_cents, wd.student_price_chf_cents,
         COUNT(wb.id) FILTER (WHERE wb.status = 'paid') AS paid_count,
         COUNT(wb.id) FILTER (WHERE wb.status = 'pending' AND wb.created_at > NOW() - INTERVAL '35 minutes') AS pending_count
       FROM workshop_dates wd
@@ -3337,6 +3351,7 @@ app.get('/api/workshops/:slug', async (req, res) => {
       dates: dates.map((r) => ({
         id: r.id, date: r.date, capacity: r.capacity,
         price_chf_cents: r.price_chf_cents, frame_price_chf_cents: r.frame_price_chf_cents,
+        student_price_chf_cents: r.student_price_chf_cents,
         spots_left: Math.max(0, r.capacity - parseInt(r.paid_count) - parseInt(r.pending_count)),
       })),
       photos,
