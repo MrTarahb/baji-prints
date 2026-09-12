@@ -186,6 +186,8 @@ button, input, textarea, select { font-family: var(--fm); }
 .date-row .grow { flex: 1; min-width: 120px; color: var(--fg-m); }
 .date-pill { font-family: var(--fm); font-size: 8px; letter-spacing: .08em; text-transform: uppercase;
   padding: 2px 6px; border-radius: 2px; border: 1px solid var(--border); color: var(--fg-l); }
+.bk-sum { font-family: var(--fm); font-size: 10px; letter-spacing: .06em; color: var(--fg-m); margin-bottom: .8rem; }
+.bk-meta { font-family: var(--fm); font-size: 10px; color: var(--fg-l); letter-spacing: .04em; margin-top: .25rem; }
 
 #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(8px);
   background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 2px; font-size: 12px;
@@ -588,6 +590,7 @@ function openDates() {
         ' · ' + fmtCHF(d.price_chf_cents) + ' · cap ' + d.capacity +
         (booked ? ' · ' + booked + ' booked' : '') +
         '</span><span class="date-pill">' + esc(d.status) + '</span>' +
+        '<button class="btn" onclick="viewBookings(' + d.id + ',\'' + String(d.date).slice(0, 10) + '\')">Bookings</button>' +
         '<button class="btn" onclick="editDate(' + d.id + ')">Edit</button>' +
         '<button class="btn" onclick="delDate(' + d.id + ',' + booked + ')">Delete</button></div>';
     }).join('') : '<p class="ws-no-dates" style="padding:.6rem 0">No dates yet.</p>';
@@ -597,6 +600,62 @@ function openDates() {
       list +
       '<div class="modal-row"><button class="btn" onclick="closeModal()">Close</button>' +
       '<button class="btn btn-primary" onclick="editDate(0)">+ Add date</button></div>';
+    document.getElementById('modal').classList.add('on');
+  }).catch(function (e) { toast(e.message); });
+}
+
+// The guest list for one date: who has booked (confirmed) plus anyone actively
+// checking out right now. Stale `pending` rows (abandoned Stripe checkouts, which
+// stay in the table forever) are filtered out by the same 35-min hold window the
+// booking route uses, so the list stays the real guest list rather than a graveyard
+// of half-finished checkouts. Read-only for now — refund/cancel, CSV export and an
+// attended flag are noted follow-ups. bookingsHtml is split out so it can be tested.
+function bookingsHtml(rows, label) {
+  var head = '<h4>Bookings — ' + esc(label) + '</h4>';
+  var buttons = '<div class="modal-row"><button class="btn" onclick="openDates()">‹ Dates</button>' +
+    '<button class="btn" onclick="closeModal()">Close</button></div>';
+  var now = Date.now(), HOLD = 35 * 60 * 1000;
+  var isActivePending = function (b) {
+    return b.status === 'pending' && b.created_at && (now - new Date(b.created_at).getTime()) < HOLD;
+  };
+  var shown = rows.filter(function (b) { return b.status === 'paid' || isActivePending(b); });
+  if (!shown.length) {
+    return head + '<p class="ws-no-dates" style="padding:.6rem 0">No bookings yet.</p>' + buttons;
+  }
+  shown.sort(function (a, b) { return (a.status === 'paid' ? 0 : 1) - (b.status === 'paid' ? 0 : 1); });
+  var paid = shown.filter(function (b) { return b.status === 'paid'; });
+  var revenue = paid.reduce(function (s, b) { return s + (b.amount_chf_cents || 0); }, 0);
+  var pendingCount = shown.length - paid.length;
+  var summary = '<p class="bk-sum">' + paid.length + ' confirmed' +
+    (pendingCount ? ' · ' + pendingCount + ' checking out' : '') +
+    ' · ' + fmtCHF(revenue) + ' collected</p>';
+  var list = shown.map(function (b) {
+    var when = b.created_at ? new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+    var meta = [];
+    if (b.booking_ref) meta.push(esc(b.booking_ref));
+    meta.push(fmtCHF(b.amount_chf_cents || 0));
+    if (when) meta.push('booked ' + esc(when));
+    if (b.dietary) meta.push('dietary: ' + esc(b.dietary));
+    if (b.notes) meta.push('notes: ' + esc(b.notes));
+    var email = b.customer_email
+      ? ' · <a href="mailto:' + esc(b.customer_email) + '">' + esc(b.customer_email) + '</a>' : '';
+    return '<div class="date-row"><span class="grow">' +
+      '<strong style="color:var(--fg)">' + esc(b.customer_name || '—') + '</strong>' + email +
+      '<div class="bk-meta">' + meta.join(' · ') + '</div></span>' +
+      '<span class="date-pill">' + esc(b.status) + '</span></div>';
+  }).join('');
+  return head + summary + list + buttons;
+}
+
+// Opens the guest list for a date. iso is the date's YYYY-MM-DD (safe to inline in
+// the onclick) — turned into a readable label here.
+function viewBookings(dateId, iso) {
+  api('/api/admin/workshop-bookings?date_id=' + dateId).then(function (rows) {
+    var card = document.getElementById('modal-card');
+    card.className = 'modal-card wide';
+    var label = new Date(iso).toLocaleDateString('en-GB',
+      { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    card.innerHTML = bookingsHtml(rows || [], label);
     document.getElementById('modal').classList.add('on');
   }).catch(function (e) { toast(e.message); });
 }
