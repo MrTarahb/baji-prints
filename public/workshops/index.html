@@ -112,6 +112,9 @@ a { color: inherit; }
 .ws-no-dates { font-size: 11px; color: var(--fg-l); }
 .ws-contact { font-size: 12px; letter-spacing: .02em; color: var(--fg-m); line-height: 1.9; margin-top: 2rem; }
 .ws-contact a { color: var(--pink-d); text-decoration: underline; text-underline-offset: 2px; }
+.ws-body .ws-coteacher-name { color: var(--fg); margin-bottom: .5rem; }
+.ws-coteacher-name a { color: var(--pink-d); text-decoration: underline; text-underline-offset: 2px; }
+.ws-coteacher-bio { white-space: pre-wrap; }
 
 /* Post-checkout confirmation, shown on return from Stripe. */
 .ws-booked { position: relative; border: 1px solid rgba(200,144,122,.3); background: rgba(200,144,122,.1);
@@ -318,6 +321,27 @@ function render() {
 
   h += '<div class="ws-divider"></div><h2 class="ws-section-title">The day' + tab('schedule', 'Schedule', true) + '</h2>';
   h += '<div class="ws-sched">' + schedHtml(c.schedule) + '</div>';
+
+  // Co-teacher — introduces the guest teacher and links out to their site. All
+  // editable copy, filled from the admin bar; the name doubles as the link when a
+  // URL is set. Shown to the public once there's a bio or a valid link; the admin
+  // always sees it (with edit tabs) so it can be filled in.
+  var ctUrl = (c.coteacher_url || '').trim();
+  var ctHasLink = /^https?:\/\//i.test(ctUrl);
+  if (isAdmin || c.coteacher_bio || ctHasLink) {
+    var ctName = esc(c.coteacher_name || (isAdmin ? '(add name)' : ''));
+    var nameHtml = ctHasLink
+      ? '<a href="' + esc(ctUrl) + '" target="_blank" rel="noopener">' + ctName + ' &rarr;</a>'
+      : ctName;
+    h += '<div class="ws-divider"></div><h2 class="ws-section-title">Co-teacher</h2>';
+    h += '<p class="ws-coteacher-name">' + nameHtml +
+      tab('coteacher_name', 'Co-teacher name', false) +
+      tab('coteacher_url', 'Co-teacher website URL', false) + '</p>';
+    if (c.coteacher_bio || isAdmin) {
+      h += '<p class="ws-coteacher-bio">' + esc(c.coteacher_bio || (isAdmin ? '(add a short bio)' : '')) +
+        tab('coteacher_bio', 'Co-teacher bio', true) + '</p>';
+    }
+  }
 
   // Gallery — only a section when there are photos, or when the admin is here to
   // add the first one.

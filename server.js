@@ -1295,6 +1295,12 @@ async function initDB() {
     ['workshop_email_subject', 'Your workshop booking — Bharat Bhatia'],
     ['workshop_email_intro', 'Your spot is booked and payment is confirmed. I\'m looking forward to the day.'],
     ['workshop_email_outro', 'A formal receipt has been sent separately by Stripe. Nearer the date I\'ll be in touch with the meeting point and anything to prepare. If you need to change or cancel, just reply to this email — mention your booking reference.'],
+    // Co-teacher section. Name is seeded; the bio and website URL are left empty
+    // for Bharat to fill from the page's "Co-teacher" edit tabs. The public sees
+    // the section once a bio or a valid website link exists; the admin always does.
+    ['workshop_coteacher_name', 'Tuule Müürsepp'],
+    ['workshop_coteacher_bio', ''],
+    ['workshop_coteacher_url', ''],
   ];
 
   for (const [key, value] of defaults) {
@@ -3106,7 +3112,9 @@ const WORKSHOP_COPY_KEYS = ['banner_text', 'banner_enabled', 'heading', 'sub', '
   'schedule', 'included', 'bring', 'weather', 'min', 'price_note', 'cta',
   // Booking confirmation email — subject + the editable opening/closing
   // paragraphs. sendWorkshopBookingEmails() reads these via workshopCopy().
-  'email_subject', 'email_intro', 'email_outro'];
+  'email_subject', 'email_intro', 'email_outro',
+  // Co-teacher section on the page — name, short bio, and a link to their site.
+  'coteacher_name', 'coteacher_bio', 'coteacher_url'];
 
 // Merge one workshop's overrides over the content defaults. Every copy key is
 // present in the result: the content default unless the workshop overrides it,

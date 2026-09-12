@@ -438,15 +438,13 @@ commands, never runs them).
   via the page's "Booking email" button) + Stripe PDF invoice. The only gate now is
   a `workshop_dates` row being set to `open`. Concept as built: CHF 300pp, full day,
   max 6 / min 4, all-inclusive, A2 shipped after.
-- **Check the workshop FAQ is up to date now that booking is live.** The Q&A
-  "What's included, and what does it cost?" (`server.js`, Workshops FAQ seed +
-  `faq_*` content keys) still says *"…get in touch if you'd like to be notified of
-  upcoming dates"* — with direct booking live, that should point people to book on
-  the workshop page instead. Review the other Workshops FAQ entries in the same pass.
-- **Workshop co-teacher — Tuule Müürsepp.** She co-teaches the workshop; add her to
-  the workshop page: a short bio/credit, a link to her website (URL TBD — get it from
-  Bharat), and cross-promotion ("advertise for her"). Copy is per-workshop, so this can
-  live in the workshop copy/overrides rather than being hard-coded.
+- **Workshop co-teacher — Tuule Müürsepp.** ✅ *Section built & deployed
+  (2026-09-12).* A "Co-teacher" section is on the workshop page (after "The day"),
+  with her name seeded and editable name / bio / website-URL fields on the page's own
+  edit tabs; the name links out to her site once a URL is set, and the section shows
+  publicly once a bio or a valid link exists. **Remaining:** fill in her real bio +
+  website URL (from the edit tabs, or hand them to Claude to seed), and decide whether
+  to add a portrait (would need an image field — text + link only for now).
 - **Workshop student discount.** Offer a reduced student rate. Owner wants to choose
   either (a) a discount off the normal price (amount or %), or (b) a separate student
   price — admin-settable. At booking the participant self-selects "I'm a student" to get
