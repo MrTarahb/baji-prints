@@ -79,7 +79,11 @@ else. What it took, and what to reuse for the next `/projects/<name>` page:
   top, railways pushed *below* the smallest street. The comments carry the measured ratio for
   each rung — keep them if you retune, they are the spec. Water is the one exception, kept
   low-contrast but unmistakably cool: it is a shape, not a line, and in Zürich the lake and the
-  Limmat are the orientation. Positron is left alone.
+  Limmat are the orientation. Positron needs none of this contrast ladder — but note it is no
+  longer *entirely* untouched: `LIGHT_PLAN` restructures its labels for parity (see the two-styles
+  section), and carries one small `paint` override thinning its water-label halo from 1.5 to 1.2
+  so the lake/river names are not visibly thicker in light than in dark (halo WIDTH is weight and
+  matches across themes; halo COLOUR stays per-theme).
 - **A dark map is dark GREY paper, not black paper — and that took two passes to get right.**
   The first ladder kept the land near the page's own `#0E0E0C` (`#1A1A18`) and lifted only the
   lines: minor streets went 1.10 → 1.79:1, a big relative gain that was still unreadable on a

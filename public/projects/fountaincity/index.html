@@ -1007,6 +1007,16 @@ var DARK_PLAN = {
 };
 
 var LIGHT_PLAN = {
+  // Positron is otherwise left alone (it needs none of DARK_TUNE's contrast
+  // ladder), but its water labels carry a 1.5px halo where dark's carry 1.2, so
+  // the lake/river names read visibly THICKER in light than in dark. Halo WIDTH
+  // is weight, not palette — it should match across themes (the halo COLOUR
+  // stays per-theme: white here, dark there). Bring light down to dark's 1.2.
+  paint: {
+    water_name_line_label: { 'text-halo-width': 1.2 },
+    waterway_line_label:   { 'text-halo-width': 1.2 }
+  },
+
   hide: [
     // The white lozenges stamping "3", "17", "A3W" along half the streets in
     // town. A road's number says nothing about where a fountain is, and dark
