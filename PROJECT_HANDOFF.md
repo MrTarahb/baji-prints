@@ -445,6 +445,13 @@ commands, never runs them).
   publicly once a bio or a valid link exists. **Remaining:** fill in her real bio +
   website URL (from the edit tabs, or hand them to Claude to seed), and decide whether
   to add a portrait (would need an image field — text + link only for now).
+- **Manage workshop bookings from the admin.** No UI yet to see who has booked. Build a
+  guest-list / management view — per date: name, email, amount paid, booking ref,
+  paid-vs-pending, and any dietary/notes — surfaced from the workshop page's Dates modal
+  or `/admin`. The data API already exists (`GET /api/admin/workshop-bookings?date_id=`
+  returns the `workshop_bookings` rows for a date; the Dates modal shows a paid *count*
+  per date but not the people). Nice-to-haves: cancel/refund a booking (Stripe refund +
+  release the seat), CSV export of a date's guest list, a mark-attended flag.
 - **Workshop student discount.** Offer a reduced student rate. Owner wants to choose
   either (a) a discount off the normal price (amount or %), or (b) a separate student
   price — admin-settable. At booking the participant self-selects "I'm a student" to get
