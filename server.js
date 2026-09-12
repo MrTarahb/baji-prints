@@ -2713,9 +2713,9 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
     `).join('');
 
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'noreply@bharatbhatia.photography',
+      from: CUSTOMER_EMAIL_FROM,
       to: order.customer_email,
-      reply_to: REPLY_TO_EMAIL,
+      reply_to: CUSTOMER_EMAIL_FROM,
       subject: 'Your print is on its way',
       html: emailShell(`
         <h2 style="font-family:Georgia,serif;font-style:italic;font-size:22px;margin:0 0 8px;color:#1A1714">On its way.</h2>
@@ -2723,7 +2723,7 @@ app.post('/api/admin/orders/:id/notify-shipped', requireAuth, async (req, res) =
         <table style="width:100%;border-collapse:collapse;margin-bottom:18px;border-top:1px solid #EFEFEC;border-bottom:1px solid #EFEFEC">${itemsHtml}</table>
         <p style="margin:0 0 22px;font-size:13px;color:#8A8680"><strong style="color:#1A1714">Delivery:</strong> ${DELIVERY_LABELS[order.delivery_method] || order.delivery_method}</p>
         <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0 0 12px">Thanks for supporting the work. I hope you enjoy living with it.</p>
-        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Any questions? Email ${REPLY_TO_EMAIL} and it'll reach me directly.</p>
+        <p style="font-size:13px;color:#8A8680;line-height:1.7;margin:0">Any questions? Just reply to this email and it'll reach me directly.</p>
       `),
     });
 

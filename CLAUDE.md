@@ -297,9 +297,11 @@ workshop is its own page now, `public/workshops/index.html`, not a section of th
 - **The guest confirmation is editable and sent from `contact@`.** Both `from` and `reply_to` are
   `CUSTOMER_EMAIL_FROM` (defaults to `contact@bharatbhatia.photography`, a monitored inbox on the
   same Resend-verified domain as `noreply@`), so a reply reaches it. **This is the shared
-  customer-facing sender** — `sendOrderConfirmationEmails` (print orders) uses the same constant for
-  its customer confirmation; only the INTERNAL admin notifications stay on `noreply@`
-  (`EMAIL_FROM`, to `EMAIL_TO`, never replied to). The confirmation's **subject + opening + closing**
+  customer-facing sender** — every email that reaches a customer uses this one constant for both
+  `from` and `reply_to`: the print order confirmation (`sendOrderConfirmationEmails`), the dispatch
+  "Your print is on its way" notice, and the workshop booking confirmation. Only INTERNAL,
+  never-replied-to notifications stay on `noreply@`/`EMAIL_FROM` (the order/workshop admin alerts to
+  `EMAIL_TO`, the enquiry-form alert, and the client-reaction alert to `CLIENT_NOTIFY_EMAIL`). The confirmation's **subject + opening + closing**
   are per-workshop copy — `content.workshop_email_{subject,intro,outro}` defaults (seeded,
   `ON CONFLICT DO NOTHING`, never overwritten), overridable via `workshop_overrides` through the three
   `email_*` keys added to `WORKSHOP_COPY_KEYS`, edited from the page's admin bar → its own
