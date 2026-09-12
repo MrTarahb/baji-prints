@@ -283,8 +283,31 @@ workshop is its own page now, `public/workshops/index.html`, not a section of th
   fountain map, so the **old `/admin` workshop panel was retired** — `/admin` now has a *Workshops
   overview* (link + publish switch) beside Projects. The workshop page and its wiring were removed
   from `public/index.html` (markup, `.ws-*`/`#workshop-page` CSS, `loadWorkshopData`, the
-  `/workshops`↔`workshop` routing). **Booking stays disabled** (the button is inert); the schema
-  is scoped and ready but nothing re-enables it.
+  `/workshops`↔`workshop` routing).
+- **Booking is wired and live** (the earlier "button is inert" note was superseded). The public
+  button calls `POST /api/workshops/:slug/book`, which creates a Stripe Checkout session (server
+  recomputes availability — a seat is held by a paid booking or a pending one under 35 min — and
+  reads the price from the date row, never the client) and inserts a `pending` `workshop_bookings`
+  row. The webhook claims `pending→paid` atomically for `metadata.type='workshop'`
+  (`fulfilWorkshopBooking`) and then sends **two emails via `sendWorkshopBookingEmails`**: an admin
+  notification to `EMAIL_TO`, and the guest confirmation. **The only gate is the date's status** —
+  a `workshop_dates` row must be `open` (and not past) to appear on the page and pass the booking
+  route's check; `draft`/`closed` dates are hidden or shown as full. Nothing disables booking
+  site-wide.
+- **The guest confirmation is editable and sent from `contact@`.** It goes out `from`
+  `WORKSHOP_EMAIL_FROM` (defaults to `contact@bharatbhatia.photography`, same Resend-verified domain
+  as `noreply@`), `reply_to` `REPLY_TO_EMAIL` (a real inbox, since `contact@` may not receive).
+  Its **subject + opening + closing** are per-workshop copy — `content.workshop_email_{subject,intro,outro}`
+  defaults (seeded, `ON CONFLICT DO NOTHING`, never overwritten), overridable via `workshop_overrides`
+  through the three `email_*` keys added to `WORKSHOP_COPY_KEYS`, edited from the page's admin bar →
+  "Edit copy" → the *Confirmation email* fields. `sendWorkshopBookingEmails` reads them with
+  `workshopCopy(workshop_id)`; the **booking facts** (name, reference, title, date, amount) stay
+  server-rendered so an edit can't drift or break them, and edited text is `esc()`'d with `\n`→`<br>`.
+  Verified by lifting `sendWorkshopBookingEmails`+`workshopCopy` into a `node:vm` sandbox against a
+  stub pool/resend (edited subject/intro win, un-edited outro falls back, `from` is `contact@`, facts render).
+- **Stripe also emails a PDF invoice** — the checkout sets `invoice_creation:{enabled:true}` +
+  `customer_creation:'always'`, the same as the shop, so a paying guest gets a formal invoice from
+  Stripe independent of our own Resend confirmation (live mode only; Stripe sends nothing in test mode).
 - **Now-unused, left in place:** the pre-refactor global `GET /api/workshops` (all open dates) and
   `GET /api/workshop-photos` (all photos) — nothing calls them since the SPA page is gone; harmless,
   removable later.
